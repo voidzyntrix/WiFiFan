@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">WiFi Fan</string>
+    <string name="activity_name">Dashboard</string>
+</resources>
