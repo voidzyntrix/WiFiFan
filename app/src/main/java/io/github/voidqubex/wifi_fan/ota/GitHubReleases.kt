@@ -25,12 +25,46 @@ data class ReleaseAsset(
 object GitHubReleases {
     private const val RELEASES_URL =
         "https://api.github.com/repos/voidzyntrix/WiFiFan/releases?per_page=30"
+    private const val FEED_URL = "https://github.com/voidzyntrix/WiFiFan/releases.atom"
+    private const val DOWNLOAD_URL = "https://github.com/voidzyntrix/WiFiFan/releases/download"
+    private val TAG_IN_FEED = Regex("""/releases/tag/([A-Za-z]+)-v(\d+\.\d+\.\d+)""")
+    private val ASSET_PREFIX = mapOf("fw" to "wififan-fw-%s.bin", "app" to "wififan-app-%s.apk")
 
     /**
      * The newest asset whose name fully matches [assetName], whose first group must
      * capture a "1.2.3"-style version. null if no release has one.
      */
     suspend fun newest(assetName: Regex): ReleaseAsset? = withContext(Dispatchers.IO) {
+        // The API allows only 60 requests per hour per internet connection; when it
+        // refuses (HTTP 403/429) or fails, fall back to the release feed, which isn't limited.
+        try {
+            newestFromApi(assetName)
+        } catch (e: IOException) {
+            newestFromFeed(assetName) ?: throw e
+        }
+    }
+
+    /**
+     * Release feed fallback: tags like "fw-v1.2.2" / "app-v1.3.2" name the version,
+     * and assets have fixed names, so the download link can be built directly.
+     * Size is unknown (0) here.
+     */
+    private fun newestFromFeed(assetName: Regex): ReleaseAsset? {
+        val feed = String(get(FEED_URL, limit = 2 * 1024 * 1024), Charsets.UTF_8)
+        var best: ReleaseAsset? = null
+        for (m in TAG_IN_FEED.findAll(feed)) {
+            val kind = m.groupValues[1]
+            val version = m.groupValues[2]
+            val name = ASSET_PREFIX[kind]?.format(version) ?: continue
+            if (assetName.matchEntire(name)?.groupValues?.get(1) != version) continue
+            val tag = "$kind-v$version"
+            val candidate = ReleaseAsset(version, tag, "$DOWNLOAD_URL/$tag/$name", 0L)
+            if (best == null || compareVersions(candidate.version, best.version) > 0) best = candidate
+        }
+        return best
+    }
+
+    private fun newestFromApi(assetName: Regex): ReleaseAsset? {
         val json = String(get(RELEASES_URL, limit = 2 * 1024 * 1024), Charsets.UTF_8)
         val releases = JSONArray(json)
         var best: ReleaseAsset? = null
@@ -53,7 +87,7 @@ object GitHubReleases {
                 }
             }
         }
-        best
+        return best
     }
 
     /** Compares "1.2.3"-style versions numerically; missing parts count as 0. */
