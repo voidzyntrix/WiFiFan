@@ -64,7 +64,7 @@ class OtaManager(private val ble: BleManager, private val scope: CoroutineScope)
                 when {
                     latest == null -> OtaState.Error("No firmware found in the GitHub releases")
                     boardVersion != null &&
-                        FirmwareRepository.compareVersions(latest.version, boardVersion) <= 0 ->
+                        GitHubReleases.compareVersions(latest.version, boardVersion) <= 0 ->
                         OtaState.UpToDate(latest.version)
                     else -> OtaState.UpdateAvailable(latest)
                 }

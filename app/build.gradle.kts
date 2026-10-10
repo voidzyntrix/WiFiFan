@@ -1,7 +1,22 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
 }
+
+// The app's version. Bump it for every release; the in-app updater compares it
+// with the newest wififan-app-<version>.apk on GitHub.
+val appVersion = "1.1.0"
+
+// Release signing: keystore.properties in the project root (local builds) or
+// WIFIFAN_* environment variables (GitHub Actions). See docs/APP_UPDATES.md.
+val keystoreProps = Properties().apply {
+    rootProject.file("keystore.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
+}
+fun signingValue(key: String, env: String): String? =
+    keystoreProps.getProperty(key) ?: System.getenv(env)?.takeIf { it.isNotEmpty() }
+val releaseKeystore = signingValue("storeFile", "WIFIFAN_KEYSTORE_FILE")
 
 android {
     namespace = "io.github.voidqubex.wifi_fan"
@@ -13,14 +28,29 @@ android {
         applicationId = "io.github.voidqubex.wifi_fan"
         minSdk = 31
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        // 1.2.3 -> 10203; Android only installs an update with a higher versionCode.
+        versionCode = appVersion.split('.').map { it.toInt() }
+            .let { (major, minor, patch) -> major * 10000 + minor * 100 + patch }
+        versionName = appVersion
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        if (releaseKeystore != null) {
+            create("release") {
+                storeFile = rootProject.file(releaseKeystore)
+                storePassword = signingValue("storePassword", "WIFIFAN_KEYSTORE_PASSWORD")
+                keyAlias = signingValue("keyAlias", "WIFIFAN_KEY_ALIAS")
+                keyPassword = signingValue("keyPassword", "WIFIFAN_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
+            // Unsigned without a keystore; Android Studio's "Generate Signed APK" still works.
+            signingConfig = signingConfigs.findByName("release")
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"

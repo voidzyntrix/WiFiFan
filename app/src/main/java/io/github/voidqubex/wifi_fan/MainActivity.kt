@@ -5,9 +5,12 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.bluetooth.BluetoothProfile
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -136,7 +139,9 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
 import io.github.voidqubex.wifi_fan.bluetooth.BleManager
-import io.github.voidqubex.wifi_fan.ota.FirmwareRepository
+import io.github.voidqubex.wifi_fan.ota.AppUpdateState
+import io.github.voidqubex.wifi_fan.ota.AppUpdater
+import io.github.voidqubex.wifi_fan.ota.GitHubReleases
 import io.github.voidqubex.wifi_fan.ota.OtaManager
 import io.github.voidqubex.wifi_fan.ota.OtaState
 import io.github.voidqubex.wifi_fan.ui.theme.AccentPresets
@@ -1006,7 +1011,7 @@ fun BleControlScreen(
         // Board firmware 1.1.0+ takes colours as HSV; older firmware only knows RGB
         // (and would misread h=H/S/V as an RGB colour).
         val hsvCommands = boardVersion?.let {
-            FirmwareRepository.compareVersions(it, "1.1.0") >= 0
+            GitHubReleases.compareVersions(it, "1.1.0") >= 0
         } ?: false
 
         // Solid colour: HSV (hue in degrees, saturation/brightness in percent).
@@ -2146,6 +2151,11 @@ private fun SettingsScreen(
 
         Spacer(Modifier.height(32.dp))
 
+        // ── App update from GitHub releases ─────────────────────────
+        AppUpdateSection()
+
+        Spacer(Modifier.height(32.dp))
+
         // ── LED dialog ──────────────────────────────────────────────
         SettingHeading("LED", "Rainbow mode in the LED dialog")
         Spacer(Modifier.height(12.dp))
@@ -2241,6 +2251,100 @@ private fun FirmwareSection(
             }
         }
     }
+}
+
+@Composable
+private fun AppUpdateSection() {
+    val context = LocalContext.current
+    val state = AppUpdater.state.collectAsState().value
+    val installedVersion = remember { AppUpdater.installedVersion(context) }
+
+    LaunchedEffect(Unit) {
+        if (AppUpdater.state.value == AppUpdateState.Idle) AppUpdater.checkForUpdate(context)
+    }
+    // Android's "Update this app?" prompt; started here so it only opens while the app is visible.
+    LaunchedEffect(state) {
+        (state as? AppUpdateState.WaitingForUser)?.let {
+            context.startActivity(it.confirm)
+            AppUpdater.confirmShown()
+        }
+    }
+    val allowInstalls = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { AppUpdater.continueInstall(context) }
+
+    SettingHeading("App", "Update this app from GitHub")
+    Spacer(Modifier.height(12.dp))
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .border(
+                1.5.dp,
+                MaterialTheme.colorScheme.onBackground.copy(alpha = 0.12f),
+                RoundedCornerShape(16.dp)
+            )
+            .padding(16.dp)
+    ) {
+        Text(
+            text       = "WiFiFan v$installedVersion",
+            style      = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+            color      = MaterialTheme.colorScheme.onBackground
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text  = appUpdateStatusText(state),
+            style = MaterialTheme.typography.bodySmall,
+            color = if (state is AppUpdateState.Error) MaterialTheme.colorScheme.error
+                    else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+        )
+
+        Spacer(Modifier.height(12.dp))
+        when {
+            state is AppUpdateState.Downloading && state.total > 0 -> LinearProgressIndicator(
+                progress = { state.read.toFloat() / state.total },
+                modifier = Modifier.fillMaxWidth()
+            )
+            state.busy || state == AppUpdateState.Checking ->
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            state is AppUpdateState.UpdateAvailable -> Button(
+                onClick  = { AppUpdater.startUpdate(context, state.release) },
+                shape    = RoundedCornerShape(14.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("Update to v${state.release.version}") }
+            state == AppUpdateState.NeedsPermission -> Button(
+                onClick  = {
+                    allowInstalls.launch(
+                        Intent(
+                            Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                            Uri.parse("package:${context.packageName}")
+                        )
+                    )
+                },
+                shape    = RoundedCornerShape(14.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("Allow app updates") }
+            else -> TextButton(
+                onClick  = { AppUpdater.checkForUpdate(context) },
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("Check for updates") }
+        }
+    }
+}
+
+private fun appUpdateStatusText(state: AppUpdateState): String = when (state) {
+    AppUpdateState.Idle               -> "New versions are published as GitHub releases."
+    AppUpdateState.Checking           -> "Checking GitHub…"
+    is AppUpdateState.UpToDate        -> "Up to date (latest release is v${state.latest})."
+    is AppUpdateState.UpdateAvailable -> "Version ${state.release.version} is available."
+    is AppUpdateState.Downloading     ->
+        if (state.total > 0) "Downloading… ${state.read * 100 / state.total} %" else "Downloading…"
+    AppUpdateState.NeedsPermission    ->
+        "Downloaded. Allow WiFiFan to install apps, then come back here to finish."
+    AppUpdateState.Installing         -> "Installing… the app closes when it's done; open it again."
+    is AppUpdateState.WaitingForUser  -> "Confirm the update in Android's prompt."
+    is AppUpdateState.Error           -> state.message
 }
 
 private fun otaStatusText(state: OtaState): String = when (state) {

@@ -13,6 +13,8 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <!-- Firmware updates: checks/downloads board firmware from GitHub releases -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- App updates: installs new versions of this app downloaded from GitHub releases -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="true" />
 
@@ -36,6 +38,14 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <receiver
+            android:name=".ota.InstallResultReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>
