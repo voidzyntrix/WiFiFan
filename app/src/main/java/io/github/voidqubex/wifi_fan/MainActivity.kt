@@ -762,10 +762,20 @@ fun BleControlScreen(
     var windPhase by remember { mutableFloatStateOf(0f) }
     var showTimerDialog by remember { mutableStateOf(false) }
     var showLedDialog by remember { mutableStateOf(false) }
-    var ledColor by remember { mutableIntStateOf(AndroidColor.WHITE) }
-    var ledMode by remember { mutableIntStateOf(LED_MODE_SOLID) }
-    var ledKelvinMode by remember { mutableStateOf(false) }
-    var ledKelvin by remember { mutableFloatStateOf(4000f) }
+    // LED state survives closing the app (the board keeps it too).
+    val ledStore = remember { SettingsStore(context) }
+    var ledColor by remember { mutableIntStateOf(ledStore.ledColor) }
+    var ledBri by remember { mutableFloatStateOf(ledStore.ledBrightness) }
+    var ledMode by remember { mutableIntStateOf(ledStore.ledMode) }
+    var ledKelvinMode by remember { mutableStateOf(ledStore.ledKelvinMode) }
+    var ledKelvin by remember { mutableFloatStateOf(ledStore.ledKelvin) }
+    LaunchedEffect(ledColor, ledBri, ledMode, ledKelvinMode, ledKelvin) {
+        ledStore.ledColor = ledColor
+        ledStore.ledBrightness = ledBri
+        ledStore.ledMode = ledMode
+        ledStore.ledKelvinMode = ledKelvinMode
+        ledStore.ledKelvin = ledKelvin
+    }
 
     val connectionState by bleManager.connectionState.collectAsState()
     val foundDevices    by bleManager.foundDevices.collectAsState()
@@ -973,7 +983,9 @@ fun BleControlScreen(
         val kelvinHs = LedColor.kelvinToHueSat(ledKelvin)
         var hue by remember { mutableFloatStateOf(if (ledKelvinMode) kelvinHs[0] else initHsv[0]) }
         var sat by remember { mutableFloatStateOf(if (ledKelvinMode) kelvinHs[1] else initHsv[1]) }
-        var bri by remember { mutableFloatStateOf(initHsv[2]) }
+        // exact brightness (the RGB colour loses precision when dim)
+        var bri by remember { mutableFloatStateOf(ledBri) }
+        LaunchedEffect(bri) { ledBri = bri }
         val picked = AndroidColor.HSVToColor(floatArrayOf(hue, sat, bri))
         var lastSentMs by remember { mutableLongStateOf(0L) }
 
