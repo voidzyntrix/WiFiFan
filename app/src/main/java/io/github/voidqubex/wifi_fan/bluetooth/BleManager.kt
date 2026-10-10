@@ -312,7 +312,7 @@ class BleManager(private val context: Context) {
                     _receivedData.value = line
                     _isDataAvailable.value = true
                     handler.post {
-                        Toast.makeText(context, "Received: $line", Toast.LENGTH_SHORT).show()
+//                        Toast.makeText(context, "Received: $line", Toast.LENGTH_SHORT).show()
                     }
                 }
                 start = i + 1

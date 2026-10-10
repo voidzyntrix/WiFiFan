@@ -43,8 +43,14 @@ class SettingsStore(context: Context) {
         }.getOrDefault(AppBackground.SIMPLE)
         set(value) { prefs.edit().putString(KEY_BACKGROUND, value.name).apply() }
 
+    /** Whether the LED dialog's sliders and hex code follow the rainbow cycle. */
+    var rainbowSync: Boolean
+        get() = prefs.getBoolean(KEY_RAINBOW_SYNC, true)
+        set(value) { prefs.edit().putBoolean(KEY_RAINBOW_SYNC, value).apply() }
+
     private companion object {
         const val KEY_LAYOUT     = "ui_layout"
+        const val KEY_RAINBOW_SYNC = "rainbow_sync"
         const val KEY_COLOR      = "color_scheme"
         const val KEY_ACCENT     = "accent_color"
         const val KEY_BACKGROUND = "background_style"
