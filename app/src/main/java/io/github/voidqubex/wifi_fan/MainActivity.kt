@@ -10,6 +10,7 @@ import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -72,6 +73,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
@@ -81,6 +83,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
@@ -121,6 +124,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntSize
@@ -130,7 +134,10 @@ import androidx.compose.ui.window.Dialog
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.lifecycle.lifecycleScope
 import io.github.voidqubex.wifi_fan.bluetooth.BleManager
+import io.github.voidqubex.wifi_fan.ota.OtaManager
+import io.github.voidqubex.wifi_fan.ota.OtaState
 import io.github.voidqubex.wifi_fan.ui.theme.AccentPresets
 import io.github.voidqubex.wifi_fan.ui.theme.WiFiFanTheme
 import kotlinx.coroutines.delay
@@ -608,10 +615,12 @@ private val LedPresets = listOf(
 @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 class MainActivity : ComponentActivity() {
     private lateinit var bleManager: BleManager
+    private lateinit var otaManager: OtaManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         bleManager = BleManager(this)
+        otaManager = OtaManager(bleManager, lifecycleScope)
         val settingsStore = SettingsStore(this)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         enableEdgeToEdge()
@@ -628,6 +637,7 @@ class MainActivity : ComponentActivity() {
                 Scaffold(modifier = Modifier.fillMaxSize()) { _ ->
                     BleControlScreen(
                         bleManager = bleManager,
+                        otaManager         = otaManager,
                         uiLayout = uiLayout,
                         colorScheme = colorScheme,
                         accentColor = accentColor,
@@ -672,6 +682,7 @@ class Commands {
 @Composable
 fun BleControlScreen(
     bleManager: BleManager,
+    otaManager: OtaManager,
     uiLayout: UiLayout,
     colorScheme: AppColorScheme,
     accentColor: Int,
@@ -719,8 +730,9 @@ fun BleControlScreen(
     var ledMode by remember { mutableIntStateOf(LED_MODE_SOLID) }
 
     val connectionState by bleManager.connectionState.collectAsState()
-    val foundDevices by bleManager.foundDevices.collectAsState()
-    val isScanning by bleManager.isScanning.collectAsState()
+    val foundDevices    by bleManager.foundDevices.collectAsState()
+    val isScanning      by bleManager.isScanning.collectAsState()
+    val boardVersion    by bleManager.firmwareVersion.collectAsState()
 
     val isConnected = connectionState == BluetoothProfile.STATE_CONNECTED
     val controlsEnabled = isConnected && isPowerOn
@@ -1244,6 +1256,9 @@ fun BleControlScreen(
                         onColorChange = onColorChange,
                         onAccentChange = onAccentChange,
                         onBackgroundChange = onBackgroundChange,
+                    otaManager         = otaManager,
+                    boardVersion       = boardVersion,
+                    isConnected        = isConnected,
                         onBack = { showSettings = false })
                 } else {
 
@@ -1981,8 +1996,13 @@ private fun SettingsScreen(
     onColorChange: (AppColorScheme) -> Unit,
     onAccentChange: (Int) -> Unit,
     onBackgroundChange: (AppBackground) -> Unit,
+    otaManager: OtaManager,
+    boardVersion: String?,
+    isConnected: Boolean,
     onBack: () -> Unit
 ) {
+    val otaState by otaManager.state.collectAsState()
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -2004,7 +2024,7 @@ private fun SettingsScreen(
                 modifier = Modifier
                     .size(40.dp)
                     .clip(CircleShape)
-                    .bounceClickable(onClick = onBack),
+                    .bounceClickable { if (!otaState.busy) onBack() },
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
@@ -2091,6 +2111,16 @@ private fun SettingsScreen(
 
         Spacer(Modifier.height(32.dp))
 
+        // ── Firmware update over Bluetooth ──────────────────────────
+        FirmwareSection(
+            otaManager   = otaManager,
+            state        = otaState,
+            boardVersion = boardVersion,
+            isConnected  = isConnected
+        )
+
+        Spacer(Modifier.height(32.dp))
+
         // ── LED dialog ──────────────────────────────────────────────
         SettingHeading("LED", "Rainbow mode in the LED dialog")
         Spacer(Modifier.height(12.dp))
@@ -2109,6 +2139,97 @@ private fun SettingsScreen(
 
         Spacer(Modifier.height(24.dp))
     }
+}
+
+@Composable
+private fun FirmwareSection(
+    otaManager: OtaManager,
+    state: OtaState,
+    boardVersion: String?,
+    isConnected: Boolean
+) {
+    // During an update: keep the screen on and don't let Back close the app,
+    // either would cut the Bluetooth link halfway.
+    val view = LocalView.current
+    DisposableEffect(state.busy) {
+        view.keepScreenOn = state.busy
+        onDispose { view.keepScreenOn = false }
+    }
+    BackHandler(enabled = state.busy) { }
+
+    SettingHeading("Firmware", "Update the fan board over Bluetooth")
+    Spacer(Modifier.height(12.dp))
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .border(
+                1.5.dp,
+                MaterialTheme.colorScheme.onBackground.copy(alpha = 0.12f),
+                RoundedCornerShape(16.dp)
+            )
+            .padding(16.dp)
+    ) {
+        Text(
+            text       = when {
+                !isConnected         -> "Board not connected"
+                boardVersion != null -> "Board firmware v$boardVersion"
+                else                 -> "Board firmware version unknown"
+            },
+            style      = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+            color      = MaterialTheme.colorScheme.onBackground
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text  = otaStatusText(state),
+            style = MaterialTheme.typography.bodySmall,
+            color = if (state is OtaState.Error) MaterialTheme.colorScheme.error
+                    else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+        )
+
+        if (state.busy || state == OtaState.Checking) {
+            Spacer(Modifier.height(12.dp))
+            if (state is OtaState.Uploading && state.total > 0) {
+                LinearProgressIndicator(
+                    progress = { state.sent.toFloat() / state.total },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            } else {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            }
+        } else {
+            Spacer(Modifier.height(12.dp))
+            if (state is OtaState.UpdateAvailable) {
+                Button(
+                    onClick  = { otaManager.startUpdate(state.release) },
+                    enabled  = isConnected,
+                    shape    = RoundedCornerShape(14.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Update to v${state.release.version}") }
+            } else {
+                TextButton(
+                    onClick  = { otaManager.checkForUpdate(boardVersion) },
+                    enabled  = isConnected,
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Check for updates") }
+            }
+        }
+    }
+}
+
+private fun otaStatusText(state: OtaState): String = when (state) {
+    OtaState.Idle               -> "New firmware is published as GitHub releases."
+    OtaState.Checking           -> "Checking GitHub…"
+    is OtaState.UpToDate        -> "Up to date (latest release is v${state.latest})."
+    is OtaState.UpdateAvailable -> "Version ${state.release.version} is available."
+    OtaState.Downloading        -> "Downloading…"
+    OtaState.EnteringBootloader -> "Restarting the board into update mode…"
+    is OtaState.Uploading       ->
+        "Sending… ${state.sent * 100 / state.total.coerceAtLeast(1)} % — keep the app open"
+    OtaState.Verifying          -> "Checking the new firmware…"
+    is OtaState.Done            -> "Updated to v${state.version}."
+    is OtaState.Error           -> state.message
 }
 
 @Composable
