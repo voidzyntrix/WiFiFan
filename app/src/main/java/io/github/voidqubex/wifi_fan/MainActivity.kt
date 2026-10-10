@@ -136,6 +136,7 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
 import io.github.voidqubex.wifi_fan.bluetooth.BleManager
+import io.github.voidqubex.wifi_fan.ota.FirmwareRepository
 import io.github.voidqubex.wifi_fan.ota.OtaManager
 import io.github.voidqubex.wifi_fan.ota.OtaState
 import io.github.voidqubex.wifi_fan.ui.theme.AccentPresets
@@ -549,7 +550,9 @@ private fun ColorPicker(
     hue: Float,
     sat: Float,
     value: Float,
-    onChange: (hue: Float, sat: Float, value: Float) -> Unit,
+    onHueChange: (Float) -> Unit,
+    onSatChange: (Float) -> Unit,
+    onValueChange: (Float) -> Unit,
     onChangeFinished: () -> Unit
 ) {
     fun hsv(h: Float, s: Float, v: Float) = Color(AndroidColor.HSVToColor(floatArrayOf(h, s, v)))
@@ -563,7 +566,7 @@ private fun ColorPicker(
         fraction = hue / 360f,
         stops = (0..6).map { hsv(it * 60f, 1f, 1f) },
         thumbColor = hsv(hue, 1f, 1f),
-        onFraction = { onChange(it * 360f, sat, value) },
+        onFraction = { onHueChange(it * 360f) },
         onFinished = onChangeFinished
     )
 
@@ -577,7 +580,7 @@ private fun ColorPicker(
         fraction = sat,
         stops = listOf(hsv(hue, 0f, value), hsv(hue, 1f, value)),
         thumbColor = hsv(hue, sat, value),
-        onFraction = { onChange(hue, it, value) },
+        onFraction = { onSatChange(it) },
         onFinished = onChangeFinished
     )
 
@@ -591,7 +594,7 @@ private fun ColorPicker(
         fraction = value,
         stops = listOf(Color.Black, hsv(hue, sat, 1f)),
         thumbColor = hsv(hue, sat, value),
-        onFraction = { onChange(hue, sat, it) },
+        onFraction = { onValueChange(it) },
         onFinished = onChangeFinished
     )
 }
@@ -669,8 +672,9 @@ class Commands {
         const val SPEED: String = "s="
         const val TIMER: String = "t="
         const val SLEEP: String = "sleep"
-        const val LED: String = "l="
-        const val RAINBOW: String = "rain"
+        const val LED: String = "l="           // l=R/G/B (0-255), older firmware
+        const val LED_HSV: String = "h="       // h=H/S/V: hue 0-359, sat/brightness 0-100 (firmware 1.1.0+)
+        const val RAINBOW: String = "rain"     // rain=S/V: start rainbow / adjust its sat/brightness
     }
 }
 
@@ -992,31 +996,52 @@ fun BleControlScreen(
             animationSpec = infiniteRepeatable(tween(4000, easing = LinearEasing)),
             label = "rainbowHue"
         )
-        // The sliders and hex code follow the cycle too, unless disabled in Settings.
+        // In rainbow mode saturation and brightness still apply (they set the
+        // rainbow's), so only the hue slider and hex code follow the cycle -
+        // unless disabled in Settings.
         val cycling = ledMode == LED_MODE_RAINBOW && rainbowSync
         val shownHue = if (cycling) rainbowHue else hue
-        val shownSat = if (cycling) 1f else sat
-        val shownBri = if (cycling) 1f else bri
-        val shownColor = AndroidColor.HSVToColor(floatArrayOf(shownHue, shownSat, shownBri))
+        val shownColor = AndroidColor.HSVToColor(floatArrayOf(shownHue, sat, bri))
 
-        fun sendLed(color: Int) {
+        // Board firmware 1.1.0+ takes colours as HSV; older firmware only knows RGB
+        // (and would misread h=H/S/V as an RGB colour).
+        val hsvCommands = boardVersion?.let {
+            FirmwareRepository.compareVersions(it, "1.1.0") >= 0
+        } ?: false
+
+        // Solid colour: HSV (hue in degrees, saturation/brightness in percent).
+        fun sendSolid() {
+            val color = AndroidColor.HSVToColor(floatArrayOf(hue, sat, bri))
             bleManager.sendData(
-                Commands.LED + "${AndroidColor.red(color)}/${AndroidColor.green(color)}/${
-                    AndroidColor.blue(
-                        color
-                    )
-                }"
+                if (hsvCommands) {
+                    Commands.LED_HSV +
+                        "${hue.roundToInt() % 360}/${(sat * 100).roundToInt()}/${(bri * 100).roundToInt()}"
+                } else {
+                    Commands.LED +
+                        "${AndroidColor.red(color)}/${AndroidColor.green(color)}/${AndroidColor.blue(color)}"
+                }
             )
             ledColor = color
             ledMode = LED_MODE_SOLID
         }
 
+        // Rainbow: keeps cycling on the board, only saturation/brightness change.
+        fun sendRainbow() {
+            bleManager.sendData(
+                Commands.RAINBOW + "=${(sat * 100).roundToInt()}/${(bri * 100).roundToInt()}"
+            )
+            ledColor = AndroidColor.HSVToColor(floatArrayOf(hue, sat, bri))
+            ledMode = LED_MODE_RAINBOW
+        }
+
+        fun sendCurrent() = if (ledMode == LED_MODE_RAINBOW) sendRainbow() else sendSolid()
+
         // Live update while dragging, throttled so BLE writes aren't flooded.
-        fun sendLedThrottled(h: Float, s: Float, v: Float) {
+        fun sendThrottled() {
             val now = System.currentTimeMillis()
             if (now - lastSentMs >= 80L) {
                 lastSentMs = now
-                sendLed(AndroidColor.HSVToColor(floatArrayOf(h, s, v)))
+                sendCurrent()
             }
         }
 
@@ -1052,7 +1077,7 @@ fun BleControlScreen(
                     Box(contentAlignment = Alignment.Center, modifier = Modifier.size(96.dp)) {
                         Canvas(Modifier.fillMaxSize()) {
                             val orbColor = if (ledMode == LED_MODE_RAINBOW) {
-                                Color.hsv(rainbowHue, 1f, 1f)
+                                Color.hsv(rainbowHue, sat, bri)
                             } else {
                                 Color(picked)
                             }
@@ -1083,20 +1108,19 @@ fun BleControlScreen(
                     Spacer(Modifier.height(20.dp))
 
                     ColorPicker(
-                        hue = shownHue, sat = shownSat, value = shownBri, onChange = { h, s, v ->
-                            hue = h; sat = s; bri = v
-                            sendLedThrottled(h, s, v)
+                        hue = shownHue, sat = sat, value = bri,
+                        // Picking a hue means a solid colour (ends the rainbow).
+                        onHueChange = { h ->
+                            hue = h
+                            ledMode = LED_MODE_SOLID
+                            sendThrottled()
                         },
-                        // Release: always send the exact final color.
-                        onChangeFinished = {
-                            sendLed(
-                                AndroidColor.HSVToColor(
-                                    floatArrayOf(
-                                        hue, sat, bri
-                                    )
-                                )
-                            )
-                        })
+                        // Saturation/brightness keep the mode: in rainbow mode
+                        // they adjust the running rainbow instead of stopping it.
+                        onSatChange = { s -> sat = s; sendThrottled() },
+                        onValueChange = { v -> bri = v; sendThrottled() },
+                        // Release: always send the exact final value.
+                        onChangeFinished = { sendCurrent() })
 
                     Spacer(Modifier.height(16.dp))
 
@@ -1119,7 +1143,7 @@ fun BleControlScreen(
                                         val hsv = FloatArray(3)
                                         AndroidColor.colorToHSV(preset, hsv)
                                         hue = hsv[0]; sat = hsv[1]; bri = hsv[2]
-                                        sendLed(preset)
+                                        sendSolid()
                                     })
                         }
                     }
@@ -1130,8 +1154,10 @@ fun BleControlScreen(
                     AppButton(
                         mono = mono,
                         onClick = {
-                            bleManager.sendData(Commands.RAINBOW)
-                            ledMode = LED_MODE_RAINBOW
+                            // A rainbow needs some colour and light to be visible.
+                            if (sat < 0.05f) sat = 1f
+                            if (bri < 0.05f) bri = 1f
+                            sendRainbow()
                         },
                         shape = RoundedCornerShape(14.dp),
                         interactionSource = rainbowSrc,
@@ -1154,9 +1180,8 @@ fun BleControlScreen(
                     val ledOffSrc = remember { MutableInteractionSource() }
                     TextButton(
                         onClick = {
-                            bleManager.sendData(Commands.LED + "0/0/0")
-                            ledColor = AndroidColor.BLACK
-                            ledMode = LED_MODE_SOLID
+                            bri = 0f
+                            sendSolid()                 // fades to black, ends the rainbow
                             showLedDialog = false
                         },
                         interactionSource = ledOffSrc,
@@ -2129,7 +2154,7 @@ private fun SettingsScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "Animate sliders and hex code",
+                text = "Animate the hue slider and hex code",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onBackground,
                 modifier = Modifier.weight(1f)
