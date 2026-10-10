@@ -228,6 +228,9 @@ fun AmbientParticleBackground(
 private const val LED_MODE_SOLID = 0
 private const val LED_MODE_RAINBOW = 1
 
+/** Below this the LED is effectively off (1 % = 3 of 255), so there is nothing to preserve. */
+private const val MIN_VISIBLE_BRIGHTNESS = 0.01f
+
 /** Filled button, or an outlined one (no fill) in Monochrome mode. */
 @Composable
 private fun AppButton(
@@ -1147,7 +1150,11 @@ fun BleControlScreen(
                                     .clickable {
                                         val hsv = FloatArray(3)
                                         AndroidColor.colorToHSV(preset, hsv)
-                                        hue = hsv[0]; sat = hsv[1]; bri = hsv[2]
+                                        hue = hsv[0]; sat = hsv[1]
+                                        // A preset changes the colour, not the brightness you
+                                        // chose. Only when the LED is (almost) off take the
+                                        // swatch's own brightness, so it actually lights up.
+                                        if (bri < MIN_VISIBLE_BRIGHTNESS) bri = hsv[2]
                                         sendSolid()
                                     })
                         }
@@ -1159,9 +1166,10 @@ fun BleControlScreen(
                     AppButton(
                         mono = mono,
                         onClick = {
-                            // A rainbow needs some colour and light to be visible.
+                            // A rainbow needs some colour and light to be visible, but
+                            // a low brightness you chose is kept (only "off" is raised).
                             if (sat < 0.05f) sat = 1f
-                            if (bri < 0.05f) bri = 1f
+                            if (bri < MIN_VISIBLE_BRIGHTNESS) bri = 1f
                             sendRainbow()
                         },
                         shape = RoundedCornerShape(14.dp),
