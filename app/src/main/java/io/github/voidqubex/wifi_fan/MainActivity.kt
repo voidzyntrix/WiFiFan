@@ -145,6 +145,8 @@ import io.github.voidqubex.wifi_fan.bluetooth.BleManager
 import io.github.voidqubex.wifi_fan.ota.AppUpdateState
 import io.github.voidqubex.wifi_fan.ota.AppUpdater
 import io.github.voidqubex.wifi_fan.ota.GitHubReleases
+import io.github.voidqubex.wifi_fan.led.LedColor
+import io.github.voidqubex.wifi_fan.led.LedPreview
 import io.github.voidqubex.wifi_fan.ota.OtaManager
 import io.github.voidqubex.wifi_fan.ota.OtaState
 import io.github.voidqubex.wifi_fan.ui.theme.AccentPresets
@@ -760,6 +762,8 @@ fun BleControlScreen(
     var showLedDialog by remember { mutableStateOf(false) }
     var ledColor by remember { mutableIntStateOf(AndroidColor.WHITE) }
     var ledMode by remember { mutableIntStateOf(LED_MODE_SOLID) }
+    var ledKelvinMode by remember { mutableStateOf(false) }
+    var ledKelvin by remember { mutableFloatStateOf(4000f) }
 
     val connectionState by bleManager.connectionState.collectAsState()
     val foundDevices    by bleManager.foundDevices.collectAsState()
@@ -964,8 +968,9 @@ fun BleControlScreen(
         val initHsv = remember {
             FloatArray(3).also { AndroidColor.colorToHSV(ledColor, it) }
         }
-        var hue by remember { mutableFloatStateOf(initHsv[0]) }
-        var sat by remember { mutableFloatStateOf(initHsv[1]) }
+        val kelvinHs = LedColor.kelvinToHueSat(ledKelvin)
+        var hue by remember { mutableFloatStateOf(if (ledKelvinMode) kelvinHs[0] else initHsv[0]) }
+        var sat by remember { mutableFloatStateOf(if (ledKelvinMode) kelvinHs[1] else initHsv[1]) }
         var bri by remember { mutableFloatStateOf(initHsv[2]) }
         val picked = AndroidColor.HSVToColor(floatArrayOf(hue, sat, bri))
         var lastSentMs by remember { mutableLongStateOf(0L) }
@@ -1015,6 +1020,14 @@ fun BleControlScreen(
             ledMode = LED_MODE_RAINBOW
         }
 
+        // Kelvin is just another way to pick hue/saturation: same commands as the colour picker.
+        fun setKelvin(k: Float) {
+            ledKelvin = k
+            val hs = LedColor.kelvinToHueSat(k)
+            hue = hs[0]; sat = hs[1]
+            ledMode = LED_MODE_SOLID
+        }
+
         fun sendCurrent() = if (ledMode == LED_MODE_RAINBOW) sendRainbow() else sendSolid()
 
         // Live update while dragging, throttled so BLE writes aren't flooded.
@@ -1054,30 +1067,15 @@ fun BleControlScreen(
                     )
                     Spacer(Modifier.height(20.dp))
 
-                    // Live preview: glowing orb + hex code
-                    Box(contentAlignment = Alignment.Center, modifier = Modifier.size(96.dp)) {
-                        Canvas(Modifier.fillMaxSize()) {
-                            val orbColor = if (ledMode == LED_MODE_RAINBOW) {
-                                Color.hsv(rainbowHue, sat, bri)
-                            } else {
-                                Color(picked)
-                            }
-                            drawCircle(
-                                Brush.radialGradient(
-                                    listOf(orbColor.copy(alpha = 0.55f), Color.Transparent)
-                                )
-                            )
-                            drawCircle(orbColor, radius = 30.dp.toPx())
-                            drawCircle(
-                                Color.White.copy(alpha = 0.25f),
-                                radius = 30.dp.toPx(),
-                                style = Stroke(2.dp.toPx())
-                            )
-                        }
-                    }
+                    // Live preview: the LED glowing in the dark
+                    LedPreview(
+                        hue = if (ledMode == LED_MODE_RAINBOW) rainbowHue else hue,
+                        sat = sat, value = bri,
+                        modifier = Modifier.fillMaxWidth().height(130.dp)
+                    )
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "#%02X%02X%02X".format(
+                        if (ledKelvinMode) "${(ledKelvin / 50).roundToInt() * 50} K" else "#%02X%02X%02X".format(
                             AndroidColor.red(shownColor),
                             AndroidColor.green(shownColor),
                             AndroidColor.blue(shownColor)
@@ -1086,8 +1084,77 @@ fun BleControlScreen(
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
                     )
 
-                    Spacer(Modifier.height(20.dp))
+                    Spacer(Modifier.height(12.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(false to "Color", true to "Kelvin").forEach { (kel, label) ->
+                            val sel = ledKelvinMode == kel
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(
+                                        if (sel) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                                        else Color.Transparent
+                                    )
+                                    .border(
+                                        1.dp,
+                                        if (sel) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f),
+                                        RoundedCornerShape(12.dp)
+                                    )
+                                    .bounceClickable {
+                                        if (kel != ledKelvinMode) {
+                                            ledKelvinMode = kel
+                                            if (kel) { setKelvin(ledKelvin); sendSolid() }
+                                        }
+                                    }
+                                    .padding(vertical = 8.dp)
+                            ) {
+                                Text(
+                                    label,
+                                    color = if (sel) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                )
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(16.dp))
 
+                    if (ledKelvinMode) {
+                        Text(
+                            "Temperature",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
+                        )
+                        GradientBar(
+                            fraction = (ledKelvin - LedColor.KELVIN_MIN) / (LedColor.KELVIN_MAX - LedColor.KELVIN_MIN),
+                            stops = (0..8).map {
+                                LedColor.kelvinScreenColor(
+                                    LedColor.KELVIN_MIN + it / 8f * (LedColor.KELVIN_MAX - LedColor.KELVIN_MIN)
+                                )
+                            },
+                            thumbColor = LedColor.kelvinScreenColor(ledKelvin),
+                            onFraction = {
+                                setKelvin(LedColor.KELVIN_MIN + it * (LedColor.KELVIN_MAX - LedColor.KELVIN_MIN))
+                                sendThrottled()
+                            },
+                            onFinished = { sendCurrent() }
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        Text(
+                            "Brightness",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
+                        )
+                        GradientBar(
+                            fraction = bri,
+                            stops = listOf(Color.Black, LedColor.kelvinScreenColor(ledKelvin)),
+                            thumbColor = LedColor.kelvinScreenColor(ledKelvin),
+                            onFraction = { bri = it; sendThrottled() },
+                            onFinished = { sendCurrent() }
+                        )
+                    } else
                     ColorPicker(
                         hue = shownHue, sat = sat, value = bri,
                         // Picking a hue means a solid colour (ends the rainbow).
@@ -1106,7 +1173,23 @@ fun BleControlScreen(
                     Spacer(Modifier.height(16.dp))
 
                     // Preset swatches
-                    Row(
+                    if (ledKelvinMode) Row(
+                        Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        listOf(1900f, 2700f, 3500f, 4500f, 5600f, 6500f).forEach { k ->
+                            Box(
+                                modifier = Modifier
+                                    .size(26.dp)
+                                    .clip(CircleShape)
+                                    .background(LedColor.kelvinScreenColor(k))
+                                    .border(
+                                        1.dp,
+                                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f),
+                                        CircleShape
+                                    )
+                                    .clickable { setKelvin(k); sendSolid() })
+                        }
+                    } else Row(
                         Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         LedPresets.forEach { preset ->
@@ -1141,6 +1224,7 @@ fun BleControlScreen(
                         onClick = {
                             // A rainbow needs some colour and light to be visible, but
                             // a low brightness you chose is kept (only "off" is raised).
+                            if (ledKelvinMode) { ledKelvinMode = false; sat = 1f }
                             if (sat < 0.05f) sat = 1f
                             if (bri < MIN_VISIBLE_BRIGHTNESS) bri = 1f
                             sendRainbow()
