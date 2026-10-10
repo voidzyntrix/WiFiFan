@@ -2583,6 +2583,15 @@ private fun FirmwareSection(
     }
     BackHandler(enabled = state.busy) { }
 
+    // Check GitHub by itself once the board is connected and has said its version,
+    // so a newer release shows up straight away as the "Update to vX" button.
+    LaunchedEffect(isConnected, boardVersion) {
+        if (isConnected && boardVersion != null &&
+            (state == OtaState.Idle || state is OtaState.Error || state is OtaState.Done ||
+                state is OtaState.UpToDate)
+        ) otaManager.checkForUpdate(boardVersion)
+    }
+
     SettingHeading("Firmware", "Update the fan board over Bluetooth")
     Spacer(Modifier.height(12.dp))
     Column(
