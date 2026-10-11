@@ -1,6 +1,5 @@
 package io.github.voidqubex.wifi_fan
 
-import ai.asleep.compose.wheelpicker.WheelPicker
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Activity
@@ -340,216 +339,7 @@ private fun Modifier.bounceClickable(
 }
 
 // ---------------------------------------------------------------------------
-// Mode button — flat icon + label + tiny accent dot, no card
-// ---------------------------------------------------------------------------
-
-@Composable
-private fun ModeButton(
-    title: String, icon: Int, selected: Boolean, enabled: Boolean, onClick: () -> Unit
-) {
-    val targetAlpha = when {
-        !enabled -> 0.18f
-        selected -> 0.88f
-        else -> 0.32f
-    }
-    val iconAlpha by animateFloatAsState(targetAlpha, tween(220), label = "modeAlpha")
-    val dotAlpha by animateFloatAsState(
-        if (selected && enabled) 1f else 0f, tween(220), label = "modeDot"
-    )
-    val primary = MaterialTheme.colorScheme.primary
-    val onBg = MaterialTheme.colorScheme.onBackground
-
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier
-            .clip(RoundedCornerShape(14.dp))
-            .bounceClickable(enabled = enabled, pressedScale = 0.88f, onClick = onClick)
-            .padding(horizontal = 8.dp, vertical = 4.dp)
-    ) {
-        Box(
-            modifier = Modifier.size(40.dp), contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                painter = painterResource(icon),
-                contentDescription = title,
-                modifier = Modifier.size(22.dp),
-                tint = onBg.copy(alpha = iconAlpha)
-            )
-        }
-        Text(
-            text = title,
-            style = MaterialTheme.typography.labelSmall,
-            fontSize = 10.sp,
-            color = onBg.copy(alpha = iconAlpha * 0.85f)
-        )
-        Spacer(Modifier.height(5.dp))
-        // Tiny accent dot under selected mode
-        Box(
-            modifier = Modifier
-                .size(4.dp)
-                .clip(CircleShape)
-                .background(primary.copy(alpha = dotAlpha))
-        )
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Morphing slider — a thin hairline at rest that grows a thumb + thicker
-// track while the user is interacting. Snaps to whole steps (minValue..maxValue).
-// ---------------------------------------------------------------------------
-
-@Composable
-private fun MorphingSlider(
-    value: Float,
-    onValueChange: (Int) -> Unit,
-    enabled: Boolean,
-    modifier: Modifier = Modifier,
-    mono: Boolean = false,
-    minValue: Int = 1,
-    maxValue: Int = 6
-) {
-    var active by remember { mutableStateOf(false) }
-    var widthPx by remember { mutableIntStateOf(1) }
-    val isActive = active && enabled
-
-    val trackHeight by animateFloatAsState(
-        targetValue = if (isActive) 6f else 2f, animationSpec = tween(220), label = "trackHeight"
-    )
-    val thumbRadius by animateFloatAsState(
-        targetValue = if (isActive) 11f else 0f, animationSpec = tween(220), label = "thumbRadius"
-    )
-    val overallAlpha by animateFloatAsState(
-        targetValue = if (enabled) 1f else 0.4f, animationSpec = tween(220), label = "sliderAlpha"
-    )
-
-    val primary = MaterialTheme.colorScheme.primary
-    val onBg = MaterialTheme.colorScheme.onBackground
-    // In monochrome the fill stays neutral and the accent only rims the thumb.
-    val fillColor = if (mono) onBg else primary
-
-    fun valueFromX(x: Float): Int {
-        val frac = (x / widthPx.toFloat()).coerceIn(0f, 1f)
-        return (minValue + frac * (maxValue - minValue)).roundToInt()
-    }
-
-    Canvas(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(40.dp)
-            .onSizeChanged { widthPx = it.width.coerceAtLeast(1) }
-            .pointerInput(enabled) {
-                if (!enabled) return@pointerInput
-                // Single gesture: down → active, drag → follow, up → rest.
-                awaitEachGesture {
-                    val down = awaitFirstDown(requireUnconsumed = false)
-                    active = true
-                    onValueChange(valueFromX(down.position.x))
-                    down.consume()
-                    drag(down.id) { change ->
-                        onValueChange(valueFromX(change.position.x))
-                        change.consume()
-                    }
-                    active = false
-                }
-            }) {
-        val cy = size.height / 2f
-        val frac = ((value - minValue) / (maxValue - minValue)).coerceIn(0f, 1f)
-        val thumbX = frac * size.width
-        val th = trackHeight.dp.toPx()
-
-        // Inactive track
-        drawLine(
-            color = onBg.copy(alpha = 0.12f * overallAlpha),
-            start = Offset(0f, cy),
-            end = Offset(size.width, cy),
-            strokeWidth = th,
-            cap = StrokeCap.Round
-        )
-        // Active (filled) track
-        drawLine(
-            color = fillColor.copy(alpha = overallAlpha),
-            start = Offset(0f, cy),
-            end = Offset(thumbX.coerceAtLeast(0.01f), cy),
-            strokeWidth = th,
-            cap = StrokeCap.Round
-        )
-        // Thumb — grows in only while interacting
-        val r = thumbRadius.dp.toPx()
-        if (r > 0f) {
-            drawCircle(
-                color = fillColor.copy(alpha = overallAlpha),
-                radius = r,
-                center = Offset(thumbX, cy)
-            )
-            // Accent rim — the lone splash of color in monochrome mode
-            if (mono) {
-                drawCircle(
-                    color = primary.copy(alpha = overallAlpha),
-                    radius = r,
-                    center = Offset(thumbX, cy),
-                    style = Stroke(width = 2.dp.toPx())
-                )
-            }
-        }
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Power button — filled accent in Colored mode; dark accent tint + ring
-// in Monochrome mode. Custom press-scale, no ripple.
-// ---------------------------------------------------------------------------
-
-@Composable
-private fun PowerButton(
-    isPowerOn: Boolean, mono: Boolean, onClick: () -> Unit
-) {
-    val cs = MaterialTheme.colorScheme
-    val monoOn = monoFill(0.35f)
-    val monoOff = monoFill(0.12f)
-    val container by animateColorAsState(
-        targetValue = when {
-            mono && isPowerOn -> monoOn
-            mono -> monoOff
-            isPowerOn -> cs.primary
-            else -> cs.surfaceVariant
-        }, animationSpec = tween(280), label = "powerBg"
-    )
-    val content by animateColorAsState(
-        targetValue = when {
-            mono -> cs.onBackground
-            isPowerOn -> cs.onPrimary
-            else -> cs.onSurfaceVariant
-        }, animationSpec = tween(280), label = "powerFg"
-    )
-    val border by animateColorAsState(
-        targetValue = when {
-            mono && isPowerOn -> cs.primary
-            mono -> cs.onBackground.copy(alpha = 0.3f)
-            else -> Color.Transparent
-        }, animationSpec = tween(280), label = "powerBorder"
-    )
-    val source = remember { MutableInteractionSource() }
-    FilledIconButton(
-        onClick = onClick,
-        interactionSource = source,
-        modifier = pressScaleModifier(source)
-            .size(56.dp)
-            .border(1.5.dp, border, CircleShape),
-        shape = CircleShape,
-        colors = IconButtonDefaults.filledIconButtonColors(
-            containerColor = container, contentColor = content
-        )
-    ) {
-        Icon(
-            painter = painterResource(R.drawable.power),
-            contentDescription = "Power",
-            modifier = Modifier.size(28.dp)
-        )
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Color picker — three separate gradient bars: hue, saturation, brightness
+// Gradient bar — a draggable colour strip (hue, saturation, brightness, kelvin)
 // ---------------------------------------------------------------------------
 
 @Composable
@@ -590,60 +380,6 @@ private fun GradientBar(
         drawCircle(Color.White, radius = 11.dp.toPx(), center = tc)
         drawCircle(thumbColor, radius = 8.dp.toPx(), center = tc)
     }
-}
-
-@Composable
-private fun ColorPicker(
-    hue: Float,
-    sat: Float,
-    value: Float,
-    onHueChange: (Float) -> Unit,
-    onSatChange: (Float) -> Unit,
-    onValueChange: (Float) -> Unit,
-    onChangeFinished: () -> Unit
-) {
-    fun hsv(h: Float, s: Float, v: Float) = Color(AndroidColor.HSVToColor(floatArrayOf(h, s, v)))
-
-    Text(
-        "Hue",
-        style = MaterialTheme.typography.labelSmall,
-        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
-    )
-    GradientBar(
-        fraction = hue / 360f,
-        stops = (0..6).map { hsv(it * 60f, 1f, 1f) },
-        thumbColor = hsv(hue, 1f, 1f),
-        onFraction = { onHueChange(it * 360f) },
-        onFinished = onChangeFinished
-    )
-
-    Spacer(Modifier.height(10.dp))
-    Text(
-        "Saturation",
-        style = MaterialTheme.typography.labelSmall,
-        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
-    )
-    GradientBar(
-        fraction = sat,
-        stops = listOf(hsv(hue, 0f, value), hsv(hue, 1f, value)),
-        thumbColor = hsv(hue, sat, value),
-        onFraction = { onSatChange(it) },
-        onFinished = onChangeFinished
-    )
-
-    Spacer(Modifier.height(10.dp))
-    Text(
-        "Brightness",
-        style = MaterialTheme.typography.labelSmall,
-        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
-    )
-    GradientBar(
-        fraction = value,
-        stops = listOf(Color.Black, hsv(hue, sat, 1f)),
-        thumbColor = hsv(hue, sat, value),
-        onFraction = { onValueChange(it) },
-        onFinished = onChangeFinished
-    )
 }
 
 private val LedPresets = listOf(
@@ -711,14 +447,7 @@ class MainActivity : ComponentActivity() {
 
 class Commands {
     companion object {
-        const val TURBO: String = "turbo"
-        const val ECO: String = "eco"
-        const val NATURE_WIND: String = "nature_wind"
-        const val POWER_ON: String = "on"
-        const val POWER_OFF: String = "off"
-        const val SPEED: String = "s="
-        const val TIMER: String = "t="
-        const val SLEEP: String = "sleep"
+        const val OFF: String = "off"
         const val LED: String = "l="           // l=R/G/B (0-255), older firmware
         const val LED_HSV: String = "h="       // h=H/S/V: hue 0-359, sat/brightness 0-100 (firmware 1.1.0+)
         const val CANDLE: String = "candle"   // candle=V: flickering candle flame (firmware 1.2.0+)
@@ -751,11 +480,6 @@ fun BleControlScreen(
     val isDark = isSystemInDarkTheme()
     val mono = colorScheme == AppColorScheme.MONOCHROME
 
-    // For the frosted Simple panel: a blurred full-screen copy of the wallpaper is
-    // drawn at the root and clipped to the panel's rectangle (captured here).
-    var panelPos by remember { mutableStateOf(Offset.Zero) }
-    var panelSize by remember { mutableStateOf(IntSize.Zero) }
-
     SideEffect {
         (context as? Activity)?.window?.let { window ->
             WindowInsetsControllerCompat(window, window.decorView).apply {
@@ -769,17 +493,7 @@ fun BleControlScreen(
     // Back gesture closes Settings instead of leaving the app.
     BackHandler(enabled = showSettings) { showSettings = false }
     var pickingDevice by remember { mutableStateOf(false) }
-    var speed by remember { mutableFloatStateOf(1f) }
-    var isTurbo by remember { mutableStateOf(false) }
-    var isEco by remember { mutableStateOf(false) }
-    var isNatureWind by remember { mutableStateOf(false) }
-    var isSleep by remember { mutableStateOf(false) }
-    var isPowerOn by remember { mutableStateOf(false) }
-    var currentTimer by remember { mutableIntStateOf(0) }
-    var angle by remember { mutableFloatStateOf(0f) }
-    var windPhase by remember { mutableFloatStateOf(0f) }
-    var showTimerDialog by remember { mutableStateOf(false) }
-    var showLedDialog by remember { mutableStateOf(false) }
+
     // LED state survives closing the app (the board keeps it too).
     val ledStore = remember { SettingsStore(context) }
     var ledColor by remember { mutableIntStateOf(ledStore.ledColor) }
@@ -794,7 +508,6 @@ fun BleControlScreen(
         ledStore.ledKelvinMode = ledKelvinMode
         ledStore.ledKelvin = ledKelvin
     }
-
 
     val connectionState by bleManager.connectionState.collectAsState()
     val foundDevices    by bleManager.foundDevices.collectAsState()
@@ -815,7 +528,8 @@ fun BleControlScreen(
         rootView.keepScreenOn = keepScreenOn
         onDispose { rootView.keepScreenOn = false }
     }
-    val fwOptions = boardVersion?.let { GitHubReleases.compareVersions(it, "1.3.0") >= 0 } ?: false
+    fun fwAtLeast(v: String) = boardVersion?.let { GitHubReleases.compareVersions(it, v) >= 0 } ?: false
+    val fwOptions = fwAtLeast("1.3.0")
     fun candleCommand(bri: Float) = Commands.CANDLE + "=${(bri * 100).roundToInt()}" +
         if (fwOptions) "/${if (smoothCandle) 1 else 0}/$candleHue" else ""
     fun rainbowCommand(sat: Float, bri: Float) =
@@ -857,38 +571,12 @@ fun BleControlScreen(
             Toast.makeText(context, "Board firmware v${it.release.version} available in Settings", Toast.LENGTH_LONG).show()
         }
     }
-    val controlsEnabled = isConnected && isPowerOn
-
-    val effectiveSpeed by remember {
-        derivedStateOf {
-            when {
-                isTurbo -> 7f
-                isEco -> 4f
-                isNatureWind -> (1.5f + 1.5f * windPhase).coerceIn(1f, 3f)
-                else -> speed
-            }
-        }
-    }
-
-    LaunchedEffect(isPowerOn) {
-        if (isPowerOn) {
-            var lastTime = withFrameNanos { it }
-            while (true) {
-                val now = withFrameNanos { it }
-                val dt = (now - lastTime) / 1_000_000f
-                angle = (angle + effectiveSpeed * dt * 0.1f) % 360f
-                windPhase = sin(now.toDouble() / 7_000_000_00.0).toFloat()
-                lastTime = now
-            }
-        }
-    }
 
     val permissionsToRequest = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
         arrayOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT)
     } else {
         arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
     }
-
     val launcher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { perms ->
@@ -896,7 +584,6 @@ fun BleControlScreen(
             Toast.makeText(context, "Permissions required for Bluetooth", Toast.LENGTH_SHORT).show()
         }
     }
-
     fun checkPermissionsAndDo(action: () -> Unit) {
         if (permissionsToRequest.all {
                 ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
@@ -904,538 +591,152 @@ fun BleControlScreen(
     }
 
     // -----------------------------------------------------------------------
-    // Timer dialog
+    // LED controls state
     // -----------------------------------------------------------------------
+    val initHsv = remember { FloatArray(3).also { AndroidColor.colorToHSV(ledColor, it) } }
+    val kelvinHs = LedColor.kelvinToHueSat(ledKelvin)
+    var hue by remember { mutableFloatStateOf(if (ledKelvinMode) kelvinHs[0] else initHsv[0]) }
+    var sat by remember { mutableFloatStateOf(if (ledKelvinMode) kelvinHs[1] else initHsv[1]) }
+    // exact brightness (the RGB colour loses precision when dim)
+    var bri by remember { mutableFloatStateOf(ledBri) }
+    LaunchedEffect(bri) { ledBri = bri }
+    // what the power button brings back after "off"
+    var lastOnBri by remember { mutableFloatStateOf(if (ledBri >= MIN_VISIBLE_BRIGHTNESS) ledBri else 1f) }
+    var lastOnMode by remember { mutableIntStateOf(ledMode) }
+    var lastSentMs by remember { mutableLongStateOf(0L) }
 
-    if (showTimerDialog) {
-        var selectedTime by remember { mutableStateOf(LocalTime.of(currentTimer, 0)) }
+    // Clock for the preview animations (one hue lap every 4 s).
+    val rainbowHue by rememberInfiniteTransition(label = "rainbow").animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(tween(4000, easing = LinearEasing)),
+        label = "rainbowHue"
+    )
+    val cycling = ledMode == LED_MODE_RAINBOW && rainbowSync
+    val shownHue = if (cycling) rainbowHue else hue
 
-        Dialog(onDismissRequest = { showTimerDialog = false }) {
-            Card(
-                shape = RoundedCornerShape(28.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(
-                        1.dp,
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
-                        RoundedCornerShape(28.dp)
-                    )
-            ) {
-                Column(
-                    Modifier.padding(28.dp), horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        "Timer",
-                        style = MaterialTheme.typography.headlineSmall,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        "Power off after",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
-                    )
-                    Spacer(Modifier.height(28.dp))
+    // Board firmware 1.1.0+ takes colours as HSV; older firmware only knows RGB
+    // (and would misread h=H/S/V as an RGB colour).
+    val hsvCommands = fwAtLeast("1.1.0")
+    val fwCandle = fwAtLeast("1.2.0")
+    val fwEffects = fwAtLeast("1.4.0")
 
-                    val hourOptions = remember { (0..4).map { "%02d".format(it) } }
-                    val minuteOptions = remember { (0..59).map { "%02d".format(it) } }
-                    var selectedHour by remember {
-                        mutableIntStateOf(
-                            selectedTime.hour.coerceIn(
-                                0, 3
-                            )
-                        )
-                    }
-                    var selectedMinute by remember { mutableIntStateOf((selectedTime.minute / 5) * 5) }
-
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(140.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .width(200.dp)
-                                .height(44.dp)
-                                .border(
-                                    1.dp,
-                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
-                                    RoundedCornerShape(12.dp)
-                                )
-                        )
-                        Row(
-                            Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.Center,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            WheelPicker(
-                                items = hourOptions,
-                                initialIndex = selectedHour,
-                                onValueChange = { _, v ->
-                                    selectedHour = v.toInt()
-                                    selectedTime = LocalTime.of(selectedHour, selectedMinute)
-                                },
-                                modifier = Modifier.width(80.dp),
-                                visibleItemCount = 3,
-                                peekItemCount = 1,
-                                itemHeight = 36.dp,
-                                repeatable = false,
-                                cylindrical = true,
-                                fadeEdges = true,
-                                textStyle = MaterialTheme.typography.headlineMedium,
-                                textColor = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                ":",
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                                fontSize = 28.sp,
-                                modifier = Modifier.padding(horizontal = 8.dp)
-                            )
-                            WheelPicker(
-                                items = minuteOptions,
-                                initialIndex = minuteOptions.indexOf("%02d".format(selectedMinute)),
-                                onValueChange = { _, v ->
-                                    selectedMinute = v.toInt()
-                                    selectedTime = LocalTime.of(selectedHour, selectedMinute)
-                                },
-                                modifier = Modifier.width(80.dp),
-                                visibleItemCount = 3,
-                                peekItemCount = 1,
-                                itemHeight = 36.dp,
-                                repeatable = false,
-                                cylindrical = true,
-                                fadeEdges = true,
-                                textStyle = MaterialTheme.typography.headlineMedium,
-                                textColor = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                    }
-
-                    Spacer(Modifier.height(24.dp))
-
-                    val setSrc = remember { MutableInteractionSource() }
-                    AppButton(
-                        mono = mono,
-                        onClick = {
-                            val total = selectedTime.hour * 60 + selectedTime.minute
-                            bleManager.sendData(Commands.TIMER + total)
-                            currentTimer = selectedTime.hour
-                            showTimerDialog = false
-                        },
-                        shape = RoundedCornerShape(14.dp),
-                        interactionSource = setSrc,
-                        modifier = pressScaleModifier(setSrc).fillMaxWidth()
-                    ) { Text("Set Timer") }
-
-                    Spacer(Modifier.height(4.dp))
-
-                    val offSrc = remember { MutableInteractionSource() }
-                    TextButton(
-                        onClick = {
-                            bleManager.sendData(Commands.TIMER + 0)
-                            currentTimer = 0
-                            showTimerDialog = false
-                        },
-                        interactionSource = offSrc,
-                        modifier = pressScaleModifier(offSrc).fillMaxWidth()
-                    ) { Text("Turn Off") }
-                }
+    // Solid colour: HSV (hue in degrees, saturation/brightness in percent).
+    fun sendSolid() {
+        val color = AndroidColor.HSVToColor(floatArrayOf(hue, sat, bri))
+        bleManager.sendData(
+            if (hsvCommands) {
+                Commands.LED_HSV +
+                    "${hue.roundToInt() % 360}/${(sat * 100).roundToInt()}/${(bri * 100).roundToInt()}"
+            } else {
+                Commands.LED +
+                    "${AndroidColor.red(color)}/${AndroidColor.green(color)}/${AndroidColor.blue(color)}"
             }
+        )
+        ledColor = color
+        ledMode = LED_MODE_SOLID
+    }
+
+    // Rainbow: keeps cycling on the board, only saturation/brightness change.
+    fun sendRainbow() {
+        bleManager.sendData(rainbowCommand(sat, bri))
+        ledColor = AndroidColor.HSVToColor(floatArrayOf(hue, sat, bri))
+        ledMode = LED_MODE_RAINBOW
+    }
+
+    // Kelvin is just another way to pick hue/saturation: same commands as the colour picker.
+    fun setKelvin(k: Float) {
+        ledKelvin = k
+        val hs = LedColor.kelvinToHueSat(k)
+        hue = hs[0]; sat = hs[1]
+        ledMode = LED_MODE_SOLID
+    }
+
+    // Candle: the board flickers a warm flame around this brightness.
+    fun sendCandle() {
+        bleManager.sendData(candleCommand(bri))
+        ledMode = LED_MODE_CANDLE
+    }
+
+    // Effects run on the board; the brightness slider re-sends them at the new level.
+    fun sendEffect(mode: Int) {
+        val cmd = LedEffects.first { it.first == mode }.third
+        bleManager.sendData("$cmd=${(bri * 100).roundToInt()}")
+        ledMode = mode
+    }
+
+    fun sendCurrent() = when (ledMode) {
+        LED_MODE_RAINBOW -> sendRainbow()
+        LED_MODE_CANDLE -> sendCandle()
+        LED_MODE_BREATHE, LED_MODE_OCEAN, LED_MODE_PARTY, LED_MODE_AURORA -> sendEffect(ledMode)
+        else -> sendSolid()
+    }
+
+    // Live update while dragging, throttled so BLE writes aren't flooded.
+    fun sendThrottled() {
+        val now = System.currentTimeMillis()
+        if (now - lastSentMs >= 80L) {
+            lastSentMs = now
+            sendCurrent()
         }
     }
 
-    // -----------------------------------------------------------------------
-    // RGB LED dialog
-    // -----------------------------------------------------------------------
-
-    if (showLedDialog) {
-        val initHsv = remember {
-            FloatArray(3).also { AndroidColor.colorToHSV(ledColor, it) }
+    val ledOn = bri >= MIN_VISIBLE_BRIGHTNESS
+    fun togglePower() {
+        if (ledOn) {
+            lastOnBri = bri; lastOnMode = ledMode
+            bri = 0f
+            sendSolid()                       // fades to black, ends any effect
+        } else {
+            bri = lastOnBri
+            ledMode = lastOnMode
+            sendCurrent()
         }
-        val kelvinHs = LedColor.kelvinToHueSat(ledKelvin)
-        var hue by remember { mutableFloatStateOf(if (ledKelvinMode) kelvinHs[0] else initHsv[0]) }
-        var sat by remember { mutableFloatStateOf(if (ledKelvinMode) kelvinHs[1] else initHsv[1]) }
-        // exact brightness (the RGB colour loses precision when dim)
-        var bri by remember { mutableFloatStateOf(ledBri) }
-        LaunchedEffect(bri) { ledBri = bri }
-        val picked = AndroidColor.HSVToColor(floatArrayOf(hue, sat, bri))
-        var lastSentMs by remember { mutableLongStateOf(0L) }
+    }
 
-        // Visual only: cycles the orb through every hue while in rainbow mode.
-        val rainbowHue by rememberInfiniteTransition(label = "rainbow").animateFloat(
-            initialValue = 0f,
-            targetValue = 360f,
-            animationSpec = infiniteRepeatable(tween(4000, easing = LinearEasing)),
-            label = "rainbowHue"
-        )
-        // In rainbow mode saturation and brightness still apply (they set the
-        // rainbow's), so only the hue slider and hex code follow the cycle -
-        // unless disabled in Settings.
-        val cycling = ledMode == LED_MODE_RAINBOW && rainbowSync
-        val shownHue = if (cycling) rainbowHue else hue
-        val shownColor = AndroidColor.HSVToColor(floatArrayOf(shownHue, sat, bri))
-
-        // Board firmware 1.1.0+ takes colours as HSV; older firmware only knows RGB
-        // (and would misread h=H/S/V as an RGB colour).
-        val hsvCommands = boardVersion?.let {
-            GitHubReleases.compareVersions(it, "1.1.0") >= 0
-        } ?: false
-
-        // Solid colour: HSV (hue in degrees, saturation/brightness in percent).
-        fun sendSolid() {
-            val color = AndroidColor.HSVToColor(floatArrayOf(hue, sat, bri))
-            bleManager.sendData(
-                if (hsvCommands) {
-                    Commands.LED_HSV +
-                        "${hue.roundToInt() % 360}/${(sat * 100).roundToInt()}/${(bri * 100).roundToInt()}"
-                } else {
-                    Commands.LED +
-                        "${AndroidColor.red(color)}/${AndroidColor.green(color)}/${AndroidColor.blue(color)}"
-                }
-            )
-            ledColor = color
-            ledMode = LED_MODE_SOLID
-        }
-
-        // Rainbow: keeps cycling on the board, only saturation/brightness change.
-        fun sendRainbow() {
-            bleManager.sendData(rainbowCommand(sat, bri))
-            ledColor = AndroidColor.HSVToColor(floatArrayOf(hue, sat, bri))
-            ledMode = LED_MODE_RAINBOW
-        }
-
-        // Kelvin is just another way to pick hue/saturation: same commands as the colour picker.
-        fun setKelvin(k: Float) {
-            ledKelvin = k
-            val hs = LedColor.kelvinToHueSat(k)
-            hue = hs[0]; sat = hs[1]
-            ledMode = LED_MODE_SOLID
-        }
-
-        // Candle: the board flickers a warm flame around this brightness.
-        fun sendCandle() {
-            bleManager.sendData(candleCommand(bri))
-            ledMode = LED_MODE_CANDLE
-        }
-
-        // Effects run on the board; the brightness slider re-sends them at the new level.
-        fun sendEffect(mode: Int) {
-            val cmd = LedEffects.first { it.first == mode }.third
-            bleManager.sendData("$cmd=${(bri * 100).roundToInt()}")
-            ledMode = mode
-        }
-
-        fun sendCurrent() = when (ledMode) {
-            LED_MODE_RAINBOW -> sendRainbow()
+    // Start a mode from the mode chips.
+    fun startMode(mode: Int) {
+        if (bri < MIN_VISIBLE_BRIGHTNESS) bri = lastOnBri
+        when (mode) {
+            LED_MODE_SOLID -> sendSolid()
+            LED_MODE_RAINBOW -> {
+                if (ledKelvinMode) { ledKelvinMode = false; sat = 1f }
+                if (sat < 0.05f) sat = 1f
+                sendRainbow()
+            }
             LED_MODE_CANDLE -> sendCandle()
-            LED_MODE_BREATHE, LED_MODE_OCEAN, LED_MODE_PARTY, LED_MODE_AURORA -> sendEffect(ledMode)
-            else -> sendSolid()
+            else -> { if (ledKelvinMode) ledKelvinMode = false; sendEffect(mode) }
         }
+    }
 
-        // Live update while dragging, throttled so BLE writes aren't flooded.
-        fun sendThrottled() {
-            val now = System.currentTimeMillis()
-            if (now - lastSentMs >= 80L) {
-                lastSentMs = now
-                sendCurrent()
+    // What the preview shows: the board's mode, approximated.
+    val previewHue = when (ledMode) {
+        LED_MODE_RAINBOW, LED_MODE_PARTY -> rainbowHue
+        LED_MODE_CANDLE -> candleHue.toFloat()
+        LED_MODE_OCEAN -> 205f + 20f * sin(rainbowHue / 360f * 6.2832f)
+        LED_MODE_AURORA -> 200f + 80f * sin(rainbowHue / 360f * 6.2832f / 4f)
+        else -> hue
+    }
+    val previewSat = when (ledMode) {
+        LED_MODE_CANDLE -> 0.94f
+        LED_MODE_OCEAN -> 0.9f
+        LED_MODE_AURORA -> 0.82f
+        LED_MODE_PARTY -> 1f
+        else -> sat
+    }
+    val previewVal = when (ledMode) {
+        LED_MODE_CANDLE -> bri * (0.82f + 0.1f * sin(rainbowHue / 360f * 6.2832f * 2f))
+        LED_MODE_BREATHE -> bri * (0.575f + 0.425f * sin(rainbowHue / 360f * 6.2832f))
+        else -> bri
+    }
+    val modeName = when (ledMode) {
+        LED_MODE_RAINBOW -> "Rainbow"
+        LED_MODE_CANDLE -> "Candle"
+        LED_MODE_SOLID -> if (ledKelvinMode) "${(ledKelvin / 50).roundToInt() * 50} K" else
+            AndroidColor.HSVToColor(floatArrayOf(shownHue, sat, 1f)).let {
+                "#%02X%02X%02X".format(AndroidColor.red(it), AndroidColor.green(it), AndroidColor.blue(it))
             }
-        }
-
-        Dialog(onDismissRequest = { showLedDialog = false }) {
-            Card(
-                shape = RoundedCornerShape(28.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(
-                        1.dp,
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
-                        RoundedCornerShape(28.dp)
-                    )
-            ) {
-                Column(
-                    Modifier.padding(28.dp), horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        "LED",
-                        style = MaterialTheme.typography.headlineSmall,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        "Pick a color",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
-                    )
-                    Spacer(Modifier.height(20.dp))
-
-                    // Live preview: the LED glowing in the dark
-                    LedPreview(
-                        hue = when (ledMode) {
-                            LED_MODE_RAINBOW, LED_MODE_PARTY -> rainbowHue
-                            LED_MODE_CANDLE -> 19f
-                            LED_MODE_OCEAN -> 205f + 20f * sin(rainbowHue / 360f * 6.2832f)
-                            LED_MODE_AURORA -> 200f + 80f * sin(rainbowHue / 360f * 6.2832f / 4f)
-                            else -> hue
-                        },
-                        sat = when (ledMode) {
-                            LED_MODE_CANDLE -> 0.94f
-                            LED_MODE_OCEAN -> 0.9f
-                            LED_MODE_AURORA -> 0.82f
-                            LED_MODE_PARTY -> 1f
-                            else -> sat
-                        },
-                        // candle: preview breathes like the board's flame
-                        value = when (ledMode) {
-                            LED_MODE_CANDLE -> bri * (0.82f + 0.1f * sin(rainbowHue / 360f * 6.2832f * 2f))
-                            LED_MODE_BREATHE -> bri * (0.575f + 0.425f * sin(rainbowHue / 360f * 6.2832f))
-                            else -> bri
-                        },
-                        modifier = Modifier.fillMaxWidth().height(130.dp)
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        if (ledKelvinMode) "${(ledKelvin / 50).roundToInt() * 50} K" else "#%02X%02X%02X".format(
-                            AndroidColor.red(shownColor),
-                            AndroidColor.green(shownColor),
-                            AndroidColor.blue(shownColor)
-                        ),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
-                    )
-
-                    Spacer(Modifier.height(12.dp))
-                    // Segmented switch: one pill, the selected half is filled.
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .height(40.dp)
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
-                            .border(
-                                1.dp,
-                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f),
-                                RoundedCornerShape(20.dp)
-                            )
-                            .padding(3.dp)
-                    ) {
-                        listOf(false to "Color", true to "Kelvin").forEach { (kel, label) ->
-                            val sel = ledKelvinMode == kel
-                            val bg by animateColorAsState(
-                                if (sel) MaterialTheme.colorScheme.primary else Color.Transparent,
-                                tween(200), label = "segBg"
-                            )
-                            Box(
-                                contentAlignment = Alignment.Center,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxHeight()
-                                    .clip(RoundedCornerShape(17.dp))
-                                    .background(bg)
-                                    .clickable(
-                                        interactionSource = remember { MutableInteractionSource() },
-                                        indication = null
-                                    ) {
-                                        if (kel != ledKelvinMode) {
-                                            ledKelvinMode = kel
-                                            if (kel) { setKelvin(ledKelvin); sendSolid() }
-                                        }
-                                    }
-                            ) {
-                                Text(
-                                    label,
-                                    style = MaterialTheme.typography.labelLarge,
-                                    color = if (sel) MaterialTheme.colorScheme.onPrimary
-                                    else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                                )
-                            }
-                        }
-                    }
-                    Spacer(Modifier.height(16.dp))
-
-                    if (ledKelvinMode) {
-                        Text(
-                            "Temperature",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
-                        )
-                        GradientBar(
-                            fraction = (ledKelvin - LedColor.KELVIN_MIN) / (LedColor.KELVIN_MAX - LedColor.KELVIN_MIN),
-                            stops = (0..8).map {
-                                LedColor.kelvinScreenColor(
-                                    LedColor.KELVIN_MIN + it / 8f * (LedColor.KELVIN_MAX - LedColor.KELVIN_MIN)
-                                )
-                            },
-                            thumbColor = LedColor.kelvinScreenColor(ledKelvin),
-                            onFraction = {
-                                setKelvin(LedColor.KELVIN_MIN + it * (LedColor.KELVIN_MAX - LedColor.KELVIN_MIN))
-                                sendThrottled()
-                            },
-                            onFinished = { sendCurrent() }
-                        )
-                        Spacer(Modifier.height(10.dp))
-                        Text(
-                            "Brightness",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
-                        )
-                        GradientBar(
-                            fraction = bri,
-                            stops = listOf(Color.Black, LedColor.kelvinScreenColor(ledKelvin)),
-                            thumbColor = LedColor.kelvinScreenColor(ledKelvin),
-                            onFraction = { bri = it; sendThrottled() },
-                            onFinished = { sendCurrent() }
-                        )
-                    } else
-                    ColorPicker(
-                        hue = shownHue, sat = sat, value = bri,
-                        // Picking a hue means a solid colour (ends the rainbow).
-                        onHueChange = { h ->
-                            hue = h
-                            ledMode = LED_MODE_SOLID
-                            sendThrottled()
-                        },
-                        // Saturation/brightness keep the mode: in rainbow mode
-                        // they adjust the running rainbow instead of stopping it.
-                        onSatChange = { s -> sat = s; sendThrottled() },
-                        onValueChange = { v -> bri = v; sendThrottled() },
-                        // Release: always send the exact final value.
-                        onChangeFinished = { sendCurrent() })
-
-                    Spacer(Modifier.height(16.dp))
-
-                    // Preset swatches
-                    if (ledKelvinMode) Row(
-                        Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        listOf(1900f, 2700f, 3500f, 4500f, 5600f, 6500f).forEach { k ->
-                            Box(
-                                modifier = Modifier
-                                    .size(26.dp)
-                                    .clip(CircleShape)
-                                    .background(LedColor.kelvinScreenColor(k))
-                                    .border(
-                                        1.dp,
-                                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f),
-                                        CircleShape
-                                    )
-                                    .clickable { setKelvin(k); sendSolid() })
-                        }
-                    } else Row(
-                        Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        LedPresets.forEach { preset ->
-                            Box(
-                                modifier = Modifier
-                                    .size(26.dp)
-                                    .clip(CircleShape)
-                                    .background(Color(preset))
-                                    .border(
-                                        1.dp,
-                                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f),
-                                        CircleShape
-                                    )
-                                    .clickable {
-                                        val hsv = FloatArray(3)
-                                        AndroidColor.colorToHSV(preset, hsv)
-                                        hue = hsv[0]; sat = hsv[1]
-                                        // A preset changes the colour, not the brightness you
-                                        // chose. Only when the LED is (almost) off take the
-                                        // swatch's own brightness, so it actually lights up.
-                                        if (bri < MIN_VISIBLE_BRIGHTNESS) bri = hsv[2]
-                                        sendSolid()
-                                    })
-                        }
-                    }
-
-                    Spacer(Modifier.height(24.dp))
-
-                    val rainbowSrc = remember { MutableInteractionSource() }
-                    val candleSrc = remember { MutableInteractionSource() }
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    AppButton(
-                        mono = mono,
-                        onClick = {
-                            // A rainbow needs some colour and light to be visible, but
-                            // a low brightness you chose is kept (only "off" is raised).
-                            if (ledKelvinMode) { ledKelvinMode = false; sat = 1f }
-                            if (sat < 0.05f) sat = 1f
-                            if (bri < MIN_VISIBLE_BRIGHTNESS) bri = 1f
-                            sendRainbow()
-                        },
-                        shape = RoundedCornerShape(14.dp),
-                        interactionSource = rainbowSrc,
-                        modifier = pressScaleModifier(rainbowSrc).weight(1f)
-                    ) { Text("Rainbow") }
-                    AppButton(
-                        mono = mono,
-                        onClick = {
-                            if (bri < MIN_VISIBLE_BRIGHTNESS) bri = 1f
-                            sendCandle()
-                        },
-                        shape = RoundedCornerShape(14.dp),
-                        interactionSource = candleSrc,
-                        modifier = pressScaleModifier(candleSrc).weight(1f)
-                    ) { Text("Candle") }
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    val fwEffects = boardVersion?.let {
-                        GitHubReleases.compareVersions(it, "1.4.0") >= 0
-                    } ?: false
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        LedEffects.forEach { (mode, label, _) ->
-                            val src = remember { MutableInteractionSource() }
-                            AppButton(
-                                mono = mono,
-                                enabled = fwEffects,
-                                onClick = {
-                                    if (ledKelvinMode) ledKelvinMode = false
-                                    if (bri < MIN_VISIBLE_BRIGHTNESS) bri = 1f
-                                    sendEffect(mode)
-                                },
-                                shape = RoundedCornerShape(12.dp),
-                                interactionSource = src,
-                                contentPadding = PaddingValues(horizontal = 2.dp),
-                                modifier = pressScaleModifier(src).weight(1f)
-                            ) { Text(label, style = MaterialTheme.typography.labelMedium, maxLines = 1) }
-                        }
-                    }
-                    if (!fwEffects) {
-                        Text(
-                            "Effects need board firmware 1.4.0 (Settings > Firmware)",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                        )
-                    }
-
-                    Spacer(Modifier.height(8.dp))
-
-                    val ledSetSrc = remember { MutableInteractionSource() }
-                    AppButton(
-                        mono = mono,
-                        onClick = { showLedDialog = false },
-                        shape = RoundedCornerShape(14.dp),
-                        interactionSource = ledSetSrc,
-                        modifier = pressScaleModifier(ledSetSrc).fillMaxWidth()
-                    ) { Text("Done") }
-
-                    Spacer(Modifier.height(4.dp))
-
-                    val ledOffSrc = remember { MutableInteractionSource() }
-                    TextButton(
-                        onClick = {
-                            bri = 0f
-                            sendSolid()                 // fades to black, ends the rainbow
-                            showLedDialog = false
-                        },
-                        interactionSource = ledOffSrc,
-                        modifier = pressScaleModifier(ledOffSrc).fillMaxWidth()
-                    ) { Text("Turn Off") }
-                }
-            }
-        }
+        else -> LedEffects.firstOrNull { it.first == ledMode }?.second ?: ""
     }
 
     // -----------------------------------------------------------------------
@@ -1456,55 +757,15 @@ fun BleControlScreen(
 
                 AppBackground.SIMPLE -> AmbientParticleBackground(
                     modifier = Modifier.fillMaxSize(),
-                    active = isPowerOn,
+                    active = isConnected && ledOn,
                     tint = MaterialTheme.colorScheme.onBackground
                 )
             }
-
-            // ── Real backdrop blur for the frosted control panel ────────
-            // A blurred full-screen copy of the wallpaper, clipped to the panel's
-            // rounded rect. It fills the exact same bounds as the sharp copy above,
-            // so it lines up perfectly — then the panel's translucent tint sits on top.
-            // Both the Simple and Classic layouts park a panel at the bottom and
-            // report its bounds via panelPos/panelSize, so this works for either.
-            if (background == AppBackground.IMAGE && isConnected && !showSettings && panelSize != IntSize.Zero) {
-                Image(
-                    painter = painterResource(R.drawable.background),
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .drawWithContent {
-                            val content = this
-                            val corner = 28.dp.toPx()
-                            val path = Path().apply {
-                                addRoundRect(
-                                    RoundRect(
-                                        left = panelPos.x,
-                                        top = panelPos.y,
-                                        right = panelPos.x + panelSize.width,
-                                        bottom = panelPos.y + panelSize.height,
-                                        topLeftCornerRadius = CornerRadius(corner, corner),
-                                        topRightCornerRadius = CornerRadius(corner, corner),
-                                        bottomRightCornerRadius = CornerRadius.Zero,
-                                        bottomLeftCornerRadius = CornerRadius.Zero
-                                    )
-                                )
-                            }
-                            clipPath(path) { content.drawContent() }
-                        }
-                        .blur(14.dp))
-            }
-
-            // ── Darkening scrim ─────────────────────────────────────────
-            // Dims the wallpaper a touch for legibility. Sits above both the
-            // sharp backdrop and the panel's blurred copy, so the frosted
-            // panel dims by the same amount as everything around it.
             if (background == AppBackground.IMAGE) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.22f))
+                        .background(Color.Black.copy(alpha = 0.35f))
                 )
             }
 
@@ -1539,378 +800,313 @@ fun BleControlScreen(
                         onColorChange = onColorChange,
                         onAccentChange = onAccentChange,
                         onBackgroundChange = onBackgroundChange,
-                    otaManager         = otaManager,
-                    boardVersion       = boardVersion,
-                    isConnected        = isConnected,
+                        otaManager = otaManager,
+                        boardVersion = boardVersion,
+                        isConnected = isConnected,
                         onBack = { showSettings = false })
                 } else {
-
-                    // Entire UI transitions when connection state flips
                     AnimatedContent(
                         targetState = isConnected,
                         transitionSpec = { fadeIn(tween(450)).togetherWith(fadeOut(tween(450))) },
                         label = "connectionTransition",
                         modifier = Modifier.fillMaxSize()
                     ) { connected ->
-
-                        val connectionLabel = when (connectionState) {
-                            BluetoothProfile.STATE_CONNECTED -> "Connected"
-                            BluetoothProfile.STATE_CONNECTING -> "Connecting…"
-                            BluetoothProfile.STATE_DISCONNECTING -> "Disconnecting…"
-                            else -> "Disconnected"
-                        }
-
                         if (connected) {
                             // =====================================================
-                            // CONNECTED LAYOUT
+                            // LED HOME
                             // =====================================================
+                            val onBg = MaterialTheme.colorScheme.onBackground
                             Column(
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .statusBarsPadding(),
-                                horizontalAlignment = Alignment.CenterHorizontally
+                                    .statusBarsPadding()
+                                    .navigationBarsPadding()
+                                    .verticalScroll(rememberScrollState())
+                                    .padding(horizontal = 20.dp, vertical = 12.dp)
                             ) {
-
-                                // ── Header ─────────────────────────────────────
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 24.dp, vertical = 14.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = "WiFi Fan",
-                                        style = MaterialTheme.typography.labelLarge,
-                                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.35f),
-                                        letterSpacing = 2.sp,
-                                        modifier = Modifier.weight(1f)
-                                    )
-
-                                    // Connection dot + label — tap to disconnect
-                                    val dotColor by animateColorAsState(
-                                        targetValue = MaterialTheme.colorScheme.primary,
-                                        animationSpec = tween(600),
-                                        label = "connDot"
-                                    )
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(20.dp))
-                                            .bounceClickable { bleManager.disconnect() }
-                                            .padding(horizontal = 10.dp, vertical = 6.dp)) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(6.dp)
-                                                .clip(CircleShape)
-                                                .background(dotColor)
-                                        )
-                                        Spacer(Modifier.width(6.dp))
+                                // ── Header ──
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Column(Modifier.weight(1f)) {
                                         Text(
-                                            connectionLabel,
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onBackground.copy(
-                                                alpha = 0.35f
+                                            "Glow",
+                                            style = MaterialTheme.typography.headlineMedium,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = onBg
+                                        )
+                                        Spacer(Modifier.height(6.dp))
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            StatusPill(
+                                                text = "Connected" + (boardVersion?.let { " · v$it" } ?: ""),
+                                                active = true
                                             )
-                                        )
+                                            Spacer(Modifier.width(8.dp))
+                                            Text(
+                                                "Disconnect",
+                                                style = MaterialTheme.typography.labelMedium,
+                                                color = onBg.copy(alpha = 0.5f),
+                                                modifier = Modifier
+                                                    .clip(CircleShape)
+                                                    .bounceClickable { bleManager.disconnect() }
+                                                    .padding(horizontal = 8.dp, vertical = 6.dp)
+                                            )
+                                        }
                                     }
-
-                                    // Settings gear
-                                    Box(
-                                        modifier = Modifier
-                                            .size(40.dp)
-                                            .clip(CircleShape)
-                                            .bounceClickable { showSettings = true },
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            painter = painterResource(R.drawable.settings),
-                                            contentDescription = "Settings",
-                                            modifier = Modifier.size(20.dp),
-                                            tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.35f)
-                                        )
-                                    }
+                                    CircleIconButton(R.drawable.settings, "Settings") { showSettings = true }
                                 }
 
-                                // Classic layout removed; the Simple layout is the only one.
-                                run {
-                                    // ===================================================
-                                    // SIMPLE BODY — fan + frosted-glass control panel
-                                    // ===================================================
-                                    // ── Fan image ──────────────────────────────────
-                                    val fanAlpha by animateFloatAsState(
-                                        targetValue = if (isPowerOn) 1f else 0.28f,
-                                        animationSpec = tween(400),
-                                        label = "fanAlpha"
-                                    )
-                                    val glowColor = MaterialTheme.colorScheme.onBackground
+                                Spacer(Modifier.height(18.dp))
 
-                                    Box(
+                                // ── Live preview + power ──
+                                Box(Modifier.fillMaxWidth()) {
+                                    LedPreview(
+                                        hue = previewHue, sat = previewSat, value = previewVal,
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .weight(1f),
-                                        contentAlignment = Alignment.Center
+                                            .height(230.dp)
+                                    )
+                                    Text(
+                                        if (ledOn) modeName else "Off",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = Color.White.copy(alpha = 0.85f),
+                                        modifier = Modifier
+                                            .align(Alignment.BottomStart)
+                                            .padding(16.dp)
+                                    )
+                                    Text(
+                                        if (ledOn) "${(bri * 100).roundToInt()} %" else "",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = Color.White.copy(alpha = 0.6f),
+                                        modifier = Modifier
+                                            .align(Alignment.BottomEnd)
+                                            .padding(16.dp)
+                                    )
+                                    val powerBg by animateColorAsState(
+                                        if (ledOn) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.12f),
+                                        tween(250), label = "powerBg"
+                                    )
+                                    Box(
+                                        contentAlignment = Alignment.Center,
+                                        modifier = Modifier
+                                            .align(Alignment.TopEnd)
+                                            .padding(12.dp)
+                                            .size(44.dp)
+                                            .clip(CircleShape)
+                                            .background(powerBg)
+                                            .bounceClickable { togglePower() }
                                     ) {
-                                        // Soft radial glow behind fan — adds perceived depth
-                                        Canvas(Modifier.size(320.dp)) {
-                                            drawCircle(
-                                                brush = Brush.radialGradient(
-                                                    colors = listOf(
-                                                        glowColor.copy(alpha = 0.07f),
-                                                        Color.Transparent
-                                                    ), radius = 160.dp.toPx()
-                                                ), radius = 160.dp.toPx()
-                                            )
+                                        Icon(
+                                            painter = painterResource(R.drawable.power),
+                                            contentDescription = if (ledOn) "Turn off" else "Turn on",
+                                            modifier = Modifier.size(20.dp),
+                                            tint = if (ledOn) MaterialTheme.colorScheme.onPrimary else Color.White
+                                        )
+                                    }
+                                }
+
+                                Spacer(Modifier.height(16.dp))
+
+                                // ── Brightness ──
+                                PanelCard {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            "Brightness",
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = onBg,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        Text(
+                                            "${(bri * 100).roundToInt()} %",
+                                            style = MaterialTheme.typography.labelLarge,
+                                            color = onBg.copy(alpha = 0.6f)
+                                        )
+                                    }
+                                    Spacer(Modifier.height(8.dp))
+                                    val briTop = if (ledKelvinMode) LedColor.kelvinScreenColor(ledKelvin)
+                                    else Color(AndroidColor.HSVToColor(floatArrayOf(shownHue, sat, 1f)))
+                                    GradientBar(
+                                        fraction = bri,
+                                        stops = listOf(Color.Black, briTop),
+                                        thumbColor = briTop,
+                                        onFraction = {
+                                            bri = it
+                                            if (it >= MIN_VISIBLE_BRIGHTNESS) lastOnBri = it
+                                            sendThrottled()
+                                        },
+                                        onFinished = { sendCurrent() }
+                                    )
+                                }
+
+                                Spacer(Modifier.height(16.dp))
+
+                                // ── Modes ──
+                                PanelCard {
+                                    Text(
+                                        "Mode",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = onBg
+                                    )
+                                    Spacer(Modifier.height(10.dp))
+                                    val modes = listOf(
+                                        Triple(LED_MODE_SOLID, "Solid", true),
+                                        Triple(LED_MODE_RAINBOW, "Rainbow", true),
+                                        Triple(LED_MODE_CANDLE, "Candle", fwCandle)
+                                    ) + LedEffects.map { Triple(it.first, it.second, fwEffects) }
+                                    modes.chunked(3).forEach { row ->
+                                        Row(
+                                            Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            row.forEach { (mode, label, enabled) ->
+                                                ModeChip(
+                                                    label = label,
+                                                    selected = ledOn && ledMode == mode,
+                                                    enabled = enabled,
+                                                    modifier = Modifier.weight(1f),
+                                                    onClick = { startMode(mode) }
+                                                )
+                                            }
+                                            repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
                                         }
-                                        Image(
-                                            painter = painterResource(R.drawable.fan2),
-                                            contentDescription = "Fan",
-                                            contentScale = ContentScale.Fit,
-                                            modifier = Modifier
-                                                .size(320.dp)
-                                                .rotate(angle)
-                                                .alpha(fanAlpha)
+                                        Spacer(Modifier.height(8.dp))
+                                    }
+                                    if (!fwEffects) {
+                                        Text(
+                                            "Update the board firmware (Settings) for all modes.",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = onBg.copy(alpha = 0.5f)
+                                        )
+                                    }
+                                }
+
+                                Spacer(Modifier.height(16.dp))
+
+                                // ── Colour ──
+                                PanelCard {
+                                    Text(
+                                        "Colour",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = onBg
+                                    )
+                                    Spacer(Modifier.height(10.dp))
+                                    // Segmented switch: one pill, the selected half is filled.
+                                    Row(
+                                        Modifier
+                                            .fillMaxWidth()
+                                            .height(40.dp)
+                                            .clip(RoundedCornerShape(20.dp))
+                                            .background(onBg.copy(alpha = 0.08f))
+                                            .padding(3.dp)
+                                    ) {
+                                        listOf(false to "Color", true to "Kelvin").forEach { (kel, label) ->
+                                            val sel = ledKelvinMode == kel
+                                            val bg by animateColorAsState(
+                                                if (sel) MaterialTheme.colorScheme.primary else Color.Transparent,
+                                                tween(200), label = "segBg"
+                                            )
+                                            Box(
+                                                contentAlignment = Alignment.Center,
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .fillMaxHeight()
+                                                    .clip(RoundedCornerShape(17.dp))
+                                                    .background(bg)
+                                                    .clickable(
+                                                        interactionSource = remember { MutableInteractionSource() },
+                                                        indication = null
+                                                    ) {
+                                                        if (kel != ledKelvinMode) {
+                                                            ledKelvinMode = kel
+                                                            if (kel) { setKelvin(ledKelvin); sendSolid() }
+                                                        }
+                                                    }
+                                            ) {
+                                                Text(
+                                                    label,
+                                                    style = MaterialTheme.typography.labelLarge,
+                                                    color = if (sel) MaterialTheme.colorScheme.onPrimary
+                                                    else onBg.copy(alpha = 0.7f)
+                                                )
+                                            }
+                                        }
+                                    }
+                                    Spacer(Modifier.height(14.dp))
+
+                                    fun hsvColor(h: Float, s: Float) =
+                                        Color(AndroidColor.HSVToColor(floatArrayOf(h, s, 1f)))
+                                    if (ledKelvinMode) {
+                                        SliderLabel("Temperature")
+                                        GradientBar(
+                                            fraction = (ledKelvin - LedColor.KELVIN_MIN) /
+                                                (LedColor.KELVIN_MAX - LedColor.KELVIN_MIN),
+                                            stops = (0..8).map {
+                                                LedColor.kelvinScreenColor(
+                                                    LedColor.KELVIN_MIN + it / 8f * (LedColor.KELVIN_MAX - LedColor.KELVIN_MIN)
+                                                )
+                                            },
+                                            thumbColor = LedColor.kelvinScreenColor(ledKelvin),
+                                            onFraction = {
+                                                setKelvin(LedColor.KELVIN_MIN + it * (LedColor.KELVIN_MAX - LedColor.KELVIN_MIN))
+                                                sendThrottled()
+                                            },
+                                            onFinished = { sendCurrent() }
+                                        )
+                                    } else {
+                                        SliderLabel("Hue")
+                                        GradientBar(
+                                            fraction = shownHue / 360f,
+                                            stops = (0..6).map { hsvColor(it * 60f, 1f) },
+                                            thumbColor = hsvColor(shownHue, 1f),
+                                            onFraction = {
+                                                hue = it * 360f
+                                                ledMode = LED_MODE_SOLID
+                                                sendThrottled()
+                                            },
+                                            onFinished = { sendCurrent() }
+                                        )
+                                        Spacer(Modifier.height(10.dp))
+                                        SliderLabel("Saturation")
+                                        GradientBar(
+                                            fraction = sat,
+                                            stops = listOf(hsvColor(shownHue, 0f), hsvColor(shownHue, 1f)),
+                                            thumbColor = hsvColor(shownHue, sat),
+                                            onFraction = { sat = it; sendThrottled() },
+                                            onFinished = { sendCurrent() }
                                         )
                                     }
 
-                                    // ── Controls panel ──────────────────────────────
-                                    val modeLabel = when {
-                                        isTurbo -> "TURBO"
-                                        isEco -> "ECO"
-                                        isNatureWind -> "NATURE"
-                                        isSleep -> "SLEEP"
-                                        else -> "SPEED"
-                                    }
-                                    val numberAlpha by animateFloatAsState(
-                                        targetValue = if (isPowerOn) 0.88f else 0.22f,
-                                        animationSpec = tween(350),
-                                        label = "numberAlpha"
-                                    )
-                                    val labelAlpha by animateFloatAsState(
-                                        targetValue = if (isPowerOn) 0.4f else 0.18f,
-                                        animationSpec = tween(350),
-                                        label = "labelAlpha"
-                                    )
-                                    val primary = MaterialTheme.colorScheme.primary
-                                    val onBg = MaterialTheme.colorScheme.onBackground
-
-                                    // Frosted glass panel — translucent tint; the real backdrop
-                                    // blur is drawn at the root and clipped to this panel's rect.
-                                    val panelShape =
-                                        RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
-                                    val glassTint =
-                                        MaterialTheme.colorScheme.surface.copy(alpha = 0.55f)
-                                    val glassBorder = if (isDark) Color.White.copy(alpha = 0.16f)
-                                    else Color.White.copy(alpha = 0.42f)
-                                    Box(modifier = Modifier
-                                        .fillMaxWidth()
-                                        .onGloballyPositioned {
-                                            panelPos = it.positionInRoot()
-                                            panelSize = it.size
-                                        }
-                                        .clip(panelShape)
-                                        .border(1.dp, glassBorder, panelShape)) {
-                                        Column(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .background(glassTint)
-                                                .padding(horizontal = 24.dp)
-                                                .padding(top = 22.dp)
-                                                .navigationBarsPadding(),
-                                            horizontalAlignment = Alignment.CenterHorizontally
-                                        ) {
-                                            // Speed number
-                                            AnimatedContent(
-                                                targetState = speed.toInt(), transitionSpec = {
-                                                    val sign =
-                                                        if (targetState > initialState) -1 else 1
-                                                    (slideInVertically(tween(180)) { (it * 0.45f * sign).toInt() } + fadeIn(
-                                                        tween(180)
-                                                    )).togetherWith(slideOutVertically(tween(160)) { (-it * 0.45f * sign).toInt() } + fadeOut(
-                                                            tween(130)
-                                                        ))
-                                                }, label = "speedNumber"
-                                            ) { spd ->
-                                                Text(
-                                                    text = "$spd",
-                                                    fontSize = 72.sp,
-                                                    fontWeight = FontWeight.Thin,
-                                                    color = onBg.copy(alpha = numberAlpha),
-                                                    lineHeight = 72.sp
-                                                )
-                                            }
-
-                                            Spacer(Modifier.height(2.dp))
-
-                                            Text(
-                                                text = modeLabel,
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = onBg.copy(alpha = labelAlpha),
-                                                letterSpacing = 2.sp,
-                                                fontSize = 10.sp
-                                            )
-
-                                            Spacer(Modifier.height(12.dp))
-
-                                            // Speed slider — thin line that morphs into a full
-                                            // slider while dragging. 1..6; 7 is Turbo-only.
-                                            MorphingSlider(
-                                                value = speed.coerceIn(1f, 6f),
-                                                enabled = controlsEnabled,
-                                                mono = mono,
-                                                onValueChange = { v ->
-                                                    speed = v.toFloat()
-                                                    bleManager.sendData(Commands.SPEED + v)
-                                                    isTurbo = false; isEco = false
-                                                    isNatureWind = false; isSleep = false
-                                                },
-                                                modifier = Modifier.fillMaxWidth()
-                                            )
-
-                                            Spacer(Modifier.height(4.dp))
-
-                                            // ── Mode row ───────────────────────────────
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.SpaceEvenly
-                                            ) {
-                                                ModeButton(
-                                                    title = "Turbo",
-                                                    icon = R.drawable.turbo,
-                                                    selected = isTurbo,
-                                                    enabled = controlsEnabled,
-                                                    onClick = {
-                                                        bleManager.sendData(Commands.TURBO)
-                                                        isEco = false; isSleep =
-                                                        false; isNatureWind = false
-                                                        isTurbo = true; speed = 7f
-                                                    })
-                                                ModeButton(
-                                                    title = "Eco",
-                                                    icon = R.drawable.eco,
-                                                    selected = isEco,
-                                                    enabled = controlsEnabled,
-                                                    onClick = {
-                                                        bleManager.sendData(Commands.ECO)
-                                                        isTurbo = false; isSleep =
-                                                        false; isNatureWind = false
-                                                        isEco = true; speed = 4f
-                                                    })
-                                                ModeButton(
-                                                    title = "Nature",
-                                                    icon = R.drawable.nature_wind,
-                                                    selected = isNatureWind,
-                                                    enabled = controlsEnabled,
-                                                    onClick = {
-                                                        bleManager.sendData(Commands.NATURE_WIND)
-                                                        isTurbo = false; isEco = false; isSleep =
-                                                        false
-                                                        isNatureWind = true
-                                                    })
-                                                ModeButton(
-                                                    title = "Sleep",
-                                                    icon = R.drawable.sleep,
-                                                    selected = isSleep,
-                                                    enabled = controlsEnabled,
-                                                    onClick = {
-                                                        bleManager.sendData(Commands.SLEEP)
-                                                        isTurbo = false; isEco =
-                                                        false; isNatureWind = false
-                                                        isSleep = true; speed = 1f
-                                                    })
-                                            }
-
-                                            Spacer(Modifier.height(12.dp))
-
-                                            Box(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .height(0.5.dp)
-                                                    .background(onBg.copy(alpha = 0.08f))
-                                            )
-
-                                            // ── Bottom row: Timer + Power ───────────────
-                                            Row(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .padding(vertical = 10.dp),
-                                                horizontalArrangement = Arrangement.SpaceBetween,
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                val timerSrc =
-                                                    remember { MutableInteractionSource() }
-                                                TextButton(
-                                                    onClick = { showTimerDialog = true },
-                                                    enabled = isPowerOn,
-                                                    interactionSource = timerSrc,
-                                                    modifier = pressScaleModifier(timerSrc)
-                                                ) {
-                                                    Icon(
-                                                        painter = painterResource(R.drawable.timer),
-                                                        contentDescription = "Timer",
-                                                        modifier = Modifier.size(16.dp),
-                                                        tint = MaterialTheme.colorScheme.onSurface.copy(
-                                                            alpha = if (isPowerOn) 0.55f else 0.2f
-                                                        )
-                                                    )
-                                                    Spacer(Modifier.width(6.dp))
-                                                    Text(
-                                                        text = if (currentTimer > 0) "Timer  ${currentTimer}h" else "Timer",
-                                                        style = MaterialTheme.typography.labelMedium,
-                                                        color = MaterialTheme.colorScheme.onSurface.copy(
-                                                            alpha = if (isPowerOn) 0.55f else 0.2f
-                                                        )
-                                                    )
+                                    Spacer(Modifier.height(16.dp))
+                                    // Presets
+                                    Row(
+                                        Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        if (ledKelvinMode) {
+                                            listOf(1900f, 2700f, 3500f, 4500f, 5600f, 6500f).forEach { k ->
+                                                PresetDot(LedColor.kelvinScreenColor(k)) {
+                                                    if (bri < MIN_VISIBLE_BRIGHTNESS) bri = lastOnBri
+                                                    setKelvin(k); sendSolid()
                                                 }
-
-                                                val ledSrc = remember { MutableInteractionSource() }
-                                                TextButton(
-                                                    onClick = { showLedDialog = true },
-                                                    enabled = isPowerOn,
-                                                    interactionSource = ledSrc,
-                                                    modifier = pressScaleModifier(ledSrc)
-                                                ) {
-                                                    Icon(
-                                                        painter = painterResource(R.drawable.led),
-                                                        contentDescription = "LED",
-                                                        modifier = Modifier.size(16.dp),
-                                                        tint = MaterialTheme.colorScheme.onSurface.copy(
-                                                            alpha = if (isPowerOn) 0.55f else 0.2f
-                                                        )
-                                                    )
-                                                    Spacer(Modifier.width(6.dp))
-                                                    Text(
-                                                        text = "LED",
-                                                        style = MaterialTheme.typography.labelMedium,
-                                                        color = MaterialTheme.colorScheme.onSurface.copy(
-                                                            alpha = if (isPowerOn) 0.55f else 0.2f
-                                                        )
-                                                    )
+                                            }
+                                        } else {
+                                            LedPresets.forEach { preset ->
+                                                PresetDot(Color(preset)) {
+                                                    val hsv = FloatArray(3)
+                                                    AndroidColor.colorToHSV(preset, hsv)
+                                                    hue = hsv[0]; sat = hsv[1]
+                                                    // A preset changes the colour, not the brightness you chose.
+                                                    if (bri < MIN_VISIBLE_BRIGHTNESS) bri = lastOnBri
+                                                    sendSolid()
                                                 }
-
-                                                PowerButton(
-                                                    isPowerOn = isPowerOn, mono = mono, onClick = {
-                                                        if (isPowerOn) {
-                                                            bleManager.sendData(Commands.POWER_OFF)
-                                                            isPowerOn = false
-                                                            isTurbo = false
-                                                            isEco = false
-                                                            isNatureWind = false
-                                                            isSleep = false
-                                                        } else {
-                                                            bleManager.sendData(Commands.POWER_ON)
-                                                            isPowerOn = true
-                                                        }
-                                                    })
                                             }
                                         }
                                     }
                                 }
+                                Spacer(Modifier.height(24.dp))
                             }
-
                         } else {
-                            // =====================================================
-                            // DISCONNECTED LAYOUT
-                            // =====================================================
                             ConnectScreen(
                                 connectionState = connectionState,
                                 isScanning      = isScanning,
@@ -1939,8 +1135,98 @@ fun BleControlScreen(
     }
 }
 
+/** Rounded translucent panel that groups a block of controls. */
+@Composable
+private fun PanelCard(content: @Composable ColumnScope.() -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(24.dp))
+            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.72f))
+            .border(
+                1.dp,
+                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+                RoundedCornerShape(24.dp)
+            )
+            .padding(18.dp),
+        content = content
+    )
+}
+
+@Composable
+private fun SliderLabel(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+    )
+}
+
+/** One mode in the Mode panel; the selected one is filled with the accent colour. */
+@Composable
+private fun ModeChip(
+    label: String,
+    selected: Boolean,
+    enabled: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val bg by animateColorAsState(
+        if (selected) MaterialTheme.colorScheme.primary
+        else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.07f),
+        tween(200), label = "chipBg"
+    )
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = modifier
+            .height(44.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(bg)
+            .alpha(if (enabled) 1f else 0.35f)
+            .bounceClickable(enabled = enabled, pressedScale = 0.94f, onClick = onClick)
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelLarge,
+            color = if (selected) MaterialTheme.colorScheme.onPrimary
+            else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+        )
+    }
+}
+
+@Composable
+private fun PresetDot(color: Color, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(30.dp)
+            .clip(CircleShape)
+            .background(color)
+            .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f), CircleShape)
+            .bounceClickable(pressedScale = 0.85f, onClick = onClick)
+    )
+}
+
+@Composable
+private fun CircleIconButton(icon: Int, description: String, onClick: () -> Unit) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .size(44.dp)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.onBackground.copy(alpha = 0.07f))
+            .bounceClickable(onClick = onClick)
+    ) {
+        Icon(
+            painter = painterResource(icon),
+            contentDescription = description,
+            modifier = Modifier.size(20.dp),
+            tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+        )
+    }
+}
+
 // ---------------------------------------------------------------------------
-// Connect screen — shown while no fan is connected: a spinning fan beacon that
+// Connect screen — shown while no board is connected: a glowing LED beacon that
 // pulses while searching, a status pill, and the nearby devices listed inline.
 // ---------------------------------------------------------------------------
 
@@ -1963,8 +1249,8 @@ private fun ConnectScreen(
     val status = when {
         connecting                                              -> "Connecting…"
         connectionState == BluetoothProfile.STATE_DISCONNECTING -> "Disconnecting…"
-        picking && isScanning                                   -> "Searching for fans…"
-        picking                                                 -> "Pick your fan"
+        picking && isScanning                                   -> "Searching for LEDs…"
+        picking                                                 -> "Pick your board"
         else                                                    -> "Not connected"
     }
     val beaconSize by animateDpAsState(
@@ -2008,10 +1294,10 @@ private fun ConnectScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Spacer(Modifier.weight(1f))
-            FanBeacon(active = searching, modifier = Modifier.size(beaconSize))
+            GlowBeacon(active = searching, modifier = Modifier.size(beaconSize))
             Spacer(Modifier.height(24.dp))
             Text(
-                text = "WiFi Fan",
+                text = "Glow",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Light,
                 letterSpacing = 2.sp,
@@ -2041,7 +1327,7 @@ private fun ConnectScreen(
                 } else {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
-                            text = "Switch the fan on and keep your phone nearby.",
+                            text = "Power the LED board and keep your phone nearby.",
                             style = MaterialTheme.typography.bodySmall,
                             textAlign = TextAlign.Center,
                             color = onBg.copy(alpha = 0.6f)
@@ -2067,63 +1353,45 @@ private fun ConnectScreen(
     }
 }
 
-/** The fan inside a soft accent glow; spins up and sends out rings while [active]. */
+/** A slowly colour-cycling LED glow; sends out rings while [active]. */
 @Composable
-private fun FanBeacon(active: Boolean, modifier: Modifier = Modifier) {
-    val primary = MaterialTheme.colorScheme.primary
-    val bg = MaterialTheme.colorScheme.background
-    val pulse by rememberInfiniteTransition(label = "beacon").animateFloat(
+private fun GlowBeacon(active: Boolean, modifier: Modifier = Modifier) {
+    val t = rememberInfiniteTransition(label = "beacon")
+    val pulse by t.animateFloat(
         initialValue = 0f, targetValue = 1f,
         animationSpec = infiniteRepeatable(tween(2400, easing = LinearEasing)),
         label = "beaconPulse"
     )
+    val hue by t.animateFloat(
+        initialValue = 0f, targetValue = 360f,
+        animationSpec = infiniteRepeatable(tween(12000, easing = LinearEasing)),
+        label = "beaconHue"
+    )
     val ringAlpha by animateFloatAsState(if (active) 1f else 0f, tween(500), label = "beaconRings")
-    // Degrees per second: an idle drift, spinning up while searching.
-    val speed by animateFloatAsState(if (active) 300f else 18f, tween(900), label = "beaconSpeed")
-    var angle by remember { mutableFloatStateOf(0f) }
-    LaunchedEffect(Unit) {
-        var last = withFrameNanos { it }
-        while (true) {
-            val now = withFrameNanos { it }
-            angle = (angle + speed * (now - last) / 1_000_000_000f) % 360f
-            last = now
-        }
-    }
+    val glow = Color(AndroidColor.HSVToColor(floatArrayOf(hue, 0.75f, 1f)))
 
-    Box(modifier = modifier, contentAlignment = Alignment.Center) {
-        Canvas(Modifier.fillMaxSize()) {
-            val maxR = size.minDimension / 2f
-            drawCircle(
-                brush = Brush.radialGradient(
-                    listOf(primary.copy(alpha = 0.22f), Color.Transparent), center, maxR
-                ),
-                radius = maxR
-            )
-            if (ringAlpha > 0f) {
-                for (i in 0 until 3) {
-                    val t = (pulse + i / 3f) % 1f
-                    drawCircle(
-                        color = primary.copy(alpha = (1f - t) * 0.5f * ringAlpha),
-                        radius = maxR * (0.42f + 0.58f * t),
-                        style = Stroke(width = 1.5.dp.toPx())
-                    )
-                }
+    Canvas(modifier) {
+        val maxR = size.minDimension / 2f
+        drawCircle(
+            brush = Brush.radialGradient(listOf(glow.copy(alpha = 0.35f), Color.Transparent), center, maxR),
+            radius = maxR
+        )
+        if (ringAlpha > 0f) {
+            for (i in 0 until 3) {
+                val p = (pulse + i / 3f) % 1f
+                drawCircle(
+                    color = glow.copy(alpha = (1f - p) * 0.5f * ringAlpha),
+                    radius = maxR * (0.36f + 0.64f * p),
+                    style = Stroke(width = 1.5.dp.toPx())
+                )
             }
-            drawCircle(color = bg.copy(alpha = 0.45f), radius = maxR * 0.42f)
-            drawCircle(color = primary.copy(alpha = 0.12f), radius = maxR * 0.42f)
-            drawCircle(
-                color = primary.copy(alpha = 0.35f),
-                radius = maxR * 0.42f,
-                style = Stroke(width = 1.dp.toPx())
-            )
         }
-        Image(
-            painter = painterResource(R.drawable.fan2),
-            contentDescription = null,
-            contentScale = ContentScale.Fit,
-            modifier = Modifier
-                .fillMaxSize(0.7f)
-                .rotate(angle)
+        val coreR = maxR * 0.34f
+        drawCircle(
+            brush = Brush.radialGradient(
+                listOf(Color.White, glow, glow.copy(alpha = 0.6f)), center, coreR
+            ),
+            radius = coreR
         )
     }
 }
@@ -2169,7 +1437,7 @@ private fun DeviceList(
 ) {
     val cs = MaterialTheme.colorScheme
     val shape = RoundedCornerShape(24.dp)
-    // Named devices first; unnamed ones are rarely the fan.
+    // Named devices first; unnamed ones are rarely the board.
     val sorted = remember(devices) {
         devices.sortedWith(compareBy({ it.name == null }, { it.name ?: it.address }))
     }
@@ -2202,7 +1470,7 @@ private fun DeviceList(
         }
         if (sorted.isEmpty()) {
             Text(
-                text = if (isScanning) "Looking for fans…" else "No devices found. Is the fan switched on?",
+                text = if (isScanning) "Looking for LED boards…" else "No devices found. Is the board powered?",
                 style = MaterialTheme.typography.bodySmall,
                 color = cs.onSurface.copy(alpha = 0.5f),
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp)
@@ -2226,10 +1494,11 @@ private fun DeviceList(
                                 .background(iconFill),
                             contentAlignment = Alignment.Center
                         ) {
-                            Image(
-                                painter = painterResource(R.drawable.fan2),
+                            Icon(
+                                painter = painterResource(R.drawable.led),
                                 contentDescription = null,
-                                modifier = Modifier.size(30.dp)
+                                modifier = Modifier.size(22.dp),
+                                tint = MaterialTheme.colorScheme.primary
                             )
                         }
                         Spacer(Modifier.width(14.dp))
@@ -2544,7 +1813,7 @@ private fun FirmwareSection(
     BackHandler(enabled = state.busy) { }
 
 
-    SettingHeading("Firmware", "Update the fan board over Bluetooth")
+    SettingHeading("Firmware", "Update the LED board over Bluetooth")
     Spacer(Modifier.height(12.dp))
     Column(
         modifier = Modifier
@@ -2639,7 +1908,7 @@ private fun AppUpdateSection() {
             .padding(16.dp)
     ) {
         Text(
-            text       = "WiFiFan v$installedVersion",
+            text       = "Glow v$installedVersion",
             style      = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
             color      = MaterialTheme.colorScheme.onBackground
@@ -2693,7 +1962,7 @@ private fun appUpdateStatusText(state: AppUpdateState): String = when (state) {
     is AppUpdateState.Downloading     ->
         if (state.total > 0) "Downloading… ${state.read * 100 / state.total} %" else "Downloading…"
     AppUpdateState.NeedsPermission    ->
-        "Downloaded. Allow WiFiFan to install apps, then come back here to finish."
+        "Downloaded. Allow Glow to install apps, then come back here to finish."
     AppUpdateState.Installing         -> "Installing… the app closes when it's done; open it again."
     is AppUpdateState.WaitingForUser  -> "Confirm the update in Android's prompt."
     is AppUpdateState.Error           -> state.message
