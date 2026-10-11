@@ -1,0 +1,10 @@
+# build output
+obj/
+build/
+*.o
+*.d
+*.elf
+*.hex
+*.bin
+*.map
+*.lst
