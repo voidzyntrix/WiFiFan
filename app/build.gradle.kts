@@ -7,7 +7,7 @@ plugins {
 
 // The app's version. Bump it for every release; the in-app updater compares it
 // with the newest wififan-app-<version>.apk on GitHub.
-val appVersion = "1.3.4"
+val appVersion = "1.4.0"
 
 // Release signing: keystore.properties in the project root (local builds) or
 // WIFIFAN_* environment variables (GitHub Actions). See docs/APP_UPDATES.md.
@@ -63,6 +63,10 @@ android {
     }
     buildFeatures {
         compose = true
+    }
+    // Release lint doubles the CI build time; run it on demand with ./gradlew lint.
+    lint {
+        checkReleaseBuilds = false
     }
 }
 

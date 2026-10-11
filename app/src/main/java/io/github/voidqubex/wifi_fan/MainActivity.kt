@@ -777,12 +777,60 @@ fun BleControlScreen(
         ledStore.ledKelvin = ledKelvin
     }
 
+
     val connectionState by bleManager.connectionState.collectAsState()
     val foundDevices    by bleManager.foundDevices.collectAsState()
     val isScanning      by bleManager.isScanning.collectAsState()
     val boardVersion    by bleManager.firmwareVersion.collectAsState()
 
     val isConnected = connectionState == BluetoothProfile.STATE_CONNECTED
+
+    // LED options from Settings (board firmware 1.3.0+ understands them)
+    var smoothCandle by remember { mutableStateOf(ledStore.smoothCandle) }
+    var rainbowSeconds by remember { mutableIntStateOf(ledStore.rainbowSeconds) }
+    var fadeMs by remember { mutableIntStateOf(ledStore.fadeMs) }
+    val fwOptions = boardVersion?.let { GitHubReleases.compareVersions(it, "1.3.0") >= 0 } ?: false
+    fun candleCommand(bri: Float) = Commands.CANDLE + "=${(bri * 100).roundToInt()}" +
+        if (fwOptions) "/${if (smoothCandle) 1 else 0}" else ""
+    fun rainbowCommand(sat: Float, bri: Float) =
+        Commands.RAINBOW + "=${(sat * 100).roundToInt()}/${(bri * 100).roundToInt()}" +
+            if (fwOptions) "/$rainbowSeconds" else ""
+    // Fade time: sent when the board connects and whenever it's changed.
+    LaunchedEffect(fwOptions, isConnected, fadeMs) {
+        if (fwOptions && isConnected) bleManager.sendData("fade=$fadeMs")
+    }
+    // Changing candle/rainbow options while that mode runs applies them right away.
+    LaunchedEffect(smoothCandle, rainbowSeconds) {
+        if (!fwOptions || !isConnected) return@LaunchedEffect
+        val hsv = FloatArray(3).also { AndroidColor.colorToHSV(ledColor, it) }
+        when (ledMode) {
+            LED_MODE_CANDLE -> bleManager.sendData(candleCommand(ledBri))
+            LED_MODE_RAINBOW -> bleManager.sendData(rainbowCommand(hsv[1], ledBri))
+        }
+    }
+
+    // Both update checks run at launch; a toast says when something is available.
+    LaunchedEffect(Unit) {
+        if (AppUpdater.state.value == AppUpdateState.Idle) AppUpdater.checkForUpdate(context)
+    }
+    val appUpdateState by AppUpdater.state.collectAsState()
+    val fwUpdateState by otaManager.state.collectAsState()
+    LaunchedEffect(isConnected, boardVersion) {
+        val st = otaManager.state.value
+        if (isConnected && boardVersion != null &&
+            (st == OtaState.Idle || st is OtaState.Error || st is OtaState.Done || st is OtaState.UpToDate)
+        ) otaManager.checkForUpdate(boardVersion)
+    }
+    LaunchedEffect(appUpdateState is AppUpdateState.UpdateAvailable) {
+        (appUpdateState as? AppUpdateState.UpdateAvailable)?.let {
+            Toast.makeText(context, "App update v${it.release.version} available in Settings", Toast.LENGTH_LONG).show()
+        }
+    }
+    LaunchedEffect(fwUpdateState is OtaState.UpdateAvailable) {
+        (fwUpdateState as? OtaState.UpdateAvailable)?.let {
+            Toast.makeText(context, "Board firmware v${it.release.version} available in Settings", Toast.LENGTH_LONG).show()
+        }
+    }
     val controlsEnabled = isConnected && isPowerOn
 
     val effectiveSpeed by remember {
@@ -1027,9 +1075,7 @@ fun BleControlScreen(
 
         // Rainbow: keeps cycling on the board, only saturation/brightness change.
         fun sendRainbow() {
-            bleManager.sendData(
-                Commands.RAINBOW + "=${(sat * 100).roundToInt()}/${(bri * 100).roundToInt()}"
-            )
+            bleManager.sendData(rainbowCommand(sat, bri))
             ledColor = AndroidColor.HSVToColor(floatArrayOf(hue, sat, bri))
             ledMode = LED_MODE_RAINBOW
         }
@@ -1044,7 +1090,7 @@ fun BleControlScreen(
 
         // Candle: the board flickers a warm flame around this brightness.
         fun sendCandle() {
-            bleManager.sendData(Commands.CANDLE + "=${(bri * 100).roundToInt()}")
+            bleManager.sendData(candleCommand(bri))
             ledMode = LED_MODE_CANDLE
         }
 
@@ -1391,6 +1437,12 @@ fun BleControlScreen(
                         background = background,
                         rainbowSync = rainbowSync,
                         onRainbowSyncChange = onRainbowSyncChange,
+                        smoothCandle = smoothCandle,
+                        onSmoothCandleChange = { smoothCandle = it; ledStore.smoothCandle = it },
+                        rainbowSeconds = rainbowSeconds,
+                        onRainbowSecondsChange = { rainbowSeconds = it; ledStore.rainbowSeconds = it },
+                        fadeMs = fadeMs,
+                        onFadeMsChange = { fadeMs = it; ledStore.fadeMs = it },
                         onLayoutChange = onLayoutChange,
                         onColorChange = onColorChange,
                         onAccentChange = onAccentChange,
@@ -2413,6 +2465,12 @@ private fun SettingsScreen(
     background: AppBackground,
     rainbowSync: Boolean,
     onRainbowSyncChange: (Boolean) -> Unit,
+    smoothCandle: Boolean,
+    onSmoothCandleChange: (Boolean) -> Unit,
+    rainbowSeconds: Int,
+    onRainbowSecondsChange: (Int) -> Unit,
+    fadeMs: Int,
+    onFadeMsChange: (Int) -> Unit,
     onLayoutChange: (UiLayout) -> Unit,
     onColorChange: (AppColorScheme) -> Unit,
     onAccentChange: (Int) -> Unit,
@@ -2563,6 +2621,62 @@ private fun SettingsScreen(
             Switch(checked = rainbowSync, onCheckedChange = onRainbowSyncChange)
         }
 
+        Spacer(Modifier.height(16.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = "Smooth candle",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+                Text(
+                    text = "Slow, gentle flicker (easier on the eyes at night)",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+                )
+            }
+            Switch(checked = smoothCandle, onCheckedChange = onSmoothCandleChange)
+        }
+
+        Spacer(Modifier.height(24.dp))
+        SettingHeading("Rainbow speed", "Time for one trip round the colour wheel")
+        Spacer(Modifier.height(12.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            listOf(Triple("Slow", "30 s", 30), Triple("Normal", "15 s", 15), Triple("Fast", "6 s", 6))
+                .forEach { (label, desc, sec) ->
+                    ChoiceCard(
+                        label = label, description = desc,
+                        selected = rainbowSeconds == sec,
+                        modifier = Modifier.weight(1f),
+                        onClick = { onRainbowSecondsChange(sec) }
+                    )
+                }
+        }
+
+        Spacer(Modifier.height(24.dp))
+        SettingHeading("Colour fade", "How fast the LED changes to a new colour")
+        Spacer(Modifier.height(12.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            listOf(Triple("Quick", "0.5 s", 500), Triple("Normal", "1.5 s", 1500), Triple("Slow", "3 s", 3000))
+                .forEach { (label, desc, ms) ->
+                    ChoiceCard(
+                        label = label, description = desc,
+                        selected = fadeMs == ms,
+                        modifier = Modifier.weight(1f),
+                        onClick = { onFadeMsChange(ms) }
+                    )
+                }
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = "Smooth candle, rainbow speed and fade need board firmware 1.3.0 or newer.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+        )
+
         Spacer(Modifier.height(24.dp))
     }
 }
@@ -2583,14 +2697,6 @@ private fun FirmwareSection(
     }
     BackHandler(enabled = state.busy) { }
 
-    // Check GitHub by itself once the board is connected and has said its version,
-    // so a newer release shows up straight away as the "Update to vX" button.
-    LaunchedEffect(isConnected, boardVersion) {
-        if (isConnected && boardVersion != null &&
-            (state == OtaState.Idle || state is OtaState.Error || state is OtaState.Done ||
-                state is OtaState.UpToDate)
-        ) otaManager.checkForUpdate(boardVersion)
-    }
 
     SettingHeading("Firmware", "Update the fan board over Bluetooth")
     Spacer(Modifier.height(12.dp))
