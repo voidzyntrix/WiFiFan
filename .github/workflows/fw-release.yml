@@ -1,0 +1,42 @@
+name: fw-release
+
+on:
+  push:
+    tags: ['fw-v*']
+
+permissions:
+  contents: write
+
+env:
+  XPACK_VER: 14.2.0-3
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install xPack RISC-V GCC
+        run: |
+          url="https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack/releases/download/v${XPACK_VER}/xpack-riscv-none-elf-gcc-${XPACK_VER}-linux-x64.tar.gz"
+          curl -fsSL "$url" | tar xz -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/xpack-riscv-none-elf-gcc-${XPACK_VER}/bin" >> "$GITHUB_PATH"
+
+      - name: Build firmware
+        run: CROSS=riscv-none-elf- bash firmware/app/build.sh "$PWD/out"
+
+      - name: Check version matches tag
+        id: ver
+        run: |
+          ver=$(sed -n 's/^#define FW_VERSION *"\([0-9.]*\)".*/\1/p' firmware/app/User/main.c)
+          tag="${GITHUB_REF_NAME#fw-v}"
+          [ "$ver" = "$tag" ] || { echo "FW_VERSION $ver != tag $tag"; exit 1; }
+          test -f "out/wififan-fw-$ver.bin"
+          echo "ver=$ver" >> "$GITHUB_OUTPUT"
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Firmware ${{ steps.ver.outputs.ver }}
+          files: out/wififan-fw-${{ steps.ver.outputs.ver }}.bin
+          fail_on_unmatched_files: true
