@@ -1,6 +1,7 @@
 # WiFiFan firmware (CH32V203C8U6)
 
-- `app/` - main firmware (USART commands, WS2812 LED on PB3). Version: `FW_VERSION` in `app/User/main.c`.
+- `app/` - main firmware (USART commands, two chained WS2812 LEDs on PB3). Version: `FW_VERSION` in `app/User/main.c`.
+  Command reference: [PROTOCOL.md](PROTOCOL.md).
 - `bootloader/` - Bluetooth OTA bootloader. Do not change its behaviour casually: installed boards depend on it.
 
 Both are MounRiver Studio projects: open the folder (`.project`/`.wvproj`) in MounRiver and build.
