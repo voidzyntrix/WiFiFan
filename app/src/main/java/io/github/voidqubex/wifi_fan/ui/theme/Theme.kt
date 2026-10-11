@@ -15,6 +15,7 @@ import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -32,6 +33,23 @@ object AppLook {
     /** Multiplier for every corner radius (0 = square). */
     var cornerScale by mutableFloatStateOf(1f)
 }
+
+/** True in the pure Monochrome scheme. */
+val LocalPureMono = staticCompositionLocalOf { false }
+
+/**
+ * Fill for selected / active controls: the accent colour, or in Monochrome a soft translucent
+ * grey (Raycast style, never an opaque white block). [strong] for call-to-action buttons.
+ */
+@Composable
+fun activeFill(strong: Boolean = false): Color =
+    if (LocalPureMono.current) MaterialTheme.colorScheme.onBackground.copy(alpha = if (strong) 0.2f else 0.16f)
+    else MaterialTheme.colorScheme.primary
+
+/** Content colour on [activeFill]. */
+@Composable
+fun onActiveFill(): Color =
+    if (LocalPureMono.current) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onPrimary
 
 /** Corner multipliers for the Settings choices Square, Small, Medium, Large. */
 val CornerScales = listOf(0f, 0.5f, 1f, 1.6f)
@@ -183,7 +201,7 @@ fun WiFiFanTheme(
     }
 
     // Disable the default Material ripple app-wide; presses get custom scale feedback.
-    CompositionLocalProvider(LocalRippleConfiguration provides null) {
+    CompositionLocalProvider(LocalRippleConfiguration provides null, LocalPureMono provides pureMono) {
         MaterialTheme(
             colorScheme = colorScheme,
             typography = if (AppLook.monoFont) MonoTypography else Typography,

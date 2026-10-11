@@ -176,6 +176,12 @@ import io.github.voidqubex.wifi_fan.ui.theme.AccentPresets
 import io.github.voidqubex.wifi_fan.ui.theme.AppLook
 import io.github.voidqubex.wifi_fan.ui.theme.CornerScales
 import io.github.voidqubex.wifi_fan.ui.theme.rounded
+import io.github.voidqubex.wifi_fan.ui.theme.LocalPureMono
+import io.github.voidqubex.wifi_fan.ui.theme.activeFill
+import io.github.voidqubex.wifi_fan.ui.theme.onActiveFill
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.isSpecified
 import io.github.voidqubex.wifi_fan.ui.theme.circle
 import io.github.voidqubex.wifi_fan.ui.theme.dotCorner
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -327,7 +333,15 @@ private fun AppButton(
             enabled = enabled,
             shape = shape,
             interactionSource = interactionSource,
-            colors = colors,
+            colors = if (LocalPureMono.current) {
+                val fg = MaterialTheme.colorScheme.onBackground
+                ButtonDefaults.buttonColors(
+                    containerColor = fg.copy(alpha = 0.14f),
+                    contentColor = fg,
+                    disabledContainerColor = fg.copy(alpha = 0.06f),
+                    disabledContentColor = fg.copy(alpha = 0.3f)
+                )
+            } else colors,
             contentPadding = contentPadding,
             content = content
         )
@@ -904,46 +918,29 @@ fun BleControlScreen(
                                     .statusBarsPadding()
                                     .navigationBarsPadding()
                                     .verticalScroll(rememberScrollState())
-                                    .padding(horizontal = 20.dp, vertical = 12.dp)
+                                    .padding(horizontal = screenPadding(), vertical = 12.dp)
                             ) {
                                 // ── Header ──
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     modifier = Modifier.entrance(0)
                                 ) {
-                                    Column(Modifier.weight(1f)) {
-                                        Text(
-                                            "Glow",
-                                            style = MaterialTheme.typography.headlineMedium,
-                                            fontWeight = FontWeight.SemiBold,
-                                            color = onBg
-                                        )
-                                        Spacer(Modifier.height(6.dp))
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            StatusPill(
-                                                text = "Connected" + (boardVersion?.let { " · v$it" } ?: ""),
-                                                active = true
-                                            )
-                                            Spacer(Modifier.width(8.dp))
-                                            Text(
-                                                "Disconnect",
-                                                style = MaterialTheme.typography.labelMedium,
-                                                color = onBg.copy(alpha = 0.5f),
-                                                modifier = Modifier
-                                                    .clip(circle())
-                                                    .bounceClickable { bleManager.disconnect() }
-                                                    .padding(horizontal = 8.dp, vertical = 6.dp)
-                                            )
-                                        }
-                                    }
+                                    Text(
+                                        "Glow",
+                                        style = MaterialTheme.typography.headlineMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = onBg,
+                                        maxLines = 1,
+                                        modifier = Modifier.weight(1f)
+                                    )
                                     CircleIconButton(R.drawable.settings, "Settings") { showSettings = true }
                                     Spacer(Modifier.width(8.dp))
                                     val powerBg by animateColorAsState(
-                                        if (ledOn) MaterialTheme.colorScheme.primary else onBg.copy(alpha = 0.07f),
+                                        if (ledOn) activeFill() else onBg.copy(alpha = 0.07f),
                                         tween(250), label = "powerBg"
                                     )
                                     val powerFg by animateColorAsState(
-                                        if (ledOn) MaterialTheme.colorScheme.onPrimary else onBg.copy(alpha = 0.7f),
+                                        if (ledOn) onActiveFill() else onBg.copy(alpha = 0.7f),
                                         tween(250), label = "powerFg"
                                     )
                                     Box(
@@ -962,8 +959,32 @@ fun BleControlScreen(
                                         )
                                     }
                                 }
-
                                 Spacer(Modifier.height(8.dp))
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.fillMaxWidth().entrance(0)
+                                ) {
+                                    Box(Modifier.weight(1f, fill = false)) {
+                                        StatusPill(
+                                            text = "Connected" + (boardVersion?.let { " · v$it" } ?: ""),
+                                            active = true
+                                        )
+                                    }
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(
+                                        "Disconnect",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = onBg.copy(alpha = 0.5f),
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        modifier = Modifier
+                                            .clip(circle())
+                                            .bounceClickable { bleManager.disconnect() }
+                                            .padding(horizontal = 8.dp, vertical = 6.dp)
+                                    )
+                                }
+
+                                Spacer(Modifier.height(4.dp))
 
                                 // ── Live preview ──
                                 Column(
@@ -974,7 +995,7 @@ fun BleControlScreen(
                                         hue = previewHue, sat = previewSat, value = previewVal,
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .height(220.dp)
+                                            .height(if (isCompact()) 176.dp else 220.dp)
                                     )
                                     AnimatedContent(
                                         targetState = if (ledOn) modeName else "Off",
@@ -987,7 +1008,8 @@ fun BleControlScreen(
                                         Text(
                                             name,
                                             style = MaterialTheme.typography.titleMedium,
-                                            color = onBg.copy(alpha = 0.85f)
+                                            color = onBg.copy(alpha = 0.85f),
+                                            maxLines = 1
                                         )
                                     }
                                 }
@@ -1026,7 +1048,9 @@ fun BleControlScreen(
                                                         label,
                                                         style = MaterialTheme.typography.titleSmall,
                                                         fontWeight = FontWeight.SemiBold,
-                                                        color = onBg
+                                                        color = onBg,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
                                                     )
                                                 }
                                             }
@@ -1293,7 +1317,7 @@ private fun PanelCard(modifier: Modifier = Modifier, content: @Composable Column
                 MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
                 rounded(24.dp)
             )
-            .padding(18.dp),
+            .padding(if (isCompact()) 14.dp else 18.dp),
         content = content
     )
 }
@@ -1321,43 +1345,11 @@ private fun SliderLabel(text: String) {
     )
 }
 
-/** One mode in the Mode panel; the selected one is filled with the accent colour. */
-@Composable
-private fun ModeChip(
-    label: String,
-    selected: Boolean,
-    enabled: Boolean,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit
-) {
-    val bg by animateColorAsState(
-        if (selected) MaterialTheme.colorScheme.primary
-        else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.07f),
-        tween(200), label = "chipBg"
-    )
-    Box(
-        contentAlignment = Alignment.Center,
-        modifier = modifier
-            .height(44.dp)
-            .clip(rounded(14.dp))
-            .background(bg)
-            .alpha(if (enabled) 1f else 0.35f)
-            .bounceClickable(enabled = enabled, pressedScale = 0.94f, onClick = onClick)
-    ) {
-        Text(
-            label,
-            style = MaterialTheme.typography.labelLarge,
-            color = if (selected) MaterialTheme.colorScheme.onPrimary
-            else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
-        )
-    }
-}
-
 @Composable
 private fun PresetDot(color: Color, onClick: () -> Unit) {
     Box(
         modifier = Modifier
-            .size(30.dp)
+            .size(if (isCompact()) 26.dp else 30.dp)
             .clip(circle())
             .background(color)
             .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f), circle())
@@ -1561,7 +1553,10 @@ private fun StatusPill(text: String, active: Boolean) {
                 )
         )
         Spacer(Modifier.width(8.dp))
-        Text(text = text, style = MaterialTheme.typography.labelMedium, color = onBg.copy(alpha = 0.8f))
+        Text(
+            text = text, style = MaterialTheme.typography.labelMedium, color = onBg.copy(alpha = 0.8f),
+            maxLines = 1, overflow = TextOverflow.Ellipsis
+        )
     }
 }
 
@@ -1728,7 +1723,7 @@ private fun SettingsScreen(
             .statusBarsPadding()
             .navigationBarsPadding()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp, vertical = 12.dp)
+            .padding(horizontal = screenPadding(), vertical = 12.dp)
     ) {
         // ── Header ──
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.entrance(0)) {
@@ -2044,7 +2039,7 @@ private fun PillButton(
 ) {
     val onBg = MaterialTheme.colorScheme.onBackground
     val bg by animateColorAsState(
-        if (highlighted) MaterialTheme.colorScheme.primary else onBg.copy(alpha = 0.08f),
+        if (highlighted) activeFill(strong = true) else onBg.copy(alpha = 0.08f),
         tween(250), label = "pillButtonBg"
     )
     Box(
@@ -2057,11 +2052,12 @@ private fun PillButton(
             .alpha(if (enabled) 1f else 0.4f)
             .bounceClickable(enabled = enabled, pressedScale = 0.97f, onClick = onClick)
     ) {
-        Text(
+        FitText(
             text,
             style = MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.SemiBold,
-            color = if (highlighted) MaterialTheme.colorScheme.onPrimary else onBg
+            color = if (highlighted) onActiveFill() else onBg,
+            modifier = Modifier.padding(horizontal = 12.dp)
         )
     }
 }
@@ -2108,7 +2104,7 @@ private fun AccentColorPicker(selected: Int, onPick: (Int) -> Unit) {
             val ring by animateDpAsState(if (isSel) 3.dp else 1.dp, tween(200), label = "accentRing")
             Box(
                 modifier = Modifier
-                    .size(30.dp)
+                    .size(if (isCompact()) 26.dp else 30.dp)
                     .clip(circle())
                     .background(c)
                     .border(
@@ -2306,13 +2302,13 @@ private fun SegmentedPill(
                     .fillMaxHeight()
                     .padding(3.dp)
                     .clip(rounded(17.dp))
-                    .background(MaterialTheme.colorScheme.primary)
+                    .background(activeFill())
             )
         }
         Row(Modifier.fillMaxSize()) {
             options.forEachIndexed { i, label ->
                 val fg by animateColorAsState(
-                    if (i == selected) MaterialTheme.colorScheme.onPrimary else onBg.copy(alpha = 0.7f),
+                    if (i == selected) onActiveFill() else onBg.copy(alpha = 0.7f),
                     tween(200), label = "pillFg"
                 )
                 Box(
@@ -2325,13 +2321,11 @@ private fun SegmentedPill(
                             indication = null
                         ) { if (i != selected) onSelect(i) }
                 ) {
-                    Text(
+                    FitText(
                         label,
                         style = MaterialTheme.typography.labelLarge,
                         color = fg,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(horizontal = 4.dp)
+                        modifier = Modifier.padding(horizontal = 3.dp)
                     )
                 }
             }
@@ -2347,10 +2341,14 @@ private fun AppSwitch(checked: Boolean, onChange: (Boolean) -> Unit) {
         if (checked) 1f else 0f, spring(stiffness = Spring.StiffnessMediumLow), label = "switchPos"
     )
     val track by animateColorAsState(
-        if (checked) cs.primary else cs.onBackground.copy(alpha = 0.14f), tween(200), label = "switchTrack"
+        if (!checked) cs.onBackground.copy(alpha = 0.14f)
+        else if (LocalPureMono.current) cs.onBackground.copy(alpha = 0.38f) else cs.primary,
+        tween(200), label = "switchTrack"
     )
     val knob by animateColorAsState(
-        if (checked) cs.onPrimary else cs.onBackground.copy(alpha = 0.7f), tween(200), label = "switchKnob"
+        if (!checked) cs.onBackground.copy(alpha = 0.7f)
+        else if (LocalPureMono.current) cs.onBackground else cs.onPrimary,
+        tween(200), label = "switchKnob"
     )
     Box(
         Modifier
@@ -2391,4 +2389,38 @@ private fun ScanDots() {
             )
         }
     }
+}
+
+/** Narrow phone (under 380 dp wide): tighter padding and smaller decorations. */
+@Composable
+private fun isCompact() = LocalConfiguration.current.screenWidthDp < 380
+
+@Composable
+private fun screenPadding() = if (isCompact()) 14.dp else 20.dp
+
+/** One line of text that shrinks a little (down to 80 %) rather than wrapping or cutting off. */
+@Composable
+private fun FitText(
+    text: String,
+    style: TextStyle,
+    color: Color,
+    modifier: Modifier = Modifier,
+    fontWeight: FontWeight? = null
+) {
+    var scale by remember(text, style) { mutableFloatStateOf(1f) }
+    var settled by remember(text, style) { mutableStateOf(false) }
+    Text(
+        text,
+        color = color,
+        fontWeight = fontWeight,
+        maxLines = 1,
+        softWrap = false,
+        overflow = TextOverflow.Ellipsis,
+        style = if (style.fontSize.isSpecified) style.copy(fontSize = style.fontSize * scale) else style,
+        modifier = modifier.drawWithContent { if (settled) drawContent() },
+        onTextLayout = {
+            val overflow = it.hasVisualOverflow || (it.lineCount > 0 && it.isLineEllipsized(0))
+            if (overflow && scale > 0.8f) scale = (scale - 0.05f).coerceAtLeast(0.8f) else settled = true
+        }
+    )
 }
