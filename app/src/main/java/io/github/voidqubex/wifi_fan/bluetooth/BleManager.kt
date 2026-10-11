@@ -37,10 +37,19 @@ class BleManager(private val context: Context) {
     private val scanner get() = bluetoothAdapter?.bluetoothLeScanner
     private var bluetoothGatt: BluetoothGatt? = null
 
-    // Starts as CONNECTED on purpose: lets the control UI run in the emulator,
-    // which has no Bluetooth.
-    private val _connectionState = MutableStateFlow(BluetoothProfile.STATE_CONNECTED)
+    // On a real phone the app starts disconnected, so it opens on the connect
+    // screen. Only in the emulator (or without Bluetooth) it pretends to be
+    // connected, so the control UI can still be tried there.
+    private val _connectionState = MutableStateFlow(
+        if (bluetoothAdapter == null || isEmulator()) BluetoothProfile.STATE_CONNECTED
+        else BluetoothProfile.STATE_DISCONNECTED
+    )
     val connectionState: StateFlow<Int> = _connectionState
+
+    private fun isEmulator(): Boolean =
+        Build.FINGERPRINT.startsWith("generic") || Build.FINGERPRINT.contains("emulator") ||
+            Build.MODEL.contains("sdk_gphone") || Build.HARDWARE.contains("ranchu") ||
+            Build.HARDWARE.contains("goldfish")
 
     private val _foundDevices = MutableStateFlow<Set<BluetoothDevice>>(emptySet())
     val foundDevices: StateFlow<Set<BluetoothDevice>> = _foundDevices
