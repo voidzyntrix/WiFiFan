@@ -135,7 +135,7 @@ each LED's own).
 
 - Connect: `ver\` -> `VER,1.6.1\` -> two-LED UI enabled (and the candle style).
 - Two solid colours: `split=1\` then `hh=0/100/100/240/100/100\` (or `h1=` / `h2=`).
-- One-flame candle: `split=1\` then `candle=60/1/19/0\` (two candles: `candle=60/1/19/1`).
+- One-flame candle: `split=1\` then `candle=60/1/19/0\` (two candles: `candle=60/1/19/1\`).
 - Two-LED rainbow: `split=1\` then `rain=100/60/15\`.
 - Back to one look on both: `split=0\` (or just keep sending classic commands).
 - Music sync: `split=1\`, `fade=0\`, then `hh=...\` every 30-50 ms.
