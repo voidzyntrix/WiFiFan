@@ -65,7 +65,38 @@ class SettingsStore(context: Context) {
         get() = prefs.getFloat(KEY_LED_KELVIN, 4000f)
         set(value) { prefs.edit().putFloat(KEY_LED_KELVIN, value).apply() }
 
+    /** Candle mode: smooth (slow, gentle) instead of the lively flicker. */
+    var smoothCandle: Boolean
+        get() = prefs.getBoolean(KEY_SMOOTH_CANDLE, false)
+        set(value) { prefs.edit().putBoolean(KEY_SMOOTH_CANDLE, value).apply() }
+    /** Seconds the rainbow takes for one trip round the colour wheel. */
+    var rainbowSeconds: Int
+        get() = prefs.getInt(KEY_RAINBOW_SECONDS, 15)
+        set(value) { prefs.edit().putInt(KEY_RAINBOW_SECONDS, value).apply() }
+    /** How long the LED takes to fade to a new colour, in ms. */
+    var fadeMs: Int
+        get() = prefs.getInt(KEY_FADE_MS, 1500)
+        set(value) { prefs.edit().putInt(KEY_FADE_MS, value).apply() }
+
+    /** Candle flame hue in degrees (19 warm, 30 amber, 10 ember). */
+    var candleHue: Int
+        get() = prefs.getInt(KEY_CANDLE_HUE, 19)
+        set(value) { prefs.edit().putInt(KEY_CANDLE_HUE, value).apply() }
+    var keepScreenOn: Boolean
+        get() = prefs.getBoolean(KEY_KEEP_SCREEN_ON, false)
+        set(value) { prefs.edit().putBoolean(KEY_KEEP_SCREEN_ON, value).apply() }
+    /** Toast at launch when an app or firmware update is available. */
+    var updateToasts: Boolean
+        get() = prefs.getBoolean(KEY_UPDATE_TOASTS, true)
+        set(value) { prefs.edit().putBoolean(KEY_UPDATE_TOASTS, value).apply() }
+
     private companion object {
+        const val KEY_CANDLE_HUE = "candle_hue"
+        const val KEY_KEEP_SCREEN_ON = "keep_screen_on"
+        const val KEY_UPDATE_TOASTS = "update_toasts"
+        const val KEY_SMOOTH_CANDLE = "smooth_candle"
+        const val KEY_RAINBOW_SECONDS = "rainbow_seconds"
+        const val KEY_FADE_MS = "fade_ms"
         const val KEY_LED_COLOR  = "led_color"
         const val KEY_LED_BRI    = "led_brightness"
         const val KEY_LED_MODE   = "led_mode"

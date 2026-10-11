@@ -22,6 +22,10 @@ jobs:
           java-version: '21'
 
       - uses: gradle/actions/setup-gradle@v4
+        with:
+          # Tag builds aren't on the default branch, so by default they'd never save the
+          # Gradle cache and every release would start cold. Let them write it.
+          cache-read-only: false
 
       - name: Check the tag matches the app version
         run: |
