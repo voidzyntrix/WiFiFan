@@ -3,11 +3,12 @@ import java.util.Properties
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.roborazzi)
 }
 
 // The app's version. Bump it for every release; the in-app updater compares it
 // with the newest wififan-app-<version>.apk on GitHub.
-val appVersion = "1.8.1"
+val appVersion = "1.9.0"
 
 // Release signing: keystore.properties in the project root (local builds) or
 // WIFIFAN_* environment variables (GitHub Actions). See docs/APP_UPDATES.md.
@@ -64,6 +65,10 @@ android {
     buildFeatures {
         compose = true
     }
+    // Screenshot tests (Robolectric + Roborazzi) need the merged resources.
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+    }
     // Release lint doubles the CI build time; run it on demand with ./gradlew lint.
     lint {
         checkReleaseBuilds = false
@@ -80,6 +85,13 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
     testImplementation(libs.junit)
+    testImplementation(libs.androidx.junit)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.roborazzi)
+    testImplementation(libs.roborazzi.compose)
+    testImplementation(libs.roborazzi.junit.rule)
+    testImplementation(platform(libs.androidx.compose.bom))
+    testImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))

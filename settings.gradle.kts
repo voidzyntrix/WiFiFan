@@ -23,5 +23,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "WiFi Fan"
+rootProject.name = "Glow"
 include(":app")
