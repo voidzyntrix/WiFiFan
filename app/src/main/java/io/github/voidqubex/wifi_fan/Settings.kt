@@ -5,9 +5,6 @@ import androidx.compose.ui.graphics.toArgb
 import io.github.voidqubex.wifi_fan.ui.theme.CornerScales
 import io.github.voidqubex.wifi_fan.ui.theme.DefaultAccent
 
-/** Which control-screen layout to render. The Simple layout is always frosted glass. */
-enum class UiLayout { SIMPLE, CLASSIC }
-
 /** Which color palette the theme uses. */
 enum class AppColorScheme { MONOCHROME, TINTED, COLORED }
 
@@ -20,12 +17,6 @@ enum class AppBackground { SIMPLE, IMAGE }
  */
 class SettingsStore(context: Context) {
     private val prefs = context.getSharedPreferences("wifi_fan_settings", Context.MODE_PRIVATE)
-
-    var uiLayout: UiLayout
-        get() = runCatching {
-            UiLayout.valueOf(prefs.getString(KEY_LAYOUT, UiLayout.SIMPLE.name)!!)
-        }.getOrDefault(UiLayout.SIMPLE)
-        set(value) { prefs.edit().putString(KEY_LAYOUT, value.name).apply() }
 
     var colorScheme: AppColorScheme
         get() = runCatching {
@@ -103,6 +94,26 @@ class SettingsStore(context: Context) {
     /** The corner multiplier the current style stands for. */
     val cornerScale: Float
         get() = cornerStyle.let { if (it == 4) customCorner else CornerScales[it] }
+    /** LED preview stays a perfect circle regardless of the corner setting. */
+    var roundLedPreview: Boolean
+        get() = prefs.getBoolean("round_led_preview", true)
+        set(value) { prefs.edit().putBoolean("round_led_preview", value).apply() }
+    /** Pure-black (OLED) dark theme. */
+    var pureBlack: Boolean
+        get() = prefs.getBoolean("pure_black", false)
+        set(value) { prefs.edit().putBoolean("pure_black", value).apply() }
+    /** Music mode: microphone sensitivity 0..1. */
+    var musicSensitivity: Float
+        get() = prefs.getFloat("music_sensitivity", 0.5f)
+        set(value) { prefs.edit().putFloat("music_sensitivity", value).apply() }
+    /** Music mode: keep the picked colour instead of stepping the hue on beats. */
+    var musicKeepColour: Boolean
+        get() = prefs.getBoolean("music_keep_colour", false)
+        set(value) { prefs.edit().putBoolean("music_keep_colour", value).apply() }
+    /** Newest app version whose "What's new" the user has seen (null before the first launch). */
+    var lastSeenVersion: String?
+        get() = prefs.getString("last_seen_version", null)
+        set(value) { prefs.edit().putString("last_seen_version", value).apply() }
     var keepScreenOn: Boolean
         get() = prefs.getBoolean(KEY_KEEP_SCREEN_ON, false)
         set(value) { prefs.edit().putBoolean(KEY_KEEP_SCREEN_ON, value).apply() }
@@ -123,7 +134,6 @@ class SettingsStore(context: Context) {
         const val KEY_LED_MODE   = "led_mode"
         const val KEY_LED_KMODE  = "led_kelvin_mode"
         const val KEY_LED_KELVIN = "led_kelvin"
-        const val KEY_LAYOUT     = "ui_layout"
         const val KEY_RAINBOW_SYNC = "rainbow_sync"
         const val KEY_COLOR      = "color_scheme"
         const val KEY_ACCENT     = "accent_color"

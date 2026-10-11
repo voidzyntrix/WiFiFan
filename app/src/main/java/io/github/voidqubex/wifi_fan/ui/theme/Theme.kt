@@ -3,6 +3,7 @@ package io.github.voidqubex.wifi_fan.ui.theme
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.CornerSize
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.Shapes
@@ -32,6 +33,10 @@ object AppLook {
     var monoFont by mutableStateOf(false)
     /** Multiplier for every corner radius (0 = square). */
     var cornerScale by mutableFloatStateOf(1f)
+    /** Keep the LED preview a perfect circle whatever the corner setting. */
+    var roundLedPreview by mutableStateOf(true)
+    /** Dark theme on pure black (OLED): black background, near-black surfaces. */
+    var pureBlack by mutableStateOf(false)
 }
 
 /** True in the pure Monochrome scheme. */
@@ -62,6 +67,9 @@ fun rounded(radius: Dp) = RoundedCornerShape(radius * AppLook.cornerScale)
  * and above, squarer below, square at 0.
  */
 fun circle(): Shape = RoundedCornerShape(CornerSize((50f * AppLook.cornerScale).coerceIn(0f, 50f)))
+
+/** Shape of the LED preview: a true circle, or [circle] when "Round LED preview" is off. */
+fun ledShape(): Shape = if (AppLook.roundLedPreview) CircleShape else circle()
 
 /** Corner radius for a drawn dot of [radius] px, matching [circle]. */
 fun dotCorner(radius: Float) = radius * AppLook.cornerScale.coerceIn(0f, 1f)
@@ -151,14 +159,14 @@ private fun coloredScheme(accent: Color, dark: Boolean): ColorScheme {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun WiFiFanTheme(
+fun GlowTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     colored: Boolean = false,
     pureMono: Boolean = false,
     accent: Color = DefaultAccent,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = if (colored) {
+    val baseScheme = if (colored) {
         coloredScheme(accent, darkTheme)
     } else if (pureMono) {
         monochromeScheme(darkTheme)
@@ -200,6 +208,8 @@ fun WiFiFanTheme(
         if (darkTheme) FallbackDark else FallbackLight
     }
 
+    val colorScheme = if (darkTheme && AppLook.pureBlack) baseScheme.oled() else baseScheme
+
     // Disable the default Material ripple app-wide; presses get custom scale feedback.
     CompositionLocalProvider(LocalRippleConfiguration provides null, LocalPureMono provides pureMono) {
         MaterialTheme(
@@ -210,3 +220,15 @@ fun WiFiFanTheme(
         )
     }
 }
+
+/** Pure-black variant of a dark scheme for OLED screens. */
+private fun ColorScheme.oled(): ColorScheme = copy(
+    background = Color.Black,
+    surface = Color(0xFF0A0A0A),
+    surfaceVariant = Color(0xFF161616),
+    surfaceContainer = Color(0xFF0A0A0A),
+    surfaceContainerLow = Color(0xFF050505),
+    surfaceContainerLowest = Color.Black,
+    surfaceContainerHigh = Color(0xFF121212),
+    surfaceContainerHighest = Color(0xFF1A1A1A),
+)

@@ -15,6 +15,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history and tags, for the release notes
 
       - uses: actions/setup-java@v4
         with:
@@ -69,9 +71,21 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           apk="dist/wififan-app-$VERSION.apk"
+          # Release notes (shown in the app's "What's new"): the commits since the previous
+          # app tag; GitHub's generated notes (merged PRs) are appended below them.
+          prev=$(git describe --tags --abbrev=0 --match 'app-v*' "$GITHUB_REF_NAME^" 2>/dev/null || true)
+          {
+            echo "## Changes"
+            echo
+            git log --no-merges --format='- %s' "${prev:+$prev..}$GITHUB_REF_NAME" -- . ':!firmware' | head -n 60
+          } > notes.md
           # The release may already exist if it was drafted in the GitHub UI with this tag.
           if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
             gh release upload "$GITHUB_REF_NAME" "$apk" --clobber
+            # Fill in the notes only if the drafted release has none.
+            if [ -z "$(gh release view "$GITHUB_REF_NAME" --json body --jq .body)" ]; then
+              gh release edit "$GITHUB_REF_NAME" --notes-file notes.md
+            fi
           else
-            gh release create "$GITHUB_REF_NAME" "$apk" --title "App v$VERSION" --generate-notes
+            gh release create "$GITHUB_REF_NAME" "$apk" --title "App v$VERSION" --notes-file notes.md --generate-notes
           fi

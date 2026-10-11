@@ -87,13 +87,13 @@ publish (not as a draft or pre-release).
 **Settings → App** checks GitHub when it opens. To update, tap **Update to vX**.
 
 1. The APK downloads.
-2. The first time, Android asks to **allow WiFiFan to install apps**. Turn the
+2. The first time, Android asks to **allow Glow to install apps**. Turn the
    switch on and go back; the install continues.
 3. Android asks *"Do you want to update this app?"*. Tap **Update**. From the
    second self-update on, Android 12+ can skip this prompt.
 4. The app closes when the update lands. Open it again.
 
-Before installing, the app checks the download is WiFiFan, has a higher version
+Before installing, the app checks the download is Glow, has a higher version
 code, and is signed with the same key. If one of these fails, it says which.
 Note: a build run from Android Studio is signed with the *debug* key, so it
 can't update itself to a GitHub release. Install a release build to test.

@@ -3,6 +3,7 @@ package io.github.voidqubex.wifi_fan.ota
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
+import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
@@ -25,6 +26,7 @@ data class ReleaseAsset(
 object GitHubReleases {
     private const val RELEASES_URL =
         "https://api.github.com/repos/voidzyntrix/WiFiFan/releases?per_page=30"
+    private const val TAG_URL = "https://api.github.com/repos/voidzyntrix/WiFiFan/releases/tags"
     private const val FEED_URL = "https://github.com/voidzyntrix/WiFiFan/releases.atom"
     private const val DOWNLOAD_URL = "https://github.com/voidzyntrix/WiFiFan/releases/download"
     private val TAG_IN_FEED = Regex("""/releases/tag/([A-Za-z]+)-v(\d+\.\d+\.\d+)""")
@@ -90,6 +92,38 @@ object GitHubReleases {
         return best
     }
 
+    /**
+     * Release notes (markdown) of the release tagged [tag], e.g. "app-v1.9.0"; null if
+     * there is no such release. Falls back to the release feed (HTML turned into text).
+     */
+    suspend fun releaseNotes(tag: String): String? = withContext(Dispatchers.IO) {
+        try {
+            val json = String(get("$TAG_URL/$tag", limit = 1024 * 1024), Charsets.UTF_8)
+            JSONObject(json).optString("body").takeIf { it.isNotBlank() }
+        } catch (e: IOException) {
+            notesFromFeed(tag) ?: throw e
+        }
+    }
+
+    private fun notesFromFeed(tag: String): String? {
+        val feed = String(get(FEED_URL, limit = 2 * 1024 * 1024), Charsets.UTF_8)
+        val entry = feed.split("<entry>").firstOrNull { it.contains("/releases/tag/$tag\"") } ?: return null
+        val html = Regex("<content[^>]*>(.*?)</content>", RegexOption.DOT_MATCHES_ALL)
+            .find(entry)?.groupValues?.get(1) ?: return null
+        return htmlToMarkdown(unescape(html)).takeIf { it.isNotBlank() }
+    }
+
+    private fun unescape(s: String) = s.replace("&lt;", "<").replace("&gt;", ">")
+        .replace("&quot;", "\"").replace("&#39;", "'").replace("&amp;", "&")
+
+    /** Just enough HTML -> markdown for release notes: headings, list items, paragraphs. */
+    internal fun htmlToMarkdown(html: String): String = unescape(
+        html.replace(Regex("<h[1-6][^>]*>"), "\n## ")
+            .replace(Regex("<li[^>]*>"), "\n- ")
+            .replace(Regex("<br\\s*/?>|</p>|</h[1-6]>|</ul>|</ol>"), "\n")
+            .replace(Regex("<[^>]+>"), "")
+    ).lines().joinToString("\n") { it.trim() }.replace(Regex("\n{3,}"), "\n\n").trim()
+
     /** Compares "1.2.3"-style versions numerically; missing parts count as 0. */
     fun compareVersions(a: String, b: String): Int {
         val pa = a.split('.').map { it.toIntOrNull() ?: 0 }
@@ -142,7 +176,7 @@ object GitHubReleases {
             conn.readTimeout = 15_000
             conn.instanceFollowRedirects = true              // assets redirect to a CDN
             conn.setRequestProperty("Accept", "application/vnd.github+json, application/octet-stream")
-            conn.setRequestProperty("User-Agent", "WiFiFan-app")
+            conn.setRequestProperty("User-Agent", "Glow-app")
             val code = conn.responseCode
             if (code != HttpURLConnection.HTTP_OK) throw IOException("GitHub answered HTTP $code")
             return conn.inputStream.use { body(it, conn.contentLengthLong) }
