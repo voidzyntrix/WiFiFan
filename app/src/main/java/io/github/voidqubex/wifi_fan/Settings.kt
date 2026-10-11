@@ -48,7 +48,29 @@ class SettingsStore(context: Context) {
         get() = prefs.getBoolean(KEY_RAINBOW_SYNC, true)
         set(value) { prefs.edit().putBoolean(KEY_RAINBOW_SYNC, value).apply() }
 
+    /** Last LED state, so the LED dialog reopens where it was left (also after a restart). */
+    var ledColor: Int
+        get() = prefs.getInt(KEY_LED_COLOR, android.graphics.Color.WHITE)
+        set(value) { prefs.edit().putInt(KEY_LED_COLOR, value).apply() }
+    var ledBrightness: Float
+        get() = prefs.getFloat(KEY_LED_BRI, 1f)
+        set(value) { prefs.edit().putFloat(KEY_LED_BRI, value).apply() }
+    var ledMode: Int
+        get() = prefs.getInt(KEY_LED_MODE, 0)
+        set(value) { prefs.edit().putInt(KEY_LED_MODE, value).apply() }
+    var ledKelvinMode: Boolean
+        get() = prefs.getBoolean(KEY_LED_KMODE, false)
+        set(value) { prefs.edit().putBoolean(KEY_LED_KMODE, value).apply() }
+    var ledKelvin: Float
+        get() = prefs.getFloat(KEY_LED_KELVIN, 4000f)
+        set(value) { prefs.edit().putFloat(KEY_LED_KELVIN, value).apply() }
+
     private companion object {
+        const val KEY_LED_COLOR  = "led_color"
+        const val KEY_LED_BRI    = "led_brightness"
+        const val KEY_LED_MODE   = "led_mode"
+        const val KEY_LED_KMODE  = "led_kelvin_mode"
+        const val KEY_LED_KELVIN = "led_kelvin"
         const val KEY_LAYOUT     = "ui_layout"
         const val KEY_RAINBOW_SYNC = "rainbow_sync"
         const val KEY_COLOR      = "color_scheme"
