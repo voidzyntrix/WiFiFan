@@ -65,6 +65,8 @@ import io.github.voidqubex.wifi_fan.ui.components.SegmentedPill
 import io.github.voidqubex.wifi_fan.ui.components.bounceClickable
 import io.github.voidqubex.wifi_fan.ui.components.entrance
 import io.github.voidqubex.wifi_fan.ui.components.screenPadding
+import io.github.voidqubex.wifi_fan.ui.home.ScenePicker
+import io.github.voidqubex.wifi_fan.ui.home.loadScenes
 import io.github.voidqubex.wifi_fan.ui.theme.AppLook
 import io.github.voidqubex.wifi_fan.ui.theme.CornerScales
 import io.github.voidqubex.wifi_fan.ui.theme.activeFill
@@ -107,7 +109,9 @@ internal fun SettingsScreen(
     separateLeds: Boolean = false,
     onSeparateLedsChange: (Boolean) -> Unit = {},
     twoCandles: Boolean = false,
-    onTwoCandlesChange: (Boolean) -> Unit = {}
+    onTwoCandlesChange: (Boolean) -> Unit = {},
+    autoLight: Boolean = false,
+    onAutoLightChange: (Boolean) -> Unit = {}
 ) {
     val otaState by otaManager.state.collectAsState()
     val settingsContext = LocalContext.current
@@ -115,6 +119,7 @@ internal fun SettingsScreen(
     var boardOpen by remember { mutableStateOf(!store.categoryCollapsed("board")) }
     var uiOpen by remember { mutableStateOf(!store.categoryCollapsed("ui")) }
     var firmwareOpen by remember { mutableStateOf(!store.categoryCollapsed("firmware")) }
+    var autoOpen by remember { mutableStateOf(!store.categoryCollapsed("auto")) }
     var cornerStyle by remember { mutableIntStateOf(store.cornerStyle) }
     var customCorner by remember { mutableFloatStateOf(store.customCorner) }
     val onBg = MaterialTheme.colorScheme.onBackground
@@ -218,8 +223,17 @@ internal fun SettingsScreen(
 
         Spacer(Modifier.height(12.dp))
 
+        // ── Auto light ──
+        SettingsCard("Auto light", autoOpen, Modifier.entrance(2), {
+            autoOpen = !autoOpen; store.setCategoryCollapsed("auto", !autoOpen)
+        }) {
+            AutoLightSettings(store, candleHue, autoLight, onAutoLightChange)
+        }
+
+        Spacer(Modifier.height(12.dp))
+
         // ── App UI ──
-        SettingsCard("App UI", uiOpen, Modifier.entrance(2), {
+        SettingsCard("App UI", uiOpen, Modifier.entrance(3), {
             uiOpen = !uiOpen; store.setCategoryCollapsed("ui", !uiOpen)
         }) {
             SettingHeading("Background", "What appears behind the controls")
@@ -326,7 +340,7 @@ internal fun SettingsScreen(
         Spacer(Modifier.height(12.dp))
 
         // ── Firmware & updates ──
-        SettingsCard("Firmware & updates", firmwareOpen, Modifier.entrance(3), {
+        SettingsCard("Firmware & updates", firmwareOpen, Modifier.entrance(4), {
             firmwareOpen = !firmwareOpen; store.setCategoryCollapsed("firmware", !firmwareOpen)
         }) {
             FirmwareSection(
@@ -343,6 +357,57 @@ internal fun SettingsScreen(
 
         Spacer(Modifier.height(24.dp))
     }
+}
+
+/** Settings > Auto light: the switch, the two scenes and the wait before Night. */
+@Composable
+private fun AutoLightSettings(
+    store: SettingsStore,
+    candleHue: Int,
+    on: Boolean,
+    onChange: (Boolean) -> Unit
+) {
+    val onBg = MaterialTheme.colorScheme.onBackground
+    val scenes = remember { store.loadScenes() }
+    var handScene by remember { mutableStateOf(store.autoHandScene) }
+    var nightScene by remember { mutableStateOf(store.autoNightScene) }
+    var wait by remember { mutableIntStateOf(store.autoWaitMinutes) }
+    SettingSwitch(
+        "Auto light",
+        "Reading light while the phone is in your hand, night light once it lies still and locked",
+        on, onChange
+    )
+    SettingGap()
+    if (scenes.isEmpty()) {
+        Text(
+            "Save a scene on the home screen first.",
+            style = MaterialTheme.typography.bodySmall,
+            color = onBg.copy(alpha = 0.45f)
+        )
+    } else {
+        SettingHeading("In hand", "Screen on, unlocked and moving")
+        ScenePicker(scenes, handScene, candleHue, onPick = {
+            handScene = it.id; store.autoHandScene = it.id
+        })
+        SettingGap()
+        SettingHeading("Phone down & locked", "Locked or screen off, and still for the wait below")
+        ScenePicker(scenes, nightScene, candleHue, onPick = {
+            nightScene = it.id; store.autoNightScene = it.id
+        })
+    }
+    SettingGap()
+    val waits = listOf(1, 2, 5)
+    SettingHeading("Wait before Night", "How long the phone lies still and locked first")
+    SegmentedPill(listOf("1 min", "2 min", "5 min"), waits.indexOf(wait).coerceAtLeast(0)) {
+        wait = waits[it]; store.autoWaitMinutes = waits[it]
+    }
+    Spacer(Modifier.height(16.dp))
+    Text(
+        "Pauses while Music, Visualizer or Screen sync runs. Turning it off brings back the light " +
+            "you had before it first changed anything.",
+        style = MaterialTheme.typography.bodySmall,
+        color = onBg.copy(alpha = 0.45f)
+    )
 }
 
 @Composable

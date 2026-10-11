@@ -174,6 +174,26 @@ class SettingsStore(context: Context) {
         get() = prefs.getString("scenes", null)
         set(value) { prefs.edit().putString("scenes", value).apply() }
 
+    /** Auto light: reading light while the phone is in a hand, night light when it is down and locked. */
+    var autoLight: Boolean
+        get() = prefs.getBoolean("auto_light", false)
+        set(value) { prefs.edit().putBoolean("auto_light", value).apply() }
+    /** Scene ids for In hand and for Phone down & locked (the default Read and Night scenes). */
+    var autoHandScene: Long
+        get() = prefs.getLong("auto_hand_scene", 2L)
+        set(value) { prefs.edit().putLong("auto_hand_scene", value).apply() }
+    var autoNightScene: Long
+        get() = prefs.getLong("auto_night_scene", 1L)
+        set(value) { prefs.edit().putLong("auto_night_scene", value).apply() }
+    /** Minutes the phone must lie still and locked before Night: 1, 2 or 5. */
+    var autoWaitMinutes: Int
+        get() = prefs.getInt("auto_wait_minutes", 2)
+        set(value) { prefs.edit().putInt("auto_wait_minutes", value).apply() }
+    /** The light from before Auto light first changed it (a scene as JSON), brought back when it is turned off. */
+    var autoSnapshot: String?
+        get() = prefs.getString("auto_snapshot", null)
+        set(value) { prefs.edit().putString("auto_snapshot", value).apply() }
+
     private companion object {
         const val KEY_CANDLE_HUE = "candle_hue"
         const val KEY_KEEP_SCREEN_ON = "keep_screen_on"

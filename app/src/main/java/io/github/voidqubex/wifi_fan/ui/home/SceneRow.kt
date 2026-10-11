@@ -54,7 +54,10 @@ internal fun SceneRow(
     onApply: (Scene) -> Unit,
     onLongPress: (Scene) -> Unit,
     onAdd: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** Auto light's quick toggle, first in the row (null hides it). */
+    autoOn: Boolean? = null,
+    onAutoToggle: () -> Unit = {}
 ) {
     Row(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -64,6 +67,7 @@ internal fun SceneRow(
             .horizontalScroll(rememberScrollState())
             .padding(PaddingValues(horizontal = edgePadding))
     ) {
+        if (autoOn != null) AutoChip(autoOn, onAutoToggle)
         scenes.forEach { scene ->
             SceneChip(
                 name = scene.name,
@@ -74,6 +78,68 @@ internal fun SceneRow(
             )
         }
         AddChip(enabled = canAdd, label = if (scenes.isEmpty()) "Save scene" else null, onClick = onAdd)
+    }
+}
+
+/** Picks one of [scenes] (Settings > Auto light). */
+@Composable
+internal fun ScenePicker(
+    scenes: List<Scene>,
+    selectedId: Long,
+    candleHue: Int,
+    onPick: (Scene) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier.horizontalScroll(rememberScrollState())
+    ) {
+        scenes.forEach { scene ->
+            SceneChip(
+                name = scene.name,
+                swatch = scene.swatch(candleHue),
+                selected = scene.id == selectedId,
+                onClick = { onPick(scene) },
+                onLongClick = { onPick(scene) }
+            )
+        }
+    }
+}
+
+/** Auto light on/off: filled while on, with a small ring-and-dot mark. */
+@Composable
+private fun AutoChip(on: Boolean, onClick: () -> Unit) {
+    val onBg = MaterialTheme.colorScheme.onBackground
+    val bg by animateColorAsState(
+        if (on) activeFill() else onBg.copy(alpha = 0.07f), tween(200), label = "autoBg"
+    )
+    val fg by animateColorAsState(
+        if (on) onActiveFill() else onBg.copy(alpha = 0.85f), tween(200), label = "autoFg"
+    )
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .height(36.dp)
+            .clip(circle())
+            .background(bg)
+            .bounceClickable(pressedScale = 0.94f, onClick = onClick)
+            .padding(start = 10.dp, end = 14.dp)
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.size(14.dp).clip(circle()).border(1.5.dp, fg, circle())
+        ) {
+            Box(Modifier.size(6.dp).clip(circle()).background(if (on) fg else fg.copy(alpha = 0.35f)))
+        }
+        Spacer(Modifier.width(8.dp))
+        Text(
+            "Auto",
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = if (on) FontWeight.SemiBold else FontWeight.Medium,
+            color = fg,
+            maxLines = 1
+        )
     }
 }
 

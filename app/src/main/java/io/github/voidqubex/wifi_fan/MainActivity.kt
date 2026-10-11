@@ -16,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.lifecycleScope
+import io.github.voidqubex.wifi_fan.auto.AutoLight
 import io.github.voidqubex.wifi_fan.bluetooth.BleManager
 import io.github.voidqubex.wifi_fan.ota.OtaManager
 import io.github.voidqubex.wifi_fan.sync.SyncHub
@@ -77,8 +78,8 @@ class MainActivity : ComponentActivity() {
         super.onDestroy()
         SyncHub.uiAlive = false
         // Leaving for good ends the Bluetooth link (a rotation doesn't), unless music, visualizer or
-        // screen sync is still driving the LED: the service lets go of the board when it stops.
-        if (isFinishing && !SyncHub.isActive()) bleManager.disconnect()
+        // screen sync or Auto light is still driving the LED: the service lets go of the board when it stops.
+        if (isFinishing && !SyncHub.isActive() && !AutoLight.running) bleManager.disconnect()
     }
 }
 

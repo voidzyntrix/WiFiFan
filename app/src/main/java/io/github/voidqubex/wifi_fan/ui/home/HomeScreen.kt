@@ -92,6 +92,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import io.github.voidqubex.wifi_fan.audio.AudioSyncService
+import io.github.voidqubex.wifi_fan.auto.AutoLight
+import io.github.voidqubex.wifi_fan.auto.AutoLightService
 import io.github.voidqubex.wifi_fan.screen.ScreenSyncService
 import io.github.voidqubex.wifi_fan.sync.SyncHub
 import io.github.voidqubex.wifi_fan.sync.SyncKind
@@ -498,6 +500,7 @@ fun BleControlScreen(
     var splitSent by remember { mutableStateOf<Boolean?>(null) }
     LaunchedEffect(fwSplit, isConnected, separate) {
         if (!fwSplit || !isConnected) { splitSent = null; return@LaunchedEffect }
+        if (splitSent == separate) return@LaunchedEffect   // already sent (a scene sends its own layout)
         val changed = splitSent != null && splitSent != separate
         bleManager.sendData(LedCommands.split(separate))
         splitSent = separate
@@ -659,48 +662,69 @@ fun BleControlScreen(
         kelvinMode2 = twoLeds && led2KelvinMode,
         kelvin2 = if (twoLeds) led2Kelvin else 4000f
     )
-    // Applying goes through the same paths as changing things by hand.
+    /** What the board shows now, in the form [SceneApplier] works with. */
+    fun currentLedState() = LedState(
+        mode = ledMode, hue = hue, sat = sat, kelvinMode = ledKelvinMode, kelvin = ledKelvin, bri = bri,
+        candleHue = candleHueOverride, separate = separate,
+        hue2 = hue2, sat2 = sat2, kelvinMode2 = led2KelvinMode, kelvin2 = led2Kelvin
+    )
+    /** Takes over a state that was just sent (by a scene chip, or by Auto light), without sending it again. */
+    fun adoptLedState(st: LedState) {
+        ledKelvinMode = st.kelvinMode
+        ledKelvin = st.kelvin
+        hue = st.hue; sat = st.sat
+        bri = st.bri
+        if (st.bri >= MIN_VISIBLE_BRIGHTNESS) lastOnBri = st.bri
+        candleHueOverride = st.candleHue
+        ledMode = st.mode
+        led2KelvinMode = st.kelvinMode2
+        led2Kelvin = st.kelvin2
+        hue2 = st.hue2; sat2 = st.sat2
+        if (st.separate != separate) {
+            // The commands already carried split=; the layout effect must not send it again.
+            if (splitSent != null) splitSent = st.separate
+            separate = st.separate
+            ledStore.separateLeds = st.separate
+        }
+        if (st.mode == LED_MODE_SOLID || st.mode == LED_MODE_BREATHE || st.mode == LED_MODE_CHASE ||
+            st.mode == LED_MODE_RAINBOW
+        ) ledColor = AndroidColor.HSVToColor(floatArrayOf(st.hue, st.sat, st.bri))
+    }
+    // The same commands Auto light sends for a scene (SceneApplier), then the screen follows.
     fun applyScene(s: Scene) {
-        val supported = when (s.mode) {
-            LED_MODE_CANDLE -> fwCandle
-            LED_MODE_BREATHE, LED_MODE_OCEAN, LED_MODE_PARTY, LED_MODE_AURORA -> fwEffects
-            LED_MODE_CHASE -> fwSplit
-            else -> Scene.canSave(s.mode)
-        }
-        ledKelvinMode = s.kelvinMode
-        if (s.kelvinMode) {
-            ledKelvin = s.kelvin
-            val hs = LedColor.kelvinToHueSat(s.kelvin)
-            hue = hs[0]; sat = hs[1]
-        } else {
-            hue = s.hue; sat = s.sat
-        }
-        bri = s.bri
-        if (s.bri >= MIN_VISIBLE_BRIGHTNESS) lastOnBri = s.bri
-        candleHueOverride = if (s.mode == LED_MODE_CANDLE) s.candleHue else null
-        ledMode = if (supported) s.mode else LED_MODE_SOLID
+        val caps = BoardCaps.of(boardVersion)
+        val current = currentLedState()
+        val (next, supported) = SceneApplier.resolve(s, current, caps)
+        SceneApplier.commands(
+            next, caps, LedOptions(smoothCandle, candleHue, twoCandles, rainbowSeconds),
+            layoutChanged = next.separate != current.separate
+        ).forEach(bleManager::sendData)
+        adoptLedState(next)
         if (!supported) {
             Toast.makeText(context, "\"${s.name}\" needs newer board firmware; showing its colour.", Toast.LENGTH_SHORT).show()
         }
-        if (s.split == true) {
-            led2KelvinMode = s.kelvinMode2
-            if (s.kelvinMode2) {
-                led2Kelvin = s.kelvin2
-                val hs = LedColor.kelvinToHueSat(s.kelvin2)
-                hue2 = hs[0]; sat2 = hs[1]
-            } else {
-                hue2 = s.hue2; sat2 = s.sat2
-            }
-        }
-        // A scene saved Linked or Separate brings its layout back (older scenes keep the current
-        // one). A layout change re-sends the mode itself, once the board has the new layout.
-        val layout = s.split
-        if (fwSplit && layout != null && layout != separate) {
-            separate = layout
-            ledStore.separateLeds = layout
-        } else {
-            sendCurrent()
-        }
+    }
+    // Auto light changed the LED (from its service): show what it sent.
+    LaunchedEffect(Unit) { AutoLight.applied.collect { adoptLedState(it) } }
+
+    // ── Auto light ──
+    // The setting is loaded once per screen; the service runs while it is on and a board is
+    // connected (started here, where the app is visible, as Android requires).
+    remember { AutoLight.enabled.value = ledStore.autoLight; true }
+    val autoOn by AutoLight.enabled.collectAsState()
+    val autoStatus by AutoLight.status.collectAsState()
+    LaunchedEffect(autoOn, isConnected) {
+        if (autoOn && isConnected) AutoLightService.start(context)
+    }
+    val autoNotifyLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        AutoLight.setEnabled(context, true, bleManager)   // the Stop button lives in the notification
+    }
+    fun setAutoLight(on: Boolean) {
+        if (on && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) autoNotifyLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        else AutoLight.setEnabled(context, on, bleManager)
     }
     val selectedSceneId = if (!ledOn) null else scenes.firstOrNull {
         it.matches(ledMode, hue, sat, ledKelvinMode, ledKelvin, bri) &&
@@ -929,7 +953,9 @@ fun BleControlScreen(
                         onBack = { showSettings = false },
                         onWhatsNew = { whatsNewOpen = true },
                         separateLeds = separate,
-                        onSeparateLedsChange = { separate = it; ledStore.separateLeds = it })
+                        onSeparateLedsChange = { separate = it; ledStore.separateLeds = it },
+                        autoLight = autoOn,
+                        onAutoLightChange = ::setAutoLight)
                 } else {
                     AnimatedContent(
                         targetState = isConnected,
@@ -1074,6 +1100,8 @@ fun BleControlScreen(
                                     canAdd = Scene.canSave(ledMode),
                                     edgePadding = pad,
                                     onApply = { haptics.tap(); applyScene(it) },
+                                    autoOn = autoOn,
+                                    onAutoToggle = { haptics.tap(); setAutoLight(!autoOn) },
                                     onLongPress = { haptics.longPress(); sceneMenu = it },
                                     onAdd = {
                                         if (Scene.canSave(ledMode)) addingScene = true
@@ -1085,6 +1113,17 @@ fun BleControlScreen(
                                     },
                                     modifier = Modifier.entrance(2)
                                 )
+                                if (autoOn) {
+                                    Spacer(Modifier.height(8.dp))
+                                    Text(
+                                        "Auto: " + (autoStatus?.let { AutoLightService.statusText(it) } ?: "Starting…"),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = onBg.copy(alpha = 0.55f),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.entrance(2)
+                                    )
+                                }
 
                                 Spacer(Modifier.height(16.dp))
 

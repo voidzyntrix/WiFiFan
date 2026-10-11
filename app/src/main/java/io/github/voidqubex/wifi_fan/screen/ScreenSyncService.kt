@@ -22,6 +22,7 @@ import androidx.core.content.IntentCompat
 import io.github.voidqubex.wifi_fan.GlowApp
 import io.github.voidqubex.wifi_fan.MainActivity
 import io.github.voidqubex.wifi_fan.R
+import io.github.voidqubex.wifi_fan.auto.AutoLight
 import io.github.voidqubex.wifi_fan.SettingsStore
 import io.github.voidqubex.wifi_fan.sync.LedLink
 import io.github.voidqubex.wifi_fan.sync.SyncHub
@@ -181,8 +182,9 @@ class ScreenSyncService : Service() {
             link?.setFade(SettingsStore(this).fadeMs)     // back to the user's fade time
         }
         link = null
-        // Stopped with the app already closed (notification Stop): let go of the board too.
-        if (!SyncHub.uiAlive) ble.disconnect()
+        // Stopped with the app already closed (notification Stop): let go of the board too,
+        // unless Auto light still uses it.
+        if (!SyncHub.uiAlive && !AutoLight.running) ble.disconnect()
         super.onDestroy()
     }
 

@@ -20,6 +20,7 @@ import io.github.voidqubex.wifi_fan.GlowApp
 import io.github.voidqubex.wifi_fan.MainActivity
 import io.github.voidqubex.wifi_fan.R
 import io.github.voidqubex.wifi_fan.SettingsStore
+import io.github.voidqubex.wifi_fan.auto.AutoLight
 import io.github.voidqubex.wifi_fan.sync.LedLink
 import io.github.voidqubex.wifi_fan.sync.SyncHub
 import io.github.voidqubex.wifi_fan.sync.SyncKind
@@ -231,8 +232,9 @@ class AudioSyncService : Service() {
         shutdown(restoreFade = true)
         SyncHub.active.value = SyncKind.NONE
         SyncHub.level.value = 0f
-        // Stopped with the app already closed (notification Stop): let go of the board too.
-        if (!SyncHub.uiAlive) (application as GlowApp).bleManager.disconnect()
+        // Stopped with the app already closed (notification Stop): let go of the board too,
+        // unless Auto light still uses it.
+        if (!SyncHub.uiAlive && !AutoLight.running) (application as GlowApp).bleManager.disconnect()
         super.onDestroy()
     }
 

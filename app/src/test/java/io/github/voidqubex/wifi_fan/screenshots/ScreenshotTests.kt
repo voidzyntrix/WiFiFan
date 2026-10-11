@@ -23,6 +23,9 @@ import com.github.takahirom.roborazzi.captureRoboImage
 import io.github.voidqubex.wifi_fan.AppBackground
 import io.github.voidqubex.wifi_fan.AppColorScheme
 import io.github.voidqubex.wifi_fan.SettingsStore
+import io.github.voidqubex.wifi_fan.auto.AutoLight
+import io.github.voidqubex.wifi_fan.auto.AutoState
+import io.github.voidqubex.wifi_fan.auto.AutoStatus
 import io.github.voidqubex.wifi_fan.bluetooth.BleManager
 import io.github.voidqubex.wifi_fan.ota.OtaManager
 import io.github.voidqubex.wifi_fan.ui.components.ActionsDialogCard
@@ -79,6 +82,8 @@ abstract class ScreenshotTests(private val size: String) {
         store.lastSeenVersion = "999.0.0"   // no "What's new" dialog on top
         store.boardNames = mapOf(BOARD_ADDRESS to "Desk lamp")
         store.scenesJson = null             // the default scenes
+        store.autoLight = false
+        AutoLight.status.value = null
         prepare(store)
         AppLook.monoFont = false
         AppLook.cornerScale = 1f
@@ -136,7 +141,7 @@ abstract class ScreenshotTests(private val size: String) {
     }
 
     @Composable
-    private fun Settings(look: Look, version: String = "1.4.0", separate: Boolean = false) {
+    private fun Settings(look: Look, version: String = "1.4.0", separate: Boolean = false, autoLight: Boolean = false) {
         val context = LocalContext.current
         val ble = remember { BleManager(context) }
         val ota = remember { OtaManager(ble, CoroutineScope(Dispatchers.Main)) }
@@ -165,7 +170,8 @@ abstract class ScreenshotTests(private val size: String) {
             boardVersion = version,
             isConnected = true,
             onBack = {},
-            separateLeds = separate
+            separateLeds = separate,
+            autoLight = autoLight
         )
     }
 
@@ -310,6 +316,35 @@ abstract class ScreenshotTests(private val size: String) {
         "home-separate-candle", Look.DARK_MONO,
         prepare = { separate(it); it.ledMode = 2 }
     ) { Home(Look.DARK_MONO, "1.6.1") }
+
+    // Auto light (1.13.0): Settings card, home toggle and status line.
+    @Test fun settingsAutoLightDarkColoured() = shot(
+        "settings-auto-light", Look.DARK_COLOURED,
+        after = { compose.onNodeWithText("Wait before Night").performScrollTo() }
+    ) { Settings(Look.DARK_COLOURED, autoLight = true) }
+
+    @Test fun settingsAutoLightLight() = shot(
+        "settings-auto-light", Look.LIGHT_MONO,
+        after = { compose.onNodeWithText("Wait before Night").performScrollTo() }
+    ) { Settings(Look.LIGHT_MONO, autoLight = true) }
+
+    private fun autoReading(store: SettingsStore) {
+        store.autoLight = true
+        // The Read scene showing: 4000 K at 80 %.
+        store.ledMode = 0
+        store.ledKelvinMode = true
+        store.ledKelvin = 4000f
+        store.ledBrightness = 0.8f
+        AutoLight.status.value = AutoStatus(AutoState.IN_HAND, paused = false, sceneName = "Read")
+    }
+
+    @Test fun homeAutoLightDarkMono() = shot("home-auto-light", Look.DARK_MONO, prepare = ::autoReading) {
+        Home(Look.DARK_MONO)
+    }
+
+    @Test fun homeAutoLightDarkColoured() = shot("home-auto-light", Look.DARK_COLOURED, prepare = ::autoReading) {
+        Home(Look.DARK_COLOURED)
+    }
 
     @Composable
     private fun DialogBox(content: @Composable () -> Unit) {

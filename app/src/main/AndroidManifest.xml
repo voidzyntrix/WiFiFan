@@ -24,6 +24,10 @@
     <!-- Music mode keeps listening with the app closed -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Auto light: keeps the board link and watches the accelerometer with the app closed -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <!-- Auto light: keeps the CPU awake only while counting down to Night -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="true" />
@@ -60,6 +64,12 @@
             android:name=".screen.ScreenSyncService"
             android:exported="false"
             android:foregroundServiceType="mediaProjection" />
+
+        <!-- Auto light: reading light in hand, night light when the phone is down and locked -->
+        <service
+            android:name=".auto.AutoLightService"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice" />
 
         <receiver
             android:name=".ota.InstallResultReceiver"
