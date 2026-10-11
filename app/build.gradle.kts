@@ -7,7 +7,7 @@ plugins {
 
 // The app's version. Bump it for every release; the in-app updater compares it
 // with the newest wififan-app-<version>.apk on GitHub.
-val appVersion = "1.5.0"
+val appVersion = "1.8.1"
 
 // Release signing: keystore.properties in the project root (local builds) or
 // WIFIFAN_* environment variables (GitHub Actions). See docs/APP_UPDATES.md.
@@ -87,5 +87,4 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 
-    implementation("ai.asleep:compose-wheelpicker:0.1.0")
 }
