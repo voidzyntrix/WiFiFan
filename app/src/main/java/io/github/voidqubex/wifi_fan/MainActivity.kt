@@ -1019,7 +1019,7 @@ fun BleControlScreen(
                                                 properties = PopupProperties(focusable = true)
                                             ) {
                                               Box {
-                                                AnimatedVisibility(
+                                                androidx.compose.animation.AnimatedVisibility(
                                                     visibleState = menuState,
                                                     enter = fadeIn(tween(180)) + scaleIn(
                                                         tween(220), initialScale = 0.9f,
