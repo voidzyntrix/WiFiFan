@@ -1,12 +1,21 @@
 package io.github.voidqubex.wifi_fan.led
 
-import androidx.compose.foundation.Canvas
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.runtime.Composable
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import kotlin.math.exp
@@ -109,18 +118,37 @@ object LedColor {
     }
 }
 
-/** A dark panel with the LED glowing in it, as it would look in a dark room. */
+/** The LED as a simple circle: filled with its colour, thin outline, soft glow around it. */
 @Composable
 fun LedPreview(hue: Float, sat: Float, value: Float, modifier: Modifier = Modifier) {
-    Canvas(modifier.clip(RoundedCornerShape(20.dp))) {
-        drawRect(Color(0xFF030303))
-        val center = Offset(size.width / 2f, size.height / 2f)
-        val radius = size.height / 2f
-        drawCircle(
-            brush = Brush.radialGradient(
-                colorStops = LedColor.glowStops(hue, sat, value), center = center, radius = radius
-            ),
-            radius = radius, center = center
+    val target = Color(
+        android.graphics.Color.HSVToColor(
+            floatArrayOf(((hue % 360f) + 360f) % 360f, sat.coerceIn(0f, 1f), 1f)
+        )
+    )
+    val color by animateColorAsState(target, tween(150), label = "ledColor")
+    val level by animateFloatAsState(value.coerceIn(0f, 1f), tween(150), label = "ledLevel")
+    // Fully off still shows a dim, outlined disc.
+    val lit = (level * 4f).coerceIn(0f, 1f)
+
+    Box(modifier, contentAlignment = Alignment.Center) {
+        Box(
+            Modifier
+                .fillMaxHeight(0.78f)
+                .aspectRatio(1f)
+                .shadow(
+                    elevation = (2f + 34f * lit * (0.35f + 0.65f * level)).dp,
+                    shape = CircleShape,
+                    ambientColor = color,
+                    spotColor = color
+                )
+                .clip(CircleShape)
+                .background(lerp(Color(0xFF1A1A1A), color, (0.15f + 0.85f * level) * lit))
+                .border(
+                    2.dp,
+                    lerp(Color.White.copy(alpha = 0.18f), color, lit).copy(alpha = 0.45f + 0.55f * lit),
+                    CircleShape
+                )
         )
     }
 }

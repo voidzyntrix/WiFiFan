@@ -19,6 +19,14 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.LinearEasing
@@ -813,10 +821,22 @@ fun BleControlScreen(
                         modifier = Modifier.fillMaxSize()
                     ) { connected ->
                         if (connected) {
-                            // =====================================================
-                            // LED HOME
-                            // =====================================================
                             val onBg = MaterialTheme.colorScheme.onBackground
+                            val modeList = listOf(
+                                Triple(LED_MODE_SOLID, "Solid", true),
+                                Triple(LED_MODE_RAINBOW, "Rainbow", true),
+                                Triple(LED_MODE_CANDLE, "Candle", fwCandle)
+                            ) + LedEffects.map { Triple(it.first, it.second, fwEffects) }
+                            val modeLabel = modeList.firstOrNull { it.first == ledMode }?.second ?: "Solid"
+                            var modeMenu by remember { mutableStateOf(false) }
+                            val arrowRot by animateFloatAsState(
+                                if (modeMenu) 90f else -90f, tween(250), label = "modeArrow"
+                            )
+                            val briTop = if (ledKelvinMode) LedColor.kelvinScreenColor(ledKelvin)
+                            else Color(AndroidColor.HSVToColor(floatArrayOf(shownHue, sat, 1f)))
+                            fun hsvColor(h: Float, s: Float) =
+                                Color(AndroidColor.HSVToColor(floatArrayOf(h, s, 1f)))
+
                             Column(
                                 modifier = Modifier
                                     .fillMaxSize()
@@ -826,7 +846,10 @@ fun BleControlScreen(
                                     .padding(horizontal = 20.dp, vertical = 12.dp)
                             ) {
                                 // ── Header ──
-                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.entrance(0)
+                                ) {
                                     Column(Modifier.weight(1f)) {
                                         Text(
                                             "Glow",
@@ -852,44 +875,17 @@ fun BleControlScreen(
                                             )
                                         }
                                     }
-                                    CircleIconButton(R.drawable.settings, "Settings") { showSettings = true }
-                                }
-
-                                Spacer(Modifier.height(18.dp))
-
-                                // ── Live preview + power ──
-                                Box(Modifier.fillMaxWidth()) {
-                                    LedPreview(
-                                        hue = previewHue, sat = previewSat, value = previewVal,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(230.dp)
-                                    )
-                                    Text(
-                                        if (ledOn) modeName else "Off",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        color = Color.White.copy(alpha = 0.85f),
-                                        modifier = Modifier
-                                            .align(Alignment.BottomStart)
-                                            .padding(16.dp)
-                                    )
-                                    Text(
-                                        if (ledOn) "${(bri * 100).roundToInt()} %" else "",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        color = Color.White.copy(alpha = 0.6f),
-                                        modifier = Modifier
-                                            .align(Alignment.BottomEnd)
-                                            .padding(16.dp)
-                                    )
                                     val powerBg by animateColorAsState(
-                                        if (ledOn) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.12f),
+                                        if (ledOn) MaterialTheme.colorScheme.primary else onBg.copy(alpha = 0.07f),
                                         tween(250), label = "powerBg"
+                                    )
+                                    val powerFg by animateColorAsState(
+                                        if (ledOn) MaterialTheme.colorScheme.onPrimary else onBg.copy(alpha = 0.7f),
+                                        tween(250), label = "powerFg"
                                     )
                                     Box(
                                         contentAlignment = Alignment.Center,
                                         modifier = Modifier
-                                            .align(Alignment.TopEnd)
-                                            .padding(12.dp)
                                             .size(44.dp)
                                             .clip(CircleShape)
                                             .background(powerBg)
@@ -899,15 +895,46 @@ fun BleControlScreen(
                                             painter = painterResource(R.drawable.power),
                                             contentDescription = if (ledOn) "Turn off" else "Turn on",
                                             modifier = Modifier.size(20.dp),
-                                            tint = if (ledOn) MaterialTheme.colorScheme.onPrimary else Color.White
+                                            tint = powerFg
+                                        )
+                                    }
+                                    Spacer(Modifier.width(8.dp))
+                                    CircleIconButton(R.drawable.settings, "Settings") { showSettings = true }
+                                }
+
+                                Spacer(Modifier.height(8.dp))
+
+                                // ── Live preview ──
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    modifier = Modifier.fillMaxWidth().entrance(1)
+                                ) {
+                                    LedPreview(
+                                        hue = previewHue, sat = previewSat, value = previewVal,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(220.dp)
+                                    )
+                                    AnimatedContent(
+                                        targetState = if (ledOn) modeName else "Off",
+                                        transitionSpec = {
+                                            (fadeIn(tween(250)) + slideInVertically(tween(250)) { it / 2 })
+                                                .togetherWith(fadeOut(tween(150)))
+                                        },
+                                        label = "modeName"
+                                    ) { name ->
+                                        Text(
+                                            name,
+                                            style = MaterialTheme.typography.titleMedium,
+                                            color = onBg.copy(alpha = 0.85f)
                                         )
                                     }
                                 }
 
-                                Spacer(Modifier.height(16.dp))
+                                Spacer(Modifier.height(12.dp))
 
                                 // ── Brightness ──
-                                PanelCard {
+                                PanelCard(Modifier.entrance(2)) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Text(
                                             "Brightness",
@@ -922,9 +949,7 @@ fun BleControlScreen(
                                             color = onBg.copy(alpha = 0.6f)
                                         )
                                     }
-                                    Spacer(Modifier.height(8.dp))
-                                    val briTop = if (ledKelvinMode) LedColor.kelvinScreenColor(ledKelvin)
-                                    else Color(AndroidColor.HSVToColor(floatArrayOf(shownHue, sat, 1f)))
+                                    Spacer(Modifier.height(6.dp))
                                     GradientBar(
                                         fraction = bri,
                                         stops = listOf(Color.Black, briTop),
@@ -938,41 +963,73 @@ fun BleControlScreen(
                                     )
                                 }
 
-                                Spacer(Modifier.height(16.dp))
+                                Spacer(Modifier.height(12.dp))
 
-                                // ── Modes ──
-                                PanelCard {
-                                    Text(
-                                        "Mode",
-                                        style = MaterialTheme.typography.titleSmall,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = onBg
-                                    )
-                                    Spacer(Modifier.height(10.dp))
-                                    val modes = listOf(
-                                        Triple(LED_MODE_SOLID, "Solid", true),
-                                        Triple(LED_MODE_RAINBOW, "Rainbow", true),
-                                        Triple(LED_MODE_CANDLE, "Candle", fwCandle)
-                                    ) + LedEffects.map { Triple(it.first, it.second, fwEffects) }
-                                    modes.chunked(3).forEach { row ->
+                                // ── Mode (dropdown) ──
+                                PanelCard(Modifier.entrance(3)) {
+                                    Box {
                                         Row(
-                                            Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clip(RoundedCornerShape(14.dp))
+                                                .background(onBg.copy(alpha = 0.07f))
+                                                .bounceClickable(pressedScale = 0.98f) { modeMenu = true }
+                                                .padding(horizontal = 16.dp, vertical = 12.dp)
                                         ) {
-                                            row.forEach { (mode, label, enabled) ->
-                                                ModeChip(
-                                                    label = label,
-                                                    selected = ledOn && ledMode == mode,
+                                            Text(
+                                                "Mode",
+                                                style = MaterialTheme.typography.labelMedium,
+                                                color = onBg.copy(alpha = 0.5f)
+                                            )
+                                            Spacer(Modifier.width(14.dp))
+                                            Box(Modifier.weight(1f)) {
+                                                AnimatedContent(
+                                                    targetState = modeLabel,
+                                                    transitionSpec = {
+                                                        (fadeIn(tween(200)) + slideInVertically(tween(200)) { it / 2 })
+                                                            .togetherWith(fadeOut(tween(120)))
+                                                    },
+                                                    label = "modeLabel"
+                                                ) { label ->
+                                                    Text(
+                                                        label,
+                                                        style = MaterialTheme.typography.titleSmall,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        color = onBg
+                                                    )
+                                                }
+                                            }
+                                            Icon(
+                                                painter = painterResource(R.drawable.arrow_back),
+                                                contentDescription = null,
+                                                modifier = Modifier.size(18.dp).rotate(arrowRot),
+                                                tint = onBg.copy(alpha = 0.6f)
+                                            )
+                                        }
+                                        DropdownMenu(
+                                            expanded = modeMenu,
+                                            onDismissRequest = { modeMenu = false },
+                                            modifier = Modifier.widthIn(min = 200.dp)
+                                        ) {
+                                            modeList.forEach { (mode, label, enabled) ->
+                                                DropdownMenuItem(
+                                                    text = {
+                                                        Text(
+                                                            label,
+                                                            fontWeight = if (mode == ledMode) FontWeight.SemiBold else FontWeight.Normal,
+                                                            color = if (mode == ledMode) MaterialTheme.colorScheme.primary
+                                                            else MaterialTheme.colorScheme.onSurface
+                                                        )
+                                                    },
                                                     enabled = enabled,
-                                                    modifier = Modifier.weight(1f),
-                                                    onClick = { startMode(mode) }
+                                                    onClick = { modeMenu = false; startMode(mode) }
                                                 )
                                             }
-                                            repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
                                         }
-                                        Spacer(Modifier.height(8.dp))
                                     }
                                     if (!fwEffects) {
+                                        Spacer(Modifier.height(8.dp))
                                         Text(
                                             "Update the board firmware (Settings) for all modes.",
                                             style = MaterialTheme.typography.bodySmall,
@@ -981,131 +1038,136 @@ fun BleControlScreen(
                                     }
                                 }
 
-                                Spacer(Modifier.height(16.dp))
+                                Spacer(Modifier.height(12.dp))
 
                                 // ── Colour ──
-                                PanelCard {
-                                    Text(
-                                        "Colour",
-                                        style = MaterialTheme.typography.titleSmall,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = onBg
+                                PanelCard(Modifier.entrance(4)) {
+                                    // Segmented switch with a sliding thumb.
+                                    val thumb by animateFloatAsState(
+                                        if (ledKelvinMode) 1f else 0f,
+                                        spring(stiffness = Spring.StiffnessMediumLow), label = "segThumb"
                                     )
-                                    Spacer(Modifier.height(10.dp))
-                                    // Segmented switch: one pill, the selected half is filled.
-                                    Row(
+                                    BoxWithConstraints(
                                         Modifier
                                             .fillMaxWidth()
                                             .height(40.dp)
                                             .clip(RoundedCornerShape(20.dp))
                                             .background(onBg.copy(alpha = 0.08f))
-                                            .padding(3.dp)
                                     ) {
-                                        listOf(false to "Color", true to "Kelvin").forEach { (kel, label) ->
-                                            val sel = ledKelvinMode == kel
-                                            val bg by animateColorAsState(
-                                                if (sel) MaterialTheme.colorScheme.primary else Color.Transparent,
-                                                tween(200), label = "segBg"
-                                            )
-                                            Box(
-                                                contentAlignment = Alignment.Center,
-                                                modifier = Modifier
-                                                    .weight(1f)
-                                                    .fillMaxHeight()
-                                                    .clip(RoundedCornerShape(17.dp))
-                                                    .background(bg)
-                                                    .clickable(
-                                                        interactionSource = remember { MutableInteractionSource() },
-                                                        indication = null
-                                                    ) {
-                                                        if (kel != ledKelvinMode) {
-                                                            ledKelvinMode = kel
-                                                            if (kel) { setKelvin(ledKelvin); sendSolid() }
-                                                        }
-                                                    }
-                                            ) {
-                                                Text(
-                                                    label,
-                                                    style = MaterialTheme.typography.labelLarge,
-                                                    color = if (sel) MaterialTheme.colorScheme.onPrimary
-                                                    else onBg.copy(alpha = 0.7f)
+                                        val half = maxWidth / 2
+                                        Box(
+                                            Modifier
+                                                .offset(x = half * thumb)
+                                                .width(half)
+                                                .fillMaxHeight()
+                                                .padding(3.dp)
+                                                .clip(RoundedCornerShape(17.dp))
+                                                .background(MaterialTheme.colorScheme.primary)
+                                        )
+                                        Row(Modifier.fillMaxSize()) {
+                                            listOf(false to "Color", true to "Kelvin").forEach { (kel, label) ->
+                                                val sel = ledKelvinMode == kel
+                                                val fg by animateColorAsState(
+                                                    if (sel) MaterialTheme.colorScheme.onPrimary else onBg.copy(alpha = 0.7f),
+                                                    tween(200), label = "segFg"
                                                 )
+                                                Box(
+                                                    contentAlignment = Alignment.Center,
+                                                    modifier = Modifier
+                                                        .weight(1f)
+                                                        .fillMaxHeight()
+                                                        .clickable(
+                                                            interactionSource = remember { MutableInteractionSource() },
+                                                            indication = null
+                                                        ) {
+                                                            if (kel != ledKelvinMode) {
+                                                                ledKelvinMode = kel
+                                                                if (kel) { setKelvin(ledKelvin); sendSolid() }
+                                                            }
+                                                        }
+                                                ) {
+                                                    Text(label, style = MaterialTheme.typography.labelLarge, color = fg)
+                                                }
                                             }
                                         }
                                     }
-                                    Spacer(Modifier.height(14.dp))
+                                    Spacer(Modifier.height(12.dp))
 
-                                    fun hsvColor(h: Float, s: Float) =
-                                        Color(AndroidColor.HSVToColor(floatArrayOf(h, s, 1f)))
-                                    if (ledKelvinMode) {
-                                        SliderLabel("Temperature")
-                                        GradientBar(
-                                            fraction = (ledKelvin - LedColor.KELVIN_MIN) /
-                                                (LedColor.KELVIN_MAX - LedColor.KELVIN_MIN),
-                                            stops = (0..8).map {
-                                                LedColor.kelvinScreenColor(
-                                                    LedColor.KELVIN_MIN + it / 8f * (LedColor.KELVIN_MAX - LedColor.KELVIN_MIN)
+                                    AnimatedContent(
+                                        targetState = ledKelvinMode,
+                                        transitionSpec = { fadeIn(tween(220)).togetherWith(fadeOut(tween(140))) },
+                                        label = "colourControls"
+                                    ) { kel ->
+                                        Column {
+                                            if (kel) {
+                                                SliderLabel("Temperature")
+                                                GradientBar(
+                                                    fraction = (ledKelvin - LedColor.KELVIN_MIN) /
+                                                        (LedColor.KELVIN_MAX - LedColor.KELVIN_MIN),
+                                                    stops = (0..8).map {
+                                                        LedColor.kelvinScreenColor(
+                                                            LedColor.KELVIN_MIN + it / 8f * (LedColor.KELVIN_MAX - LedColor.KELVIN_MIN)
+                                                        )
+                                                    },
+                                                    thumbColor = LedColor.kelvinScreenColor(ledKelvin),
+                                                    onFraction = {
+                                                        setKelvin(LedColor.KELVIN_MIN + it * (LedColor.KELVIN_MAX - LedColor.KELVIN_MIN))
+                                                        sendThrottled()
+                                                    },
+                                                    onFinished = { sendCurrent() }
                                                 )
-                                            },
-                                            thumbColor = LedColor.kelvinScreenColor(ledKelvin),
-                                            onFraction = {
-                                                setKelvin(LedColor.KELVIN_MIN + it * (LedColor.KELVIN_MAX - LedColor.KELVIN_MIN))
-                                                sendThrottled()
-                                            },
-                                            onFinished = { sendCurrent() }
-                                        )
-                                    } else {
-                                        SliderLabel("Hue")
-                                        GradientBar(
-                                            fraction = shownHue / 360f,
-                                            stops = (0..6).map { hsvColor(it * 60f, 1f) },
-                                            thumbColor = hsvColor(shownHue, 1f),
-                                            onFraction = {
-                                                hue = it * 360f
-                                                ledMode = LED_MODE_SOLID
-                                                sendThrottled()
-                                            },
-                                            onFinished = { sendCurrent() }
-                                        )
-                                        Spacer(Modifier.height(10.dp))
-                                        SliderLabel("Saturation")
-                                        GradientBar(
-                                            fraction = sat,
-                                            stops = listOf(hsvColor(shownHue, 0f), hsvColor(shownHue, 1f)),
-                                            thumbColor = hsvColor(shownHue, sat),
-                                            onFraction = { sat = it; sendThrottled() },
-                                            onFinished = { sendCurrent() }
-                                        )
-                                    }
-
-                                    Spacer(Modifier.height(16.dp))
-                                    // Presets
-                                    Row(
-                                        Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        if (ledKelvinMode) {
-                                            listOf(1900f, 2700f, 3500f, 4500f, 5600f, 6500f).forEach { k ->
-                                                PresetDot(LedColor.kelvinScreenColor(k)) {
-                                                    if (bri < MIN_VISIBLE_BRIGHTNESS) bri = lastOnBri
-                                                    setKelvin(k); sendSolid()
-                                                }
+                                            } else {
+                                                SliderLabel("Hue")
+                                                GradientBar(
+                                                    fraction = shownHue / 360f,
+                                                    stops = (0..6).map { hsvColor(it * 60f, 1f) },
+                                                    thumbColor = hsvColor(shownHue, 1f),
+                                                    onFraction = {
+                                                        hue = it * 360f
+                                                        ledMode = LED_MODE_SOLID
+                                                        sendThrottled()
+                                                    },
+                                                    onFinished = { sendCurrent() }
+                                                )
+                                                Spacer(Modifier.height(6.dp))
+                                                SliderLabel("Saturation")
+                                                GradientBar(
+                                                    fraction = sat,
+                                                    stops = listOf(hsvColor(shownHue, 0f), hsvColor(shownHue, 1f)),
+                                                    thumbColor = hsvColor(shownHue, sat),
+                                                    onFraction = { sat = it; sendThrottled() },
+                                                    onFinished = { sendCurrent() }
+                                                )
                                             }
-                                        } else {
-                                            LedPresets.forEach { preset ->
-                                                PresetDot(Color(preset)) {
-                                                    val hsv = FloatArray(3)
-                                                    AndroidColor.colorToHSV(preset, hsv)
-                                                    hue = hsv[0]; sat = hsv[1]
-                                                    // A preset changes the colour, not the brightness you chose.
-                                                    if (bri < MIN_VISIBLE_BRIGHTNESS) bri = lastOnBri
-                                                    sendSolid()
+                                            Spacer(Modifier.height(14.dp))
+                                            Row(
+                                                Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween
+                                            ) {
+                                                if (kel) {
+                                                    listOf(1900f, 2700f, 3500f, 4500f, 5600f, 6500f).forEach { k ->
+                                                        PresetDot(LedColor.kelvinScreenColor(k)) {
+                                                            if (bri < MIN_VISIBLE_BRIGHTNESS) bri = lastOnBri
+                                                            setKelvin(k); sendSolid()
+                                                        }
+                                                    }
+                                                } else {
+                                                    LedPresets.forEach { preset ->
+                                                        PresetDot(Color(preset)) {
+                                                            val hsv = FloatArray(3)
+                                                            AndroidColor.colorToHSV(preset, hsv)
+                                                            hue = hsv[0]; sat = hsv[1]
+                                                            // A preset changes the colour, not the brightness you chose.
+                                                            if (bri < MIN_VISIBLE_BRIGHTNESS) bri = lastOnBri
+                                                            sendSolid()
+                                                        }
+                                                    }
                                                 }
                                             }
                                         }
                                     }
                                 }
-                                Spacer(Modifier.height(24.dp))
+                                Spacer(Modifier.height(16.dp))
                             }
                         } else {
                             ConnectScreen(
@@ -1138,9 +1200,9 @@ fun BleControlScreen(
 
 /** Rounded translucent panel that groups a block of controls. */
 @Composable
-private fun PanelCard(content: @Composable ColumnScope.() -> Unit) {
+private fun PanelCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(24.dp))
             .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.72f))
@@ -1152,6 +1214,20 @@ private fun PanelCard(content: @Composable ColumnScope.() -> Unit) {
             .padding(18.dp),
         content = content
     )
+}
+
+/** Fade + slide up when first shown, staggered by [index]. */
+@Composable
+private fun Modifier.entrance(index: Int): Modifier {
+    val p = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        delay(index * 70L)
+        p.animateTo(1f, tween(450, easing = FastOutSlowInEasing))
+    }
+    return this.graphicsLayer {
+        alpha = p.value
+        translationY = (1f - p.value) * 36.dp.toPx()
+    }
 }
 
 @Composable
