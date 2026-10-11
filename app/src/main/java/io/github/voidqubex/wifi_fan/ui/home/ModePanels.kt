@@ -56,21 +56,7 @@ internal fun MusicPanel(
             )
         }
         Spacer(Modifier.height(10.dp))
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .height(10.dp)
-                .clip(rounded(5.dp))
-                .background(onBg.copy(alpha = 0.08f))
-        ) {
-            Box(
-                Modifier
-                    .fillMaxHeight()
-                    .fillMaxWidth(shown)
-                    .clip(rounded(5.dp))
-                    .background(activeFill(strong = true))
-            )
-        }
+        LevelMeter(shown)
         Spacer(Modifier.height(12.dp))
         SliderLabel("Sensitivity")
         GradientBar(
@@ -84,6 +70,84 @@ internal fun MusicPanel(
         SegmentedPill(listOf("Beat colours", "My colour"), if (keepColour) 1 else 0) {
             onKeepColour(it == 1)
         }
+        Spacer(Modifier.height(10.dp))
+        Text(
+            "Keeps listening when you leave the app. Stop it from its notification or by picking another mode.",
+            style = MaterialTheme.typography.bodySmall,
+            color = onBg.copy(alpha = 0.5f)
+        )
+    }
+}
+
+/** The bar that shows how loud it is right now. */
+@Composable
+private fun LevelMeter(level: Float) {
+    val onBg = MaterialTheme.colorScheme.onBackground
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .height(10.dp)
+            .clip(rounded(5.dp))
+            .background(onBg.copy(alpha = 0.08f))
+    ) {
+        Box(
+            Modifier
+                .fillMaxHeight()
+                .fillMaxWidth(level)
+                .clip(rounded(5.dp))
+                .background(activeFill(strong = true))
+        )
+    }
+}
+
+/** Visualizer controls: level meter, sensitivity, and a button to stop it. */
+@Composable
+internal fun VisualizerPanel(
+    level: Float,
+    running: Boolean,
+    sensitivity: Float,
+    onSensitivity: (Float) -> Unit,
+    onSensitivityDone: () -> Unit,
+    onStop: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val onBg = MaterialTheme.colorScheme.onBackground
+    val shown by animateFloatAsState(level.coerceIn(0f, 1f), tween(60), label = "visualizerLevel")
+    PanelCard(modifier) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "Visualizer",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = onBg,
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                if (running) "Listening to your phone" else "Starting…",
+                style = MaterialTheme.typography.labelLarge,
+                color = onBg.copy(alpha = 0.6f)
+            )
+        }
+        Spacer(Modifier.height(10.dp))
+        LevelMeter(shown)
+        Spacer(Modifier.height(12.dp))
+        SliderLabel("Sensitivity")
+        GradientBar(
+            fraction = sensitivity,
+            stops = listOf(onBg.copy(alpha = 0.12f), onBg.copy(alpha = 0.55f)),
+            thumbColor = MaterialTheme.colorScheme.primary,
+            onFraction = onSensitivity,
+            onFinished = onSensitivityDone
+        )
+        Spacer(Modifier.height(10.dp))
+        Text(
+            "Bass is red, mids green, treble blue. Plays along with music and videos from apps that allow " +
+                "audio capture (Netflix and a few others block it). Keeps running with the app closed.",
+            style = MaterialTheme.typography.bodySmall,
+            color = onBg.copy(alpha = 0.5f)
+        )
+        Spacer(Modifier.height(12.dp))
+        PillButton("Stop visualizer", highlighted = false, onClick = onStop)
     }
 }
 

@@ -1,20 +1,12 @@
 package io.github.voidqubex.wifi_fan.audio
 
-import android.annotation.SuppressLint
-import android.media.AudioFormat
-import android.media.AudioRecord
-import android.media.MediaRecorder
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.withContext
-import kotlin.coroutines.coroutineContext
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.pow
 import kotlin.math.sqrt
 
 /**
- * Listens to the microphone and turns loudness into a 0..1 level plus beat events.
+ * Turns audio loudness into a 0..1 level plus beat events (the capture itself is in [AudioCapture]).
  *
  * Every ~40 ms window: RMS and peak of the samples; an adaptive noise floor (falls fast,
  * rises slowly) and an auto-gain envelope (rises fast, decays slowly) normalise the level,
@@ -67,40 +59,6 @@ class MusicReactor {
 
         private companion object { const val HISTORY = 25 }
     }
-
-    /**
-     * Records until the calling coroutine is cancelled, calling [onFrame] (on the recording
-     * thread) for every window. [sensitivity] is read each window so the slider applies live.
-     * Throws [IllegalStateException] when the microphone can't be opened.
-     */
-    @SuppressLint("MissingPermission")   // callers check RECORD_AUDIO first
-    suspend fun run(sensitivity: () -> Float, onFrame: (level: Float, beat: Boolean) -> Unit) =
-        withContext(Dispatchers.IO) {
-            val rate = 44_100
-            val window = rate * WINDOW_MS / 1000
-            val minBuf = AudioRecord.getMinBufferSize(
-                rate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT
-            )
-            val rec = AudioRecord(
-                MediaRecorder.AudioSource.MIC, rate, AudioFormat.CHANNEL_IN_MONO,
-                AudioFormat.ENCODING_PCM_16BIT, max(minBuf, window * 2 * 4)
-            )
-            check(rec.state == AudioRecord.STATE_INITIALIZED) { "Microphone unavailable" }
-            val analyzer = Analyzer()
-            val buf = ShortArray(window)
-            try {
-                rec.startRecording()
-                while (coroutineContext.isActive) {
-                    val n = rec.read(buf, 0, window)
-                    if (n < 0) error("Microphone read failed ($n)")
-                    val (level, beat) = analyzer.process(buf, n, WINDOW_MS.toLong(), sensitivity())
-                    onFrame(level, beat)
-                }
-            } finally {
-                runCatching { rec.stop() }
-                rec.release()
-            }
-        }
 
     companion object { const val WINDOW_MS = 40 }
 }

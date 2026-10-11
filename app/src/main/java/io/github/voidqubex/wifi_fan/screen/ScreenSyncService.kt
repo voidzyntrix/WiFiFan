@@ -5,6 +5,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.bluetooth.BluetoothProfile
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
@@ -18,10 +19,19 @@ import android.os.Handler
 import android.os.HandlerThread
 import android.os.IBinder
 import androidx.core.content.IntentCompat
+import io.github.voidqubex.wifi_fan.GlowApp
 import io.github.voidqubex.wifi_fan.MainActivity
 import io.github.voidqubex.wifi_fan.R
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
+import io.github.voidqubex.wifi_fan.SettingsStore
+import io.github.voidqubex.wifi_fan.sync.LedLink
+import io.github.voidqubex.wifi_fan.sync.SyncHub
+import io.github.voidqubex.wifi_fan.sync.SyncKind
+import io.github.voidqubex.wifi_fan.sync.SyncParams
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.max
@@ -31,9 +41,9 @@ import kotlin.math.sqrt
 
 /**
  * Screen sync: mirrors the dominant colour on screen to the LED. Runs as a foreground
- * service (type mediaProjection) so it keeps going while other apps are open.
- * The activity sets [sink]; the service calls it with (hue 0..360, saturation 0..1)
- * about ten times a second.
+ * service (type mediaProjection) so it keeps going while other apps are open, and with the
+ * app closed. It drives the board itself, about twelve colours a second, with a short fade
+ * so the LED keeps up with the screen.
  */
 class ScreenSyncService : Service() {
     private var projection: MediaProjection? = null
@@ -42,6 +52,8 @@ class ScreenSyncService : Service() {
     private var thread: HandlerThread? = null
     private var handler: Handler? = null
     private var smoothed: FloatArray? = null
+    private var link: LedLink? = null
+    private var scope: CoroutineScope? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -81,7 +93,20 @@ class ScreenSyncService : Service() {
             "glow-screen-sync", w, hgt, max(1, metrics.densityDpi / 8),
             DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR, r.surface, null, h
         )
-        _running.value = true
+        val ble = (application as GlowApp).bleManager
+        val l = LedLink(ble)
+        link = l
+        l.setFade(FADE_MS)
+        SyncHub.reset()
+        SyncHub.active.value = SyncKind.SCREEN
+        val s = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        scope = s
+        // Without the board there is nothing to drive.
+        s.launch {
+            ble.connectionState.collect {
+                if (it != BluetoothProfile.STATE_CONNECTED) h.post { stopSelf() }
+            }
+        }
         h.post(object : Runnable {
             override fun run() {
                 sample()
@@ -115,20 +140,31 @@ class ScreenSyncService : Service() {
                 prev[1] + (target[1] - prev[1]) * SMOOTHING
             )
             smoothed = next
-            sink?.invoke(next[0], next[1])
+            SyncHub.hue.value = next[0]
+            SyncHub.sat.value = next[1]
+            link?.colour(next[0], next[1], SyncParams.bri, PERIOD_MS - 15)
         } finally {
             image.close()
         }
     }
 
     override fun onDestroy() {
-        _running.value = false
+        scope?.cancel()
+        scope = null
         handler?.removeCallbacksAndMessages(null)
         display?.release()
         reader?.close()
         projection?.stop()
         thread?.quitSafely()
         projection = null
+        SyncHub.active.value = SyncKind.NONE
+        val ble = (application as GlowApp).bleManager
+        if (ble.connectionState.value == BluetoothProfile.STATE_CONNECTED) {
+            link?.setFade(SettingsStore(this).fadeMs)     // back to the user's fade time
+        }
+        link = null
+        // Stopped with the app already closed (notification Stop): let go of the board too.
+        if (!SyncHub.uiAlive) ble.disconnect()
         super.onDestroy()
     }
 
@@ -161,15 +197,10 @@ class ScreenSyncService : Service() {
         private const val CHANNEL = "screen_sync"
         private const val NOTIFICATION_ID = 7
         private const val WIDTH = 64
-        private const val PERIOD_MS = 100L
-        private const val SMOOTHING = 0.35f
-
-        private val _running = MutableStateFlow(false)
-        /** True while a capture is running. */
-        val running: StateFlow<Boolean> = _running
-
-        /** Receives (hue, saturation) of the smoothed screen colour, on the capture thread. */
-        @Volatile var sink: ((Float, Float) -> Unit)? = null
+        private const val PERIOD_MS = 80L
+        private const val SMOOTHING = 0.6f
+        /** Short, so the LED follows the screen instead of lagging behind it. */
+        private const val FADE_MS = 120
 
         /** Starts capturing with the result of the screen-capture consent screen. */
         fun start(context: Context, resultCode: Int, data: Intent) {
