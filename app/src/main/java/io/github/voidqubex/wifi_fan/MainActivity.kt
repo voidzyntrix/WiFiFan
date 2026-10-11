@@ -1018,6 +1018,7 @@ fun BleControlScreen(
                                                 onDismissRequest = { modeMenu = false },
                                                 properties = PopupProperties(focusable = true)
                                             ) {
+                                              Box {
                                                 AnimatedVisibility(
                                                     visibleState = menuState,
                                                     enter = fadeIn(tween(180)) + scaleIn(
@@ -1072,6 +1073,7 @@ fun BleControlScreen(
                                                         }
                                                     }
                                                 }
+                                              }
                                             }
                                         }
                                     }
