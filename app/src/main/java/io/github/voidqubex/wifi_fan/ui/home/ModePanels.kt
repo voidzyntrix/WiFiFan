@@ -23,6 +23,7 @@ import io.github.voidqubex.wifi_fan.ui.components.PanelCard
 import io.github.voidqubex.wifi_fan.ui.components.SegmentedPill
 import io.github.voidqubex.wifi_fan.ui.components.SliderLabel
 import io.github.voidqubex.wifi_fan.ui.settings.PillButton
+import io.github.voidqubex.wifi_fan.ui.settings.SettingSwitch
 import io.github.voidqubex.wifi_fan.ui.theme.activeFill
 import io.github.voidqubex.wifi_fan.ui.theme.rounded
 
@@ -35,6 +36,8 @@ internal fun MusicPanel(
     onSensitivityDone: () -> Unit,
     keepColour: Boolean,
     onKeepColour: (Boolean) -> Unit,
+    beatFlash: Boolean,
+    onBeatFlash: (Boolean) -> Unit,
     micAllowed: Boolean,
     modifier: Modifier = Modifier
 ) {
@@ -55,7 +58,7 @@ internal fun MusicPanel(
                 color = onBg.copy(alpha = 0.6f)
             )
         }
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(12.dp))
         LevelMeter(shown)
         Spacer(Modifier.height(12.dp))
         SliderLabel("Sensitivity")
@@ -66,17 +69,25 @@ internal fun MusicPanel(
             onFraction = onSensitivity,
             onFinished = onSensitivityDone
         )
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(16.dp))
         SegmentedPill(listOf("Beat colours", "My colour"), if (keepColour) 1 else 0) {
             onKeepColour(it == 1)
         }
-        Spacer(Modifier.height(10.dp))
-        Text(
-            "Keeps listening when you leave the app. Stop it from its notification or by picking another mode.",
-            style = MaterialTheme.typography.bodySmall,
-            color = onBg.copy(alpha = 0.5f)
-        )
+        Spacer(Modifier.height(16.dp))
+        SettingSwitch("Beat flash", "A quick burst of brightness on every beat", beatFlash, onBeatFlash)
+        Spacer(Modifier.height(12.dp))
+        PanelHint("Keeps listening when you leave the app. Stop it from its notification or by picking another mode.")
     }
+}
+
+/** Quiet explanatory text at the bottom of a panel. */
+@Composable
+private fun PanelHint(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.45f)
+    )
 }
 
 /** The bar that shows how loud it is right now. */
@@ -108,6 +119,8 @@ internal fun VisualizerPanel(
     sensitivity: Float,
     onSensitivity: (Float) -> Unit,
     onSensitivityDone: () -> Unit,
+    beatFlash: Boolean,
+    onBeatFlash: (Boolean) -> Unit,
     onStop: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -128,7 +141,7 @@ internal fun VisualizerPanel(
                 color = onBg.copy(alpha = 0.6f)
             )
         }
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(12.dp))
         LevelMeter(shown)
         Spacer(Modifier.height(12.dp))
         SliderLabel("Sensitivity")
@@ -139,14 +152,14 @@ internal fun VisualizerPanel(
             onFraction = onSensitivity,
             onFinished = onSensitivityDone
         )
-        Spacer(Modifier.height(10.dp))
-        Text(
-            "Bass is red, mids green, treble blue. Plays along with music and videos from apps that allow " +
-                "audio capture (Netflix and a few others block it). Keeps running with the app closed.",
-            style = MaterialTheme.typography.bodySmall,
-            color = onBg.copy(alpha = 0.5f)
-        )
+        Spacer(Modifier.height(16.dp))
+        SettingSwitch("Beat flash", "A quick burst of brightness on every beat", beatFlash, onBeatFlash)
         Spacer(Modifier.height(12.dp))
+        PanelHint(
+            "Bass is red, mids green, treble blue. Plays along with music and videos from apps that allow " +
+                "audio capture (Netflix and a few others block it). Keeps running with the app closed."
+        )
+        Spacer(Modifier.height(16.dp))
         PillButton("Stop visualizer", highlighted = false, onClick = onStop)
     }
 }
@@ -162,14 +175,12 @@ internal fun ScreenSyncPanel(running: Boolean, onStop: () -> Unit, modifier: Mod
             fontWeight = FontWeight.SemiBold,
             color = onBg
         )
-        Spacer(Modifier.height(6.dp))
-        Text(
+        Spacer(Modifier.height(4.dp))
+        PanelHint(
             if (running) "The LED follows the colours on your screen, also while other apps are open."
-            else "Starting screen capture…",
-            style = MaterialTheme.typography.bodySmall,
-            color = onBg.copy(alpha = 0.6f)
+            else "Starting screen capture…"
         )
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(16.dp))
         PillButton("Stop screen sync", highlighted = false, onClick = onStop)
     }
 }

@@ -125,15 +125,15 @@ internal fun SettingsScreen(
         // ── Header ──
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.entrance(0)) {
             CircleIconButton(R.drawable.arrow_back, "Back") { if (!otaState.busy) onBack() }
-            Spacer(Modifier.width(14.dp))
+            Spacer(Modifier.width(12.dp))
             Text(
                 "Settings",
-                style = MaterialTheme.typography.headlineMedium,
+                style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.SemiBold,
                 color = onBg
             )
         }
-        Spacer(Modifier.height(18.dp))
+        Spacer(Modifier.height(16.dp))
 
         // ── Board LED ──
         SettingsCard("Board LED", boardOpen, Modifier.entrance(1), {
@@ -161,11 +161,11 @@ internal fun SettingsScreen(
             SegmentedPill(listOf("Quick", "Normal", "Slow"), fades.indexOf(fadeMs)) {
                 onFadeMsChange(fades[it])
             }
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(16.dp))
             Text(
                 text = "Candle options, rainbow speed and fade need board firmware 1.3.0 or newer.",
                 style = MaterialTheme.typography.bodySmall,
-                color = onBg.copy(alpha = 0.5f)
+                color = onBg.copy(alpha = 0.45f)
             )
         }
 
@@ -252,19 +252,24 @@ internal fun SettingsScreen(
                 "Round LED preview", "Keep the LED preview a perfect circle whatever the corners",
                 AppLook.roundLedPreview
             ) { AppLook.roundLedPreview = it; store.roundLedPreview = it }
-            Spacer(Modifier.height(10.dp))
+            SwitchGap()
             SettingSwitch(
                 "Pure black (OLED)", "Black background in dark mode",
                 AppLook.pureBlack
             ) { AppLook.pureBlack = it; store.pureBlack = it }
-            Spacer(Modifier.height(10.dp))
+            SwitchGap()
             SettingSwitch(
                 "Rainbow preview", "Animate the colour sliders while Rainbow runs",
                 rainbowSync, onRainbowSyncChange
             )
-            Spacer(Modifier.height(10.dp))
+            SwitchGap()
+            SettingSwitch(
+                "Haptics", "Light ticks on sliders and taps on buttons",
+                AppLook.haptics
+            ) { AppLook.haptics = it; store.haptics = it }
+            SwitchGap()
             SettingSwitch("Keep screen on", null, keepScreenOn, onKeepScreenOnChange)
-            Spacer(Modifier.height(10.dp))
+            SwitchGap()
             SettingSwitch(
                 "Update notifications", "Toast at launch when an update is available",
                 updateToasts, onUpdateToastsChange
@@ -285,11 +290,11 @@ internal fun SettingsScreen(
             )
             Spacer(Modifier.height(12.dp))
             AppUpdateSection()
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(12.dp))
             PillButton("What's new", highlighted = false, onClick = onWhatsNew)
         }
 
-        Spacer(Modifier.height(32.dp))
+        Spacer(Modifier.height(24.dp))
     }
 }
 
@@ -444,6 +449,7 @@ internal fun PillButton(
     text: String,
     highlighted: Boolean,
     enabled: Boolean = true,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
     val onBg = MaterialTheme.colorScheme.onBackground
@@ -453,7 +459,7 @@ internal fun PillButton(
     )
     Box(
         contentAlignment = Alignment.Center,
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .height(46.dp)
             .clip(rounded(16.dp))

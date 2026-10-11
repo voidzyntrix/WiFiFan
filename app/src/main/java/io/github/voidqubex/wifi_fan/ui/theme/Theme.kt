@@ -37,6 +37,8 @@ object AppLook {
     var roundLedPreview by mutableStateOf(true)
     /** Dark theme on pure black (OLED): black background, near-black surfaces. */
     var pureBlack by mutableStateOf(false)
+    /** Haptic ticks and taps on controls. */
+    var haptics by mutableStateOf(true)
 }
 
 /** True in the pure Monochrome scheme. */

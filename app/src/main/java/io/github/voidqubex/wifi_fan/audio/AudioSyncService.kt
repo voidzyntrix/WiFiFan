@@ -112,11 +112,13 @@ class AudioSyncService : Service() {
     /** Microphone: loudness is brightness, beats step the hue (or keep the picked colour). */
     private suspend fun listen(rec: AudioRecord, link: LedLink) {
         val analyzer = MusicReactor.Analyzer()
+        val flash = BeatFlash()
         var beatHue = SyncParams.hue
         AudioCapture.loop(rec, AudioCapture.SAMPLE_RATE * MusicReactor.WINDOW_MS / 1000) { buf, n ->
-            val (level, beat) = analyzer.process(
+            val (raw, beat) = analyzer.process(
                 buf, n, MusicReactor.WINDOW_MS.toLong(), SyncParams.sensitivity
             )
+            val level = flash.apply(raw, beat, MusicReactor.WINDOW_MS.toLong(), SyncParams.beatFlash)
             val keep = SyncParams.keepColour
             if (beat && !keep) beatHue = (beatHue + 47f) % 360f
             val h = if (keep) SyncParams.hue else beatHue
@@ -124,24 +126,27 @@ class AudioSyncService : Service() {
             SyncHub.level.value = level
             SyncHub.hue.value = h
             SyncHub.sat.value = s
-            link.colour(h, s, SyncParams.bri * (0.04f + 0.96f * level), SEND_GAP_MS)
+            // A beat goes out at once, whatever the throttle says, so the flash is never swallowed.
+            link.colour(h, s, SyncParams.bri * (0.04f + 0.96f * level), if (beat) 0L else SEND_GAP_MS)
         }
     }
 
     /** Speakers: bass, mids and treble mix the colour; the overall level is the brightness. */
     private suspend fun visualize(rec: AudioRecord, link: LedLink) {
         val analyzer = MusicReactor.Analyzer()
+        val flash = BeatFlash()
         val spectrum = SpectrumAnalyzer()
         val windowMs = spectrum.size * 1000L / AudioCapture.SAMPLE_RATE
         var hue = SyncParams.hue
         AudioCapture.loop(rec, spectrum.size) { buf, n ->
-            val (level, _) = analyzer.process(buf, n, windowMs, SyncParams.sensitivity)
+            val (raw, beat) = analyzer.process(buf, n, windowMs, SyncParams.sensitivity)
+            val level = flash.apply(raw, beat, windowMs, SyncParams.beatFlash)
             val c = SpectrumAnalyzer.colour(spectrum.process(buf, n), hue)
             hue = c[0]
             SyncHub.level.value = level
             SyncHub.hue.value = c[0]
             SyncHub.sat.value = c[1]
-            link.colour(c[0], c[1], SyncParams.bri * (0.04f + 0.96f * level), SEND_GAP_MS)
+            link.colour(c[0], c[1], SyncParams.bri * (0.04f + 0.96f * level), if (beat) 0L else SEND_GAP_MS)
         }
     }
 

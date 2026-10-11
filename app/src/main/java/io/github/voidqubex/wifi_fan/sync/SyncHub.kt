@@ -42,4 +42,6 @@ object SyncParams {
     @Volatile var bri = 1f
     @Volatile var sensitivity = 0.5f
     @Volatile var keepColour = false
+    /** Music and Visualizer: spike the brightness on each beat. */
+    @Volatile var beatFlash = true
 }

@@ -62,6 +62,8 @@ import io.github.voidqubex.wifi_fan.led.LedPreview
 import io.github.voidqubex.wifi_fan.ui.components.AppButton
 import io.github.voidqubex.wifi_fan.ui.components.ScanDots
 import io.github.voidqubex.wifi_fan.ui.components.bounceClickable
+import io.github.voidqubex.wifi_fan.ui.components.bounceCombinedClickable
+import io.github.voidqubex.wifi_fan.ui.components.rememberHaptics
 import io.github.voidqubex.wifi_fan.ui.components.monoFill
 import io.github.voidqubex.wifi_fan.ui.components.pressScaleModifier
 import io.github.voidqubex.wifi_fan.ui.theme.circle
@@ -72,18 +74,27 @@ import io.github.voidqubex.wifi_fan.ui.theme.rounded
 // pulses while searching, a status pill, and the nearby devices listed inline.
 // ---------------------------------------------------------------------------
 
+/** A board found by the scan: its MAC address and the name it advertises over Bluetooth. */
+internal data class DeviceEntry(val address: String, val bleName: String?)
+
+/** The scan results as [DeviceEntry]s (reading a device's name needs BLUETOOTH_CONNECT). */
 @SuppressLint("MissingPermission")
+internal fun Set<BluetoothDevice>.toEntries(): List<DeviceEntry> =
+    map { DeviceEntry(it.address, runCatching { it.name }.getOrNull()) }
+
 @Composable
 internal fun ConnectScreen(
     connectionState: Int,
     isScanning: Boolean,
-    devices: Set<BluetoothDevice>,
+    devices: List<DeviceEntry>,
     picking: Boolean,
     mono: Boolean,
     onScan: () -> Unit,
-    onPick: (BluetoothDevice) -> Unit,
+    onPick: (DeviceEntry) -> Unit,
     onCancel: () -> Unit,
-    onSettings: () -> Unit
+    onSettings: () -> Unit,
+    names: Map<String, String> = emptyMap(),
+    onRename: (DeviceEntry) -> Unit = {}
 ) {
     val onBg = MaterialTheme.colorScheme.onBackground
     val connecting = connectionState == BluetoothProfile.STATE_CONNECTING
@@ -160,9 +171,11 @@ internal fun ConnectScreen(
                 if (showList) {
                     DeviceList(
                         devices = devices,
+                        names = names,
                         isScanning = isScanning,
                         mono = mono,
                         onPick = onPick,
+                        onRename = onRename,
                         onScan = onScan,
                         onCancel = onCancel
                     )
@@ -251,21 +264,25 @@ internal fun StatusPill(text: String, active: Boolean) {
     }
 }
 
-@SuppressLint("MissingPermission")
 @Composable
 private fun DeviceList(
-    devices: Set<BluetoothDevice>,
+    devices: List<DeviceEntry>,
+    names: Map<String, String>,
     isScanning: Boolean,
     mono: Boolean,
-    onPick: (BluetoothDevice) -> Unit,
+    onPick: (DeviceEntry) -> Unit,
+    onRename: (DeviceEntry) -> Unit,
     onScan: () -> Unit,
     onCancel: () -> Unit
 ) {
     val cs = MaterialTheme.colorScheme
     val shape = rounded(24.dp)
-    // Named devices first; unnamed ones are rarely the board.
-    val sorted = remember(devices) {
-        devices.sortedWith(compareBy({ it.name == null }, { it.name ?: it.address }))
+    val haptics = rememberHaptics()
+    // Boards you named first, then named devices; unnamed ones are rarely the board.
+    val sorted = remember(devices, names) {
+        devices.sortedWith(
+            compareBy({ it.address !in names }, { it.bleName == null }, { names[it.address] ?: it.bleName ?: it.address })
+        )
     }
     val iconFill = if (mono) monoFill() else cs.primary.copy(alpha = 0.15f)
 
@@ -278,7 +295,7 @@ private fun DeviceList(
             .padding(vertical = 8.dp)
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
+            modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
@@ -293,21 +310,45 @@ private fun DeviceList(
             }
         }
         if (sorted.isEmpty()) {
-            Text(
-                text = if (isScanning) "Looking for LED boards…" else "No devices found. Is the board powered?",
-                style = MaterialTheme.typography.bodySmall,
-                color = cs.onSurface.copy(alpha = 0.5f),
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp)
-            )
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 24.dp)
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.led),
+                    contentDescription = null,
+                    modifier = Modifier.size(28.dp).alpha(if (isScanning) 0.6f else 0.35f),
+                    tint = cs.primary
+                )
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    text = if (isScanning) "Looking for LED boards…" else "No boards found",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = cs.onSurface.copy(alpha = 0.8f)
+                )
+                if (!isScanning) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = "Is the board powered and close by?",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = cs.onSurface.copy(alpha = 0.45f)
+                    )
+                }
+            }
         } else {
             LazyColumn(Modifier.heightIn(max = 280.dp)) {
                 items(sorted, key = { it.address }) { device ->
+                    val custom = names[device.address]
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 8.dp)
                             .clip(rounded(16.dp))
-                            .bounceClickable(pressedScale = 0.97f) { onPick(device) }
+                            .bounceCombinedClickable(
+                                pressedScale = 0.97f,
+                                onLongClick = { haptics.longPress(); onRename(device) }
+                            ) { haptics.tap(); onPick(device) }
                             .padding(horizontal = 12.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -328,17 +369,21 @@ private fun DeviceList(
                         Spacer(Modifier.width(14.dp))
                         Column(Modifier.weight(1f)) {
                             Text(
-                                text = device.name ?: "Unknown device",
+                                text = custom ?: device.bleName ?: "Unknown device",
                                 style = MaterialTheme.typography.bodyLarge,
                                 fontWeight = FontWeight.Medium,
                                 color = cs.onSurface,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
+                            // Your name on top, the board's own Bluetooth name small underneath.
                             Text(
-                                text = device.address,
+                                text = if (custom != null) listOfNotNull(device.bleName, device.address).joinToString(" · ")
+                                else device.address,
                                 style = MaterialTheme.typography.bodySmall,
-                                color = cs.onSurface.copy(alpha = 0.45f)
+                                color = cs.onSurface.copy(alpha = 0.45f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                         Icon(
@@ -357,8 +402,17 @@ private fun DeviceList(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.End
         ) {
+            if (sorted.isNotEmpty()) {
+                Text(
+                    "Long-press to rename",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = cs.onSurface.copy(alpha = 0.4f),
+                    modifier = Modifier.weight(1f).padding(start = 8.dp)
+                )
+            }
             if (!isScanning) TextButton(onClick = onScan, shape = circle()) { Text("Scan again") }
             TextButton(onClick = onCancel, shape = circle()) { Text("Cancel") }
         }

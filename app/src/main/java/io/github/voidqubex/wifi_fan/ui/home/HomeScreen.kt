@@ -127,8 +127,12 @@ import io.github.voidqubex.wifi_fan.ui.components.bounceClickable
 import io.github.voidqubex.wifi_fan.ui.components.entrance
 import io.github.voidqubex.wifi_fan.ui.components.isCompact
 import io.github.voidqubex.wifi_fan.ui.components.screenPadding
+import io.github.voidqubex.wifi_fan.ui.components.ActionsDialog
+import io.github.voidqubex.wifi_fan.ui.components.NameDialog
+import io.github.voidqubex.wifi_fan.ui.components.rememberHaptics
 import io.github.voidqubex.wifi_fan.ui.connect.ConnectScreen
-import io.github.voidqubex.wifi_fan.ui.connect.StatusPill
+import io.github.voidqubex.wifi_fan.ui.connect.DeviceEntry
+import io.github.voidqubex.wifi_fan.ui.connect.toEntries
 import io.github.voidqubex.wifi_fan.ui.settings.SettingsScreen
 import io.github.voidqubex.wifi_fan.ui.theme.activeFill
 import io.github.voidqubex.wifi_fan.ui.theme.circle
@@ -193,8 +197,27 @@ fun BleControlScreen(
     val foundDevices    by bleManager.foundDevices.collectAsState()
     val isScanning      by bleManager.isScanning.collectAsState()
     val boardVersion    by bleManager.firmwareVersion.collectAsState()
+    val deviceAddress   by bleManager.deviceAddress.collectAsState()
+    val deviceName      by bleManager.deviceName.collectAsState()
 
     val isConnected = connectionState == BluetoothProfile.STATE_CONNECTED
+    val haptics = rememberHaptics()
+
+    // App-side board names (by MAC address); the board's Bluetooth name stays as it is.
+    var boardNames by remember { mutableStateOf(ledStore.boardNames) }
+    fun setBoardName(address: String, name: String) {
+        boardNames = if (name.isBlank()) boardNames - address else boardNames + (address to name.trim())
+        ledStore.boardNames = boardNames
+    }
+    var renaming by remember { mutableStateOf<DeviceEntry?>(null) }
+    val boardTitle = deviceAddress?.let { boardNames[it] } ?: deviceName ?: "Connected"
+
+    // Scenes: one-tap favourites, saved as JSON.
+    var scenes by remember { mutableStateOf(ledStore.loadScenes()) }
+    fun updateScenes(list: List<Scene>) { scenes = list; ledStore.saveScenes(list) }
+    var addingScene by remember { mutableStateOf(false) }
+    var sceneMenu by remember { mutableStateOf<Scene?>(null) }
+    var renamingScene by remember { mutableStateOf<Scene?>(null) }
 
     // LED options from Settings (board firmware 1.3.0+ understands them)
     var smoothCandle by remember { mutableStateOf(ledStore.smoothCandle) }
@@ -299,6 +322,7 @@ fun BleControlScreen(
     var lastSentMs by remember { mutableLongStateOf(0L) }
     var musicSensitivity by remember { mutableFloatStateOf(ledStore.musicSensitivity) }
     var musicKeepColour by remember { mutableStateOf(ledStore.musicKeepColour) }
+    var beatFlash by remember { mutableStateOf(ledStore.beatFlash) }
 
     // Clock for the preview animations (one hue lap every 4 s).
     val rainbowHue by rememberInfiniteTransition(label = "rainbow").animateFloat(
@@ -428,6 +452,7 @@ fun BleControlScreen(
         SyncParams.bri = bri
         SyncParams.sensitivity = musicSensitivity
         SyncParams.keepColour = musicKeepColour
+        SyncParams.beatFlash = beatFlash
     }
     val liveHue = if (syncActive == SyncKind.NONE) hue else syncHue
     val liveSat = if (syncActive == SyncKind.NONE) sat else syncSat
@@ -525,6 +550,50 @@ fun BleControlScreen(
             }
             else -> { if (ledKelvinMode) ledKelvinMode = false; sendEffect(mode) }
         }
+    }
+
+    // ── Scenes ──
+    // A scene holds a mode the board runs by itself; Music, Visualizer and Screen sync can't be
+    // saved (they need the microphone or a fresh capture consent each time).
+    fun currentScene(id: Long, name: String) = Scene(
+        id = id, name = name, mode = ledMode, hue = hue, sat = sat,
+        kelvinMode = ledKelvinMode, kelvin = ledKelvin, bri = bri,
+        candleHue = if (ledMode == LED_MODE_CANDLE) candleHueOverride else null
+    )
+    // Applying goes through the same paths as changing things by hand.
+    fun applyScene(s: Scene) {
+        val supported = when (s.mode) {
+            LED_MODE_CANDLE -> fwCandle
+            LED_MODE_BREATHE, LED_MODE_OCEAN, LED_MODE_PARTY, LED_MODE_AURORA -> fwEffects
+            else -> Scene.canSave(s.mode)
+        }
+        ledKelvinMode = s.kelvinMode
+        if (s.kelvinMode) {
+            ledKelvin = s.kelvin
+            val hs = LedColor.kelvinToHueSat(s.kelvin)
+            hue = hs[0]; sat = hs[1]
+        } else {
+            hue = s.hue; sat = s.sat
+        }
+        bri = s.bri
+        if (s.bri >= MIN_VISIBLE_BRIGHTNESS) lastOnBri = s.bri
+        candleHueOverride = if (s.mode == LED_MODE_CANDLE) s.candleHue else null
+        ledMode = if (supported) s.mode else LED_MODE_SOLID
+        if (!supported) {
+            Toast.makeText(context, "\"${s.name}\" needs newer board firmware; showing its colour.", Toast.LENGTH_SHORT).show()
+        }
+        sendCurrent()
+    }
+    val selectedSceneId = if (!ledOn) null else scenes.firstOrNull {
+        it.matches(ledMode, hue, sat, ledKelvinMode, ledKelvin, bri) &&
+            (it.mode != LED_MODE_CANDLE || it.candleHue == candleHueOverride)
+    }?.id
+    val sceneSuggestion = when {
+        ledMode == LED_MODE_SOLID && ledKelvinMode -> "${(ledKelvin / 100).roundToInt() * 100} K"
+        ledMode == LED_MODE_SOLID -> "Scene ${scenes.size + 1}"
+        else -> (listOf(LED_MODE_RAINBOW to "Rainbow", LED_MODE_CANDLE to "Candle") +
+            LedEffects.map { it.first to it.second }).firstOrNull { it.first == ledMode }?.second
+            ?: "Scene ${scenes.size + 1}"
     }
 
     // Music starts once it is wanted. The app is visible here, which Android requires to open the
@@ -726,6 +795,7 @@ fun BleControlScreen(
                             else Color(AndroidColor.HSVToColor(floatArrayOf(shownHue, sat, 1f)))
                             fun hsvColor(h: Float, s: Float) =
                                 Color(AndroidColor.HSVToColor(floatArrayOf(h, s, 1f)))
+                            val pad = screenPadding()
 
                             Column(
                                 modifier = Modifier
@@ -733,21 +803,32 @@ fun BleControlScreen(
                                     .statusBarsPadding()
                                     .navigationBarsPadding()
                                     .verticalScroll(rememberScrollState())
-                                    .padding(horizontal = screenPadding(), vertical = 12.dp)
+                                    .padding(horizontal = pad, vertical = 12.dp)
                             ) {
-                                // ── Header ──
+                                // ── Header: title, board name (tap to rename), settings, power ──
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     modifier = Modifier.entrance(0)
                                 ) {
-                                    Text(
-                                        "Glow",
-                                        style = MaterialTheme.typography.headlineMedium,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = onBg,
-                                        maxLines = 1,
-                                        modifier = Modifier.weight(1f)
-                                    )
+                                    Column(Modifier.weight(1f)) {
+                                        Text(
+                                            "Glow",
+                                            style = MaterialTheme.typography.headlineSmall,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = onBg,
+                                            maxLines = 1
+                                        )
+                                        Spacer(Modifier.height(4.dp))
+                                        BoardPill(
+                                            name = boardTitle,
+                                            version = boardVersion,
+                                            canRename = deviceAddress != null,
+                                            onClick = {
+                                                deviceAddress?.let { renaming = DeviceEntry(it, deviceName) }
+                                            }
+                                        )
+                                    }
+                                    Spacer(Modifier.width(8.dp))
                                     CircleIconButton(R.drawable.settings, "Settings") { showSettings = true }
                                     Spacer(Modifier.width(8.dp))
                                     val powerBg by animateColorAsState(
@@ -764,7 +845,7 @@ fun BleControlScreen(
                                             .size(44.dp)
                                             .clip(circle())
                                             .background(powerBg)
-                                            .bounceClickable { togglePower() }
+                                            .bounceClickable { haptics.confirm(); togglePower() }
                                     ) {
                                         Icon(
                                             painter = painterResource(R.drawable.power),
@@ -774,32 +855,6 @@ fun BleControlScreen(
                                         )
                                     }
                                 }
-                                Spacer(Modifier.height(8.dp))
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.fillMaxWidth().entrance(0)
-                                ) {
-                                    Box(Modifier.weight(1f, fill = false)) {
-                                        StatusPill(
-                                            text = "Connected" + (boardVersion?.let { " · v$it" } ?: ""),
-                                            active = true
-                                        )
-                                    }
-                                    Spacer(Modifier.width(8.dp))
-                                    Text(
-                                        "Disconnect",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color = onBg.copy(alpha = 0.5f),
-                                        maxLines = 1,
-                                        softWrap = false,
-                                        modifier = Modifier
-                                            .clip(circle())
-                                            .bounceClickable { bleManager.disconnect() }
-                                            .padding(horizontal = 8.dp, vertical = 6.dp)
-                                    )
-                                }
-
-                                Spacer(Modifier.height(4.dp))
 
                                 // ── Live preview ──
                                 Column(
@@ -810,7 +865,7 @@ fun BleControlScreen(
                                         hue = previewHue, sat = previewSat, value = previewVal,
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .height(if (isCompact()) 176.dp else 220.dp)
+                                            .height(if (isCompact()) 160.dp else 200.dp)
                                     )
                                     AnimatedContent(
                                         targetState = if (ledOn) modeName else "Off",
@@ -823,16 +878,39 @@ fun BleControlScreen(
                                         Text(
                                             name,
                                             style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Medium,
                                             color = onBg.copy(alpha = 0.85f),
                                             maxLines = 1
                                         )
                                     }
                                 }
 
-                                Spacer(Modifier.height(12.dp))
+                                Spacer(Modifier.height(16.dp))
 
-                                // ── Mode (dropdown) ──
-                                PanelCard(Modifier.entrance(2)) {
+                                // ── Scenes ──
+                                SceneRow(
+                                    scenes = scenes,
+                                    selectedId = selectedSceneId,
+                                    candleHue = candleHue,
+                                    canAdd = Scene.canSave(ledMode),
+                                    edgePadding = pad,
+                                    onApply = { haptics.tap(); applyScene(it) },
+                                    onLongPress = { haptics.longPress(); sceneMenu = it },
+                                    onAdd = {
+                                        if (Scene.canSave(ledMode)) addingScene = true
+                                        else Toast.makeText(
+                                            context,
+                                            "Music, Visualizer and Screen sync can't be saved as scenes.",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    },
+                                    modifier = Modifier.entrance(2)
+                                )
+
+                                Spacer(Modifier.height(16.dp))
+
+                                // ── Mode (dropdown) and brightness ──
+                                PanelCard(Modifier.entrance(3)) {
                                     Box {
                                         Row(
                                             verticalAlignment = Alignment.CenterVertically,
@@ -840,7 +918,7 @@ fun BleControlScreen(
                                                 .fillMaxWidth()
                                                 .onSizeChanged { anchorW = it.width; anchorH = it.height }
                                                 .clip(rounded(14.dp))
-                                                .background(onBg.copy(alpha = 0.07f))
+                                                .background(onBg.copy(alpha = 0.06f))
                                                 .bounceClickable(pressedScale = 0.98f) { modeMenu = !modeMenu }
                                                 .padding(horizontal = 16.dp, vertical = 12.dp)
                                         ) {
@@ -849,7 +927,7 @@ fun BleControlScreen(
                                                 style = MaterialTheme.typography.labelMedium,
                                                 color = onBg.copy(alpha = 0.5f)
                                             )
-                                            Spacer(Modifier.width(14.dp))
+                                            Spacer(Modifier.width(12.dp))
                                             Box(Modifier.weight(1f)) {
                                                 AnimatedContent(
                                                     targetState = modeLabel,
@@ -901,7 +979,7 @@ fun BleControlScreen(
                                                             .width(with(density) { anchorW.toDp() })
                                                             .clip(menuShape)
                                                             .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.97f))
-                                                            .border(1.dp, onBg.copy(alpha = 0.1f), menuShape)
+                                                            .border(1.dp, onBg.copy(alpha = 0.08f), menuShape)
                                                             .padding(6.dp)
                                                     ) {
                                                         modeList.forEach { (mode, label, enabled) ->
@@ -917,6 +995,7 @@ fun BleControlScreen(
                                                                     )
                                                                     .alpha(if (enabled) 1f else 0.35f)
                                                                     .bounceClickable(enabled = enabled, pressedScale = 0.97f) {
+                                                                        haptics.tap()
                                                                         modeMenu = false; startMode(mode)
                                                                     }
                                                                     .padding(horizontal = 14.dp, vertical = 12.dp)
@@ -942,12 +1021,39 @@ fun BleControlScreen(
                                             }
                                         }
                                     }
+                                    Spacer(Modifier.height(16.dp))
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            "Brightness",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = onBg.copy(alpha = 0.5f),
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        Text(
+                                            "${(bri * 100).roundToInt()} %",
+                                            style = MaterialTheme.typography.labelLarge,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = onBg.copy(alpha = 0.8f)
+                                        )
+                                    }
+                                    Spacer(Modifier.height(4.dp))
+                                    GradientBar(
+                                        fraction = bri,
+                                        stops = listOf(Color.Black, briTop),
+                                        thumbColor = briTop,
+                                        onFraction = {
+                                            bri = it
+                                            if (it >= MIN_VISIBLE_BRIGHTNESS) lastOnBri = it
+                                            sendThrottled()
+                                        },
+                                        onFinished = { sendCurrent() }
+                                    )
                                     if (!fwEffects) {
-                                        Spacer(Modifier.height(8.dp))
+                                        Spacer(Modifier.height(12.dp))
                                         Text(
                                             "Update the board firmware (Settings) for all modes.",
                                             style = MaterialTheme.typography.bodySmall,
-                                            color = onBg.copy(alpha = 0.5f)
+                                            color = onBg.copy(alpha = 0.45f)
                                         )
                                     }
                                 }
@@ -961,8 +1067,10 @@ fun BleControlScreen(
                                         onSensitivityDone = { ledStore.musicSensitivity = musicSensitivity },
                                         keepColour = musicKeepColour,
                                         onKeepColour = { musicKeepColour = it },
+                                        beatFlash = beatFlash,
+                                        onBeatFlash = { beatFlash = it; ledStore.beatFlash = it },
                                         micAllowed = micGranted(),
-                                        modifier = Modifier.entrance(2)
+                                        modifier = Modifier.entrance(4)
                                     )
                                 } else if (ledMode == LED_MODE_VISUALIZER) {
                                     Spacer(Modifier.height(12.dp))
@@ -972,59 +1080,29 @@ fun BleControlScreen(
                                         sensitivity = musicSensitivity,
                                         onSensitivity = { musicSensitivity = it },
                                         onSensitivityDone = { ledStore.musicSensitivity = musicSensitivity },
+                                        beatFlash = beatFlash,
+                                        onBeatFlash = { beatFlash = it; ledStore.beatFlash = it },
                                         onStop = { startMode(LED_MODE_SOLID) },
-                                        modifier = Modifier.entrance(2)
+                                        modifier = Modifier.entrance(4)
                                     )
                                 } else if (ledMode == LED_MODE_SCREEN) {
                                     Spacer(Modifier.height(12.dp))
                                     ScreenSyncPanel(
                                         running = syncActive == SyncKind.SCREEN,
                                         onStop = { startMode(LED_MODE_SOLID) },
-                                        modifier = Modifier.entrance(2)
-                                    )
-                                }
-
-                                Spacer(Modifier.height(12.dp))
-
-                                // ── Brightness ──
-                                PanelCard(Modifier.entrance(3)) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text(
-                                            "Brightness",
-                                            style = MaterialTheme.typography.titleSmall,
-                                            fontWeight = FontWeight.SemiBold,
-                                            color = onBg,
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                        Text(
-                                            "${(bri * 100).roundToInt()} %",
-                                            style = MaterialTheme.typography.labelLarge,
-                                            color = onBg.copy(alpha = 0.6f)
-                                        )
-                                    }
-                                    Spacer(Modifier.height(6.dp))
-                                    GradientBar(
-                                        fraction = bri,
-                                        stops = listOf(Color.Black, briTop),
-                                        thumbColor = briTop,
-                                        onFraction = {
-                                            bri = it
-                                            if (it >= MIN_VISIBLE_BRIGHTNESS) lastOnBri = it
-                                            sendThrottled()
-                                        },
-                                        onFinished = { sendCurrent() }
+                                        modifier = Modifier.entrance(4)
                                     )
                                 }
 
                                 Spacer(Modifier.height(12.dp))
 
                                 // ── Colour ──
-                                PanelCard(Modifier.entrance(4)) {
+                                PanelCard(Modifier.entrance(5)) {
                                     SegmentedPill(listOf("Color", "Kelvin"), if (ledKelvinMode) 1 else 0) {
                                         ledKelvinMode = it == 1
                                         if (ledKelvinMode) { setKelvin(ledKelvin); sendCurrent() }
                                     }
-                                    Spacer(Modifier.height(12.dp))
+                                    Spacer(Modifier.height(16.dp))
 
                                     AnimatedContent(
                                         targetState = ledKelvinMode,
@@ -1062,7 +1140,7 @@ fun BleControlScreen(
                                                     },
                                                     onFinished = { sendCurrent() }
                                                 )
-                                                Spacer(Modifier.height(6.dp))
+                                                Spacer(Modifier.height(8.dp))
                                                 SliderLabel("Saturation")
                                                 GradientBar(
                                                     fraction = sat,
@@ -1072,7 +1150,7 @@ fun BleControlScreen(
                                                     onFinished = { sendCurrent() }
                                                 )
                                             }
-                                            Spacer(Modifier.height(14.dp))
+                                            Spacer(Modifier.height(16.dp))
                                             Row(
                                                 Modifier.fillMaxWidth(),
                                                 horizontalArrangement = Arrangement.SpaceBetween
@@ -1101,13 +1179,27 @@ fun BleControlScreen(
                                         }
                                     }
                                 }
+
                                 Spacer(Modifier.height(16.dp))
+                                // Quiet footer action: leave the board.
+                                Text(
+                                    "Disconnect",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = onBg.copy(alpha = 0.45f),
+                                    maxLines = 1,
+                                    modifier = Modifier
+                                        .align(Alignment.CenterHorizontally)
+                                        .clip(circle())
+                                        .bounceClickable { haptics.tap(); bleManager.disconnect() }
+                                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                                )
+                                Spacer(Modifier.height(8.dp))
                             }
                         } else {
                             ConnectScreen(
                                 connectionState = connectionState,
                                 isScanning      = isScanning,
-                                devices         = foundDevices,
+                                devices         = foundDevices.toEntries(),
                                 picking         = pickingDevice,
                                 mono            = mono,
                                 onScan          = {
@@ -1122,13 +1214,124 @@ fun BleControlScreen(
                                     bleManager.connect(device.address)
                                 },
                                 onCancel        = { bleManager.stopScanning(); pickingDevice = false },
-                                onSettings      = { showSettings = true }
+                                onSettings      = { showSettings = true },
+                                names           = boardNames,
+                                onRename        = { renaming = it }
                             )
                         }
                     }
                 }
             }
         }
+        }
+    }
+
+    // ── Dialogs: board name, new scene, scene options ──
+    renaming?.let { board ->
+        NameDialog(
+            title = "Name this board",
+            subtitle = "Shown in Glow only. Leave it empty to use the Bluetooth name" +
+                (board.bleName?.let { " ($it)" } ?: "") + ".",
+            initial = boardNames[board.address] ?: "",
+            placeholder = board.bleName ?: "LED board",
+            allowEmpty = true,
+            onDismiss = { renaming = null },
+            onSave = { setBoardName(board.address, it); renaming = null }
+        )
+    }
+    if (addingScene) {
+        NameDialog(
+            title = "Save scene",
+            subtitle = "Saves the mode, colour and brightness you have now.",
+            initial = "",
+            placeholder = sceneSuggestion,
+            allowEmpty = true,
+            onDismiss = { addingScene = false },
+            onSave = { name ->
+                val id = (scenes.maxOfOrNull { it.id } ?: 0L) + 1
+                updateScenes(scenes + currentScene(id, name.ifBlank { sceneSuggestion }))
+                addingScene = false
+            }
+        )
+    }
+    sceneMenu?.let { scene ->
+        ActionsDialog(
+            title = scene.name,
+            subtitle = "Scene",
+            actions = listOfNotNull(
+                "Rename" to { sceneMenu = null; renamingScene = scene },
+                if (Scene.canSave(ledMode)) "Update to the current light" to {
+                    updateScenes(scenes.map { if (it.id == scene.id) currentScene(scene.id, scene.name) else it })
+                    sceneMenu = null
+                    haptics.confirm()
+                } else null,
+                "Delete" to {
+                    updateScenes(scenes.filterNot { it.id == scene.id })
+                    sceneMenu = null
+                }
+            ),
+            onDismiss = { sceneMenu = null }
+        )
+    }
+    renamingScene?.let { scene ->
+        NameDialog(
+            title = "Rename scene",
+            subtitle = null,
+            initial = scene.name,
+            placeholder = scene.name,
+            onDismiss = { renamingScene = null },
+            onSave = { name ->
+                updateScenes(scenes.map { if (it.id == scene.id) it.copy(name = name) else it })
+                renamingScene = null
+            }
+        )
+    }
+}
+
+/** The connected board's name with its firmware version; tapping it renames the board. */
+@Composable
+private fun BoardPill(name: String, version: String?, canRename: Boolean, onClick: () -> Unit) {
+    val onBg = MaterialTheme.colorScheme.onBackground
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .clip(circle())
+            .bounceClickable(enabled = canRename, pressedScale = 0.96f, onClick = onClick)
+            .padding(vertical = 2.dp)
+    ) {
+        Box(
+            Modifier
+                .size(7.dp)
+                .clip(circle())
+                .background(MaterialTheme.colorScheme.primary)
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            name,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Medium,
+            color = onBg.copy(alpha = 0.85f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f, fill = false)
+        )
+        if (version != null) {
+            Text(
+                "  v$version",
+                style = MaterialTheme.typography.labelMedium,
+                color = onBg.copy(alpha = 0.4f),
+                maxLines = 1,
+                softWrap = false
+            )
+        }
+        if (canRename) {
+            Spacer(Modifier.width(6.dp))
+            Icon(
+                painter = painterResource(R.drawable.edit),
+                contentDescription = "Rename board",
+                modifier = Modifier.size(13.dp),
+                tint = onBg.copy(alpha = 0.4f)
+            )
         }
     }
 }

@@ -122,6 +122,30 @@ class SettingsStore(context: Context) {
         get() = prefs.getBoolean(KEY_UPDATE_TOASTS, true)
         set(value) { prefs.edit().putBoolean(KEY_UPDATE_TOASTS, value).apply() }
 
+    /** Light haptic ticks on sliders and taps on toggles, pills and buttons. */
+    var haptics: Boolean
+        get() = prefs.getBoolean("haptics", true)
+        set(value) { prefs.edit().putBoolean("haptics", value).apply() }
+    /** Music and Visualizer: a short brightness spike on every beat. */
+    var beatFlash: Boolean
+        get() = prefs.getBoolean("beat_flash", true)
+        set(value) { prefs.edit().putBoolean("beat_flash", value).apply() }
+
+    /** App-side names for boards, keyed by Bluetooth MAC address (the board itself isn't renamed). */
+    var boardNames: Map<String, String>
+        get() = runCatching {
+            val o = org.json.JSONObject(prefs.getString("board_names", null) ?: "{}")
+            o.keys().asSequence().associateWith { o.getString(it) }
+        }.getOrDefault(emptyMap())
+        set(value) {
+            prefs.edit().putString("board_names", org.json.JSONObject(value).toString()).apply()
+        }
+
+    /** Saved scenes as JSON; null until the defaults were seeded. */
+    var scenesJson: String?
+        get() = prefs.getString("scenes", null)
+        set(value) { prefs.edit().putString("scenes", value).apply() }
+
     private companion object {
         const val KEY_CANDLE_HUE = "candle_hue"
         const val KEY_KEEP_SCREEN_ON = "keep_screen_on"

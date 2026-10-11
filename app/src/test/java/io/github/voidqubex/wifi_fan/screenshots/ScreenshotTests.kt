@@ -23,7 +23,11 @@ import io.github.voidqubex.wifi_fan.AppColorScheme
 import io.github.voidqubex.wifi_fan.SettingsStore
 import io.github.voidqubex.wifi_fan.bluetooth.BleManager
 import io.github.voidqubex.wifi_fan.ota.OtaManager
+import io.github.voidqubex.wifi_fan.ui.components.ActionsDialogCard
+import io.github.voidqubex.wifi_fan.ui.components.NameDialogCard
 import io.github.voidqubex.wifi_fan.ui.connect.ConnectScreen
+import io.github.voidqubex.wifi_fan.ui.connect.DeviceEntry
+import io.github.voidqubex.wifi_fan.ui.home.VisualizerPanel
 import io.github.voidqubex.wifi_fan.ui.home.BleControlScreen
 import io.github.voidqubex.wifi_fan.ui.settings.SettingsScreen
 import io.github.voidqubex.wifi_fan.ui.theme.AppLook
@@ -70,6 +74,8 @@ abstract class ScreenshotTests(private val size: String) {
         store.ledColor = 0xFFFF9500.toInt()
         store.ledBrightness = 0.8f
         store.lastSeenVersion = "999.0.0"   // no "What's new" dialog on top
+        store.boardNames = mapOf(BOARD_ADDRESS to "Desk lamp")
+        store.scenesJson = null             // the default scenes
         prepare(store)
         AppLook.monoFont = false
         AppLook.cornerScale = 1f
@@ -100,6 +106,8 @@ abstract class ScreenshotTests(private val size: String) {
         }
         flow<Int>("_connectionState").value = BluetoothProfile.STATE_CONNECTED
         flow<String?>("_firmwareVersion").value = version
+        flow<String?>("_deviceAddress").value = BOARD_ADDRESS
+        flow<String?>("_deviceName").value = "JDY-23"
         return ble
     }
 
@@ -156,14 +164,19 @@ abstract class ScreenshotTests(private val size: String) {
     }
 
     @Composable
-    private fun Connect(look: Look) {
+    private fun Connect(look: Look, picking: Boolean = false) {
         ConnectScreen(
             connectionState = BluetoothProfile.STATE_DISCONNECTED,
             isScanning = false,
-            devices = emptySet(),
-            picking = false,
+            devices = if (picking) listOf(
+                DeviceEntry(BOARD_ADDRESS, "JDY-23"),
+                DeviceEntry("C8:47:8C:00:12:34", "JDY-23"),
+                DeviceEntry("5D:21:9A:7F:00:01", null)
+            ) else emptyList(),
+            picking = picking,
             mono = look.scheme == AppColorScheme.TINTED,
-            onScan = {}, onPick = {}, onCancel = {}, onSettings = {}
+            onScan = {}, onPick = {}, onCancel = {}, onSettings = {},
+            names = mapOf(BOARD_ADDRESS to "Desk lamp")
         )
     }
 
@@ -186,6 +199,73 @@ abstract class ScreenshotTests(private val size: String) {
 
     @Test fun homeOled() = shot("home-oled", Look.DARK_MONO, oled = true) { Home(Look.DARK_MONO) }
 
+    // Scenes, board names, beat flash (1.11.0).
+    @Test fun homeNightSceneDarkColoured() = shot(
+        "home-scene-night", Look.DARK_COLOURED,
+        prepare = { it.ledMode = 2; it.ledBrightness = 0.15f }
+    ) { Home(Look.DARK_COLOURED) }
+
+    @Test fun homeMusicLight() = shot("home-music", Look.LIGHT_MONO, prepare = { it.ledMode = 7 }) {
+        Home(Look.LIGHT_MONO)
+    }
+
+    @Test fun connectListDarkMono() = shot("connect-list", Look.DARK_MONO) { Connect(Look.DARK_MONO, picking = true) }
+
+    @Test fun renameDialogDarkMono() = shot("rename-dialog", Look.DARK_MONO) {
+        DialogBox {
+            NameDialogCard(
+                title = "Name this board",
+                subtitle = "Shown in Glow only. Leave it empty to use the Bluetooth name (JDY-23).",
+                initial = "Desk lamp",
+                placeholder = "JDY-23",
+                allowEmpty = true,
+                onDismiss = {}, onSave = {}
+            )
+        }
+    }
+
+    @Test fun newSceneDialogDarkColoured() = shot("scene-dialog", Look.DARK_COLOURED) {
+        DialogBox {
+            NameDialogCard(
+                title = "Save scene",
+                subtitle = "Saves the mode, colour and brightness you have now.",
+                initial = "",
+                placeholder = "4000 K",
+                allowEmpty = true,
+                onDismiss = {}, onSave = {}
+            )
+        }
+    }
+
+    @Test fun sceneMenuLight() = shot("scene-menu", Look.LIGHT_MONO) {
+        DialogBox {
+            ActionsDialogCard(
+                title = "Night",
+                subtitle = "Scene",
+                actions = listOf("Rename" to {}, "Update to the current light" to {}, "Delete" to {}),
+                onDismiss = {}
+            )
+        }
+    }
+
+    @Test fun visualizerPanelDarkColoured() = shot("visualizer-panel", Look.DARK_COLOURED) {
+        Box(Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.TopCenter) {
+            VisualizerPanel(
+                level = 0.6f, running = true, sensitivity = 0.5f,
+                onSensitivity = {}, onSensitivityDone = {},
+                beatFlash = true, onBeatFlash = {}, onStop = {}
+            )
+        }
+    }
+
+    @Composable
+    private fun DialogBox(content: @Composable () -> Unit) {
+        Box(
+            Modifier.fillMaxSize().background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.4f)).padding(24.dp),
+            contentAlignment = Alignment.Center
+        ) { content() }
+    }
+
     @Test fun whatsNewDarkColoured() = shot("whats-new", Look.DARK_COLOURED) {
         Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
             WhatsNewCard(
@@ -202,6 +282,8 @@ abstract class ScreenshotTests(private val size: String) {
         }
     }
 }
+
+private const val BOARD_ADDRESS = "C8:47:8C:4A:1B:2E"
 
 @Config(sdk = [35], qualifiers = "w360dp-h780dp-xxhdpi")
 class Phone360Screenshots : ScreenshotTests("360x780")

@@ -71,10 +71,10 @@ internal fun PanelCard(modifier: Modifier = Modifier, content: @Composable Colum
             .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.4f))
             .border(
                 1.dp,
-                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f),
                 rounded(24.dp)
             )
-            .padding(if (isCompact()) 14.dp else 18.dp),
+            .padding(16.dp),
         content = content
     )
 }
@@ -97,20 +97,21 @@ internal fun Modifier.entrance(index: Int): Modifier {
 internal fun SliderLabel(text: String) {
     Text(
         text,
-        style = MaterialTheme.typography.labelSmall,
+        style = MaterialTheme.typography.labelMedium,
         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
     )
 }
 
 @Composable
 internal fun PresetDot(color: Color, onClick: () -> Unit) {
+    val haptics = rememberHaptics()
     Box(
         modifier = Modifier
             .size(if (isCompact()) 26.dp else 30.dp)
             .clip(circle())
             .background(color)
             .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f), circle())
-            .bounceClickable(pressedScale = 0.85f, onClick = onClick)
+            .bounceClickable(pressedScale = 0.85f) { haptics.tap(); onClick() }
     )
 }
 
