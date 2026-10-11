@@ -51,6 +51,7 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
@@ -233,6 +234,18 @@ fun AmbientParticleBackground(
 private const val LED_MODE_SOLID = 0
 private const val LED_MODE_RAINBOW = 1
 private const val LED_MODE_CANDLE = 2
+private const val LED_MODE_BREATHE = 3
+private const val LED_MODE_OCEAN = 4
+private const val LED_MODE_PARTY = 5
+private const val LED_MODE_AURORA = 6
+
+/** Board effects (firmware 1.4.0+): mode -> (button label, command). */
+private val LedEffects = listOf(
+    Triple(LED_MODE_BREATHE, "Breathe", "breathe"),
+    Triple(LED_MODE_OCEAN, "Ocean", "ocean"),
+    Triple(LED_MODE_PARTY, "Party", "party"),
+    Triple(LED_MODE_AURORA, "Aurora", "aurora")
+)
 
 /** Below this the LED is effectively off (1 % = 3 of 255), so there is nothing to preserve. */
 private const val MIN_VISIBLE_BRIGHTNESS = 0.01f
@@ -254,6 +267,7 @@ private fun AppButton(
     shape: Shape = RoundedCornerShape(14.dp),
     interactionSource: MutableInteractionSource? = null,
     colors: ButtonColors = ButtonDefaults.buttonColors(),
+    contentPadding: PaddingValues = ButtonDefaults.ContentPadding,
     content: @Composable RowScope.() -> Unit
 ) {
     if (mono) {
@@ -275,6 +289,7 @@ private fun AppButton(
                 1.5.dp,
                 MaterialTheme.colorScheme.primary.copy(alpha = if (enabled) 0.7f else 0.2f)
             ),
+            contentPadding = contentPadding,
             content = content
         )
     } else {
@@ -285,6 +300,7 @@ private fun AppButton(
             shape = shape,
             interactionSource = interactionSource,
             colors = colors,
+            contentPadding = contentPadding,
             content = content
         )
     }
@@ -750,6 +766,8 @@ fun BleControlScreen(
     }
 
     var showSettings by remember { mutableStateOf(false) }
+    // Back gesture closes Settings instead of leaving the app.
+    BackHandler(enabled = showSettings) { showSettings = false }
     var pickingDevice by remember { mutableStateOf(false) }
     var speed by remember { mutableFloatStateOf(1f) }
     var isTurbo by remember { mutableStateOf(false) }
@@ -1102,9 +1120,17 @@ fun BleControlScreen(
             ledMode = LED_MODE_CANDLE
         }
 
+        // Effects run on the board; the brightness slider re-sends them at the new level.
+        fun sendEffect(mode: Int) {
+            val cmd = LedEffects.first { it.first == mode }.third
+            bleManager.sendData("$cmd=${(bri * 100).roundToInt()}")
+            ledMode = mode
+        }
+
         fun sendCurrent() = when (ledMode) {
             LED_MODE_RAINBOW -> sendRainbow()
             LED_MODE_CANDLE -> sendCandle()
+            LED_MODE_BREATHE, LED_MODE_OCEAN, LED_MODE_PARTY, LED_MODE_AURORA -> sendEffect(ledMode)
             else -> sendSolid()
         }
 
@@ -1148,14 +1174,25 @@ fun BleControlScreen(
                     // Live preview: the LED glowing in the dark
                     LedPreview(
                         hue = when (ledMode) {
-                            LED_MODE_RAINBOW -> rainbowHue
+                            LED_MODE_RAINBOW, LED_MODE_PARTY -> rainbowHue
                             LED_MODE_CANDLE -> 19f
+                            LED_MODE_OCEAN -> 205f + 20f * sin(rainbowHue / 360f * 6.2832f)
+                            LED_MODE_AURORA -> 200f + 80f * sin(rainbowHue / 360f * 6.2832f / 4f)
                             else -> hue
                         },
-                        sat = if (ledMode == LED_MODE_CANDLE) 0.94f else sat,
+                        sat = when (ledMode) {
+                            LED_MODE_CANDLE -> 0.94f
+                            LED_MODE_OCEAN -> 0.9f
+                            LED_MODE_AURORA -> 0.82f
+                            LED_MODE_PARTY -> 1f
+                            else -> sat
+                        },
                         // candle: preview breathes like the board's flame
-                        value = if (ledMode == LED_MODE_CANDLE)
-                            bri * (0.82f + 0.1f * sin(rainbowHue / 360f * 6.2832f * 2f)) else bri,
+                        value = when (ledMode) {
+                            LED_MODE_CANDLE -> bri * (0.82f + 0.1f * sin(rainbowHue / 360f * 6.2832f * 2f))
+                            LED_MODE_BREATHE -> bri * (0.575f + 0.425f * sin(rainbowHue / 360f * 6.2832f))
+                            else -> bri
+                        },
                         modifier = Modifier.fillMaxWidth().height(130.dp)
                     )
                     Spacer(Modifier.height(4.dp))
@@ -1342,6 +1379,35 @@ fun BleControlScreen(
                         interactionSource = candleSrc,
                         modifier = pressScaleModifier(candleSrc).weight(1f)
                     ) { Text("Candle") }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    val fwEffects = boardVersion?.let {
+                        GitHubReleases.compareVersions(it, "1.4.0") >= 0
+                    } ?: false
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        LedEffects.forEach { (mode, label, _) ->
+                            val src = remember { MutableInteractionSource() }
+                            AppButton(
+                                mono = mono,
+                                enabled = fwEffects,
+                                onClick = {
+                                    if (ledKelvinMode) ledKelvinMode = false
+                                    if (bri < MIN_VISIBLE_BRIGHTNESS) bri = 1f
+                                    sendEffect(mode)
+                                },
+                                shape = RoundedCornerShape(12.dp),
+                                interactionSource = src,
+                                contentPadding = PaddingValues(horizontal = 2.dp),
+                                modifier = pressScaleModifier(src).weight(1f)
+                            ) { Text(label, style = MaterialTheme.typography.labelMedium, maxLines = 1) }
+                        }
+                    }
+                    if (!fwEffects) {
+                        Text(
+                            "Effects need board firmware 1.4.0 (Settings > Firmware)",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                        )
                     }
 
                     Spacer(Modifier.height(8.dp))
@@ -2283,84 +2349,7 @@ private fun SettingsScreen(
 
         Spacer(Modifier.height(28.dp))
 
-        // ── Background ──────────────────────────────────────────────
-        SettingHeading("Background", "What appears behind the controls")
-        Spacer(Modifier.height(12.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            ChoiceCard(
-                label = "Particles",
-                description = "Gentle drifting dots",
-                selected = background == AppBackground.SIMPLE,
-                modifier = Modifier.weight(1f),
-                onClick = { onBackgroundChange(AppBackground.SIMPLE) })
-            ChoiceCard(
-                label = "Image",
-                description = "An image wallpaper",
-                selected = background == AppBackground.IMAGE,
-                modifier = Modifier.weight(1f),
-                onClick = { onBackgroundChange(AppBackground.IMAGE) })
-        }
-
-        Spacer(Modifier.height(32.dp))
-
-        // ── Color Scheme ────────────────────────────────────────────
-        SettingHeading("Color", "Accent and overall tone")
-        Spacer(Modifier.height(12.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            ChoiceCard(
-                label = "Monochrome",
-                description = "Grayscale, accent on the edges",
-                selected = colorScheme == AppColorScheme.MONOCHROME,
-                modifier = Modifier.weight(1f),
-                onClick = { onColorChange(AppColorScheme.MONOCHROME) })
-            ChoiceCard(
-                label = "Colored",
-                description = "Choose a custom color",
-                selected = colorScheme == AppColorScheme.COLORED,
-                modifier = Modifier.weight(1f),
-                onClick = { onColorChange(AppColorScheme.COLORED) })
-        }
-
-        // ── Accent picker — only relevant for the Colored scheme ─────
-        if (colorScheme == AppColorScheme.COLORED) {
-            Spacer(Modifier.height(28.dp))
-            AccentColorPicker(selected = accentColor, onPick = onAccentChange)
-        }
-
-        Spacer(Modifier.height(32.dp))
-
-        // ── Firmware update over Bluetooth ──────────────────────────
-        FirmwareSection(
-            otaManager   = otaManager,
-            state        = otaState,
-            boardVersion = boardVersion,
-            isConnected  = isConnected
-        )
-
-        Spacer(Modifier.height(32.dp))
-
-        // ── App update from GitHub releases ─────────────────────────
-        AppUpdateSection()
-
-        Spacer(Modifier.height(32.dp))
-
-        // ── LED dialog ──────────────────────────────────────────────
-        SettingHeading("LED", "Rainbow mode in the LED dialog")
-        Spacer(Modifier.height(12.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "Animate the hue slider and hex code",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onBackground,
-                modifier = Modifier.weight(1f)
-            )
-            Switch(checked = rainbowSync, onCheckedChange = onRainbowSyncChange)
-        }
-
-        Spacer(Modifier.height(16.dp))
+        SettingsCategory("Board LED")
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
@@ -2431,8 +2420,72 @@ private fun SettingsScreen(
             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
         )
 
+
+        Spacer(Modifier.height(40.dp))
+        SettingsCategory("App UI")
+        // ── Background ──────────────────────────────────────────────
+        SettingHeading("Background", "What appears behind the controls")
+        Spacer(Modifier.height(12.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            ChoiceCard(
+                label = "Particles",
+                description = "Gentle drifting dots",
+                selected = background == AppBackground.SIMPLE,
+                modifier = Modifier.weight(1f),
+                onClick = { onBackgroundChange(AppBackground.SIMPLE) })
+            ChoiceCard(
+                label = "Image",
+                description = "An image wallpaper",
+                selected = background == AppBackground.IMAGE,
+                modifier = Modifier.weight(1f),
+                onClick = { onBackgroundChange(AppBackground.IMAGE) })
+        }
+
         Spacer(Modifier.height(32.dp))
-        SettingHeading("General", "App behaviour")
+
+        // ── Color Scheme ────────────────────────────────────────────
+        SettingHeading("Color", "Accent and overall tone")
+        Spacer(Modifier.height(12.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            ChoiceCard(
+                label = "Monochrome",
+                description = "Grayscale, accent on the edges",
+                selected = colorScheme == AppColorScheme.MONOCHROME,
+                modifier = Modifier.weight(1f),
+                onClick = { onColorChange(AppColorScheme.MONOCHROME) })
+            ChoiceCard(
+                label = "Colored",
+                description = "Choose a custom color",
+                selected = colorScheme == AppColorScheme.COLORED,
+                modifier = Modifier.weight(1f),
+                onClick = { onColorChange(AppColorScheme.COLORED) })
+        }
+
+        // ── Accent picker — only relevant for the Colored scheme ─────
+        if (colorScheme == AppColorScheme.COLORED) {
+            Spacer(Modifier.height(28.dp))
+            AccentColorPicker(selected = accentColor, onPick = onAccentChange)
+        }
+
+        Spacer(Modifier.height(32.dp))
+
+        SettingHeading("LED dialog", "While the rainbow runs")
+        Spacer(Modifier.height(12.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Animate the hue slider and hex code",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onBackground,
+                modifier = Modifier.weight(1f)
+            )
+            Switch(checked = rainbowSync, onCheckedChange = onRainbowSyncChange)
+        }
+
+        Spacer(Modifier.height(32.dp))
+        SettingHeading("Behaviour", "Screen and notifications")
         Spacer(Modifier.height(12.dp))
         listOf(
             Triple("Keep screen on", keepScreenOn, onKeepScreenOnChange),
@@ -2451,6 +2504,24 @@ private fun SettingsScreen(
                 Switch(checked = checked, onCheckedChange = onChange)
             }
         }
+
+
+        Spacer(Modifier.height(40.dp))
+        SettingsCategory("Firmware & updates")
+        // ── Firmware update over Bluetooth ──────────────────────────
+        FirmwareSection(
+            otaManager   = otaManager,
+            state        = otaState,
+            boardVersion = boardVersion,
+            isConnected  = isConnected
+        )
+
+        Spacer(Modifier.height(32.dp))
+
+        // ── App update from GitHub releases ─────────────────────────
+        AppUpdateSection()
+
+        Spacer(Modifier.height(32.dp))
 
         Spacer(Modifier.height(24.dp))
     }
@@ -2726,6 +2797,25 @@ private fun HueSlider(
         drawCircle(Color.White, radius = r - 2.dp.toPx(), center = Offset(tx, size.height / 2f))
         drawCircle(selected, radius = r - 5.dp.toPx(), center = Offset(tx, size.height / 2f))
     }
+}
+
+/** Big title that groups the settings below it. */
+@Composable
+private fun SettingsCategory(title: String) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.titleLarge,
+        fontWeight = FontWeight.Bold,
+        color = MaterialTheme.colorScheme.primary
+    )
+    Spacer(Modifier.height(4.dp))
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .height(1.dp)
+            .background(MaterialTheme.colorScheme.onBackground.copy(alpha = 0.12f))
+    )
+    Spacer(Modifier.height(16.dp))
 }
 
 @Composable
