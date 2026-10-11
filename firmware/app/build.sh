@@ -5,7 +5,7 @@
 #
 # CROSS  toolchain prefix. Default: WCH's riscv-none-embed- (MounRiver) if
 #        found, else riscv-none-elf- (xPack, used by CI).
-# With a non-WCH GCC, -march=rv32imac_zicsr replaces WCH's rv32imacxw and
+# With a non-WCH GCC, -march=rv32imac_zicsr_zifencei replaces WCH's rv32imacxw and
 # the WCH-only "WCH-Interrupt-fast" attribute is compiled as "machine"
 # (only NMI/HardFault use it; the app runs with no interrupts).
 set -euo pipefail
@@ -19,7 +19,7 @@ fi
 CC="${CROSS}gcc"
 case "$CROSS" in
   *riscv-none-embed-) ARCH="-march=rv32imacxw"; WCH=1 ;;
-  *)                  ARCH="-march=rv32imac_zicsr"; WCH=0 ;;
+  *)                  ARCH="-march=rv32imac_zicsr_zifencei"; WCH=0 ;;
 esac
 ARCH="$ARCH -mabi=ilp32 -msmall-data-limit=8 -msave-restore"
 CFLAGS="$ARCH -Os -fmessage-length=0 -fsigned-char -ffunction-sections -fdata-sections -fno-common -Wunused -Wuninitialized -g -std=gnu99"
