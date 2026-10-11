@@ -1,4 +1,4 @@
-# WiFiFan LED board - serial protocol (firmware 1.6.0)
+# WiFiFan LED board - serial protocol (firmware 1.6.1)
 
 Transport: USART1 8N1 (via the Bluetooth module). Baud rate is auto-detected
 (9600 / 19200 / 38400 / 57600 / 115200); the LEDs flash blue when the board
@@ -14,11 +14,13 @@ switches rate, and the first command after a switch may be lost.
 
 | Send   | Reply           |
 |--------|-----------------|
-| `ver\` | `VER,1.6.0\`    |
+| `ver\` | `VER,1.6.1\`    |
 
 Everything in "New in 1.6.0" below needs `VER` >= 1.6.0. Older firmware does
 not know those commands (it answers them with a white flash or a wrong colour),
 so the app must only send them after reading a version >= 1.6.0.
+The 4th `candle` parameter (S, candle style) needs `VER` >= 1.6.1; 1.6.0
+ignores it (it reads `candle=V/M/H/S` as `candle=V/M/H`, i.e. two candles).
 
 ## Linked vs Separate (`split`)
 
@@ -39,7 +41,7 @@ picker messages) drive **both** LEDs, in either mode.
 |---------------------------|-------------------------------|----------------------|
 | `h=`, `l=`, `off`, picker | both LEDs fade to the colour  | same                 |
 | `rain...`                 | both LEDs, same hue           | LED2 is 180 deg further round the wheel |
-| `candle...`               | both LEDs flicker identically | each LED flickers on its own (own random state and breathing phase, same parameters) |
+| `candle...`               | both LEDs flicker identically | S=0 (default, 1.6.1): **one flame** over both LEDs, LED1 = core, LED2 = tip (see below). S=1: two candles, each LED flickers on its own (own random state and breathing phase, same parameters; this was the only Separate behaviour in 1.6.0) |
 | `breathe`                 | both breathe LED1's colour together | each LED breathes its own last colour; LED2 in opposite phase (one bright while the other is dim) |
 | `ocean`                   | identical                     | LED2 runs 3.5 s behind LED1 (half a hue drift) |
 | `aurora`                  | identical                     | LED2 runs 9 s behind LED1 (half a wave) |
@@ -96,11 +98,24 @@ full `hh=360/100/100/360/100/100\` (27 bytes) takes ~2.3 ms.
 | `candle=V` | candle at brightness V | `candle=60\` |
 | `candle=V/M` | M=1 smooth/slow, M=0 lively flicker | `candle=60/1\` |
 | `candle=V/M/H` | ... flame hue H degrees (0-60, default 19) | `candle=60/0/25\` |
+| `candle=V/M/H/S` (1.6.1) | ... S = Separate-mode style: 0 one flame (default), 1 two candles | `candle=60/1/19/0\` |
 | `breathe[=V]` | the last colour slowly fades up and down (4 s) | `breathe=80\` |
 | `ocean[=V]` | drifting blues and teals | `ocean\` |
 | `party[=V]` | smooth jumps between random colours (1.5 s) | `party=100\` |
 | `aurora[=V]` | slow green-violet waves | `aurora=70\` |
 | `chase[=V]` (new) | the last colour bounces between the two LEDs (Linked: both pulse) | `chase=100\` |
+
+All shorter `candle` forms use S=0 (one flame). Linked mode ignores S.
+
+One flame (Separate, S=0): both LEDs share the breathing and the gusts
+(random dips). LED1 is the core: ~5 deg yellower than H, slightly less
+saturated, full brightness. LED2 is the tip: ~5 deg redder, more saturated,
+~70 % brightness, its own small fast flicker, and it follows each gust 50 ms
+(lively) / 80 ms (smooth) late. A slow random sway (+-0.25) moves light
+between them (the core gets brighter as the tip dims, and back); gusts nudge
+it. Smooth (M=1) keeps rare shallow gusts, a slower sway and a very gentle
+tip flicker. The core/tip difference eases in over ~1 s after `candle=` or
+`split=1`.
 
 Without `=V` an effect uses the last brightness. Rainbow, candle, chase and the
 other effects all replace each other. `breathe` and `chase` use the colour last
@@ -118,8 +133,9 @@ each LED's own).
 
 ## Typical app sequences
 
-- Connect: `ver\` -> `VER,1.6.0\` -> two-LED UI enabled.
+- Connect: `ver\` -> `VER,1.6.1\` -> two-LED UI enabled (and the candle style).
 - Two solid colours: `split=1\` then `hh=0/100/100/240/100/100\` (or `h1=` / `h2=`).
+- One-flame candle: `split=1\` then `candle=60/1/19/0\` (two candles: `candle=60/1/19/1`).
 - Two-LED rainbow: `split=1\` then `rain=100/60/15\`.
 - Back to one look on both: `split=0\` (or just keep sending classic commands).
 - Music sync: `split=1\`, `fade=0\`, then `hh=...\` every 30-50 ms.
