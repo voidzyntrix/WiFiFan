@@ -28,6 +28,7 @@ class SpectrumAnalyzer(private val sampleRate: Int = AudioCapture.SAMPLE_RATE, v
     private val edges = intArrayOf(bin(40.0), bin(250.0), bin(2_500.0), bin(10_000.0))
     private val peak = FloatArray(3) { FLOOR }
     private val smooth = FloatArray(3)
+    private val mags = FloatArray(3)
 
     private fun bin(hz: Double) = (hz * size / sampleRate).roundToInt().coerceIn(1, size / 2 - 1)
 
@@ -66,9 +67,14 @@ class SpectrumAnalyzer(private val sampleRate: Int = AudioCapture.SAMPLE_RATE, v
             val hi = max(edges[b + 1], lo + 1)
             var p = 0.0
             for (k in lo until hi) p += re[k] * re[k] + im[k] * im[k]
-            val mag = (sqrt(p / (hi - lo)) * scale).toFloat()
-            peak[b] = max(max(mag, peak[b] * 0.996f), FLOOR)
-            val target = (mag / peak[b]).coerceIn(0f, 1f).pow(1.5f)
+            mags[b] = (sqrt(p / (hi - lo)) * scale).toFloat()
+            peak[b] = max(max(mags[b], peak[b] * 0.996f), FLOOR)
+        }
+        // A band 40 dB below the loudest one is only window leakage: it stays dark instead of
+        // being scaled up to full by its own (tiny) peak.
+        val loudest = max(peak[0], max(peak[1], peak[2]))
+        for (b in 0..2) {
+            val target = (mags[b] / max(peak[b], loudest * RELATIVE_FLOOR)).coerceIn(0f, 1f).pow(1.5f)
             smooth[b] += (target - smooth[b]) * (if (target > smooth[b]) 0.7f else 0.2f)
         }
         return smooth.copyOf()
@@ -77,6 +83,8 @@ class SpectrumAnalyzer(private val sampleRate: Int = AudioCapture.SAMPLE_RATE, v
     companion object {
         /** Below this a band counts as silent. */
         private const val FLOOR = 3e-4f
+        /** Bands this far below the loudest band's peak (-40 dB) count as silent. */
+        private const val RELATIVE_FLOOR = 0.01f
 
         /** Colour organ: bass is red, mids green, treble blue. */
         private val BAND_HUES = floatArrayOf(0f, 120f, 240f)
