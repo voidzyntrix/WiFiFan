@@ -105,7 +105,9 @@ internal fun SettingsScreen(
     onBack: () -> Unit,
     onWhatsNew: () -> Unit = {},
     separateLeds: Boolean = false,
-    onSeparateLedsChange: (Boolean) -> Unit = {}
+    onSeparateLedsChange: (Boolean) -> Unit = {},
+    twoCandles: Boolean = false,
+    onTwoCandlesChange: (Boolean) -> Unit = {}
 ) {
     val otaState by otaManager.state.collectAsState()
     val settingsContext = LocalContext.current
@@ -170,6 +172,29 @@ internal fun SettingsScreen(
             SettingHeading("Candle colour", "Tint of the candle flame")
             SegmentedPill(listOf("Ember", "Warm", "Amber"), candleHues.indexOf(candleHue)) {
                 onCandleHueChange(candleHues[it])
+            }
+            SettingGap()
+            // Separate LEDs (firmware 1.6.1+): one flame across both LEDs, or two candles.
+            val candleStyles = boardVersion?.let { GitHubReleases.compareVersions(it, "1.6.1") >= 0 } ?: false
+            SettingHeading(
+                "Candle style",
+                if (twoCandles) "With Separate LEDs: each LED is a candle of its own"
+                else "With Separate LEDs: one flame, LED1 the bright core, LED2 the flickering tip"
+            )
+            when {
+                !candleStyles -> Text(
+                    "Needs board firmware 1.6.1",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = onBg.copy(alpha = 0.45f)
+                )
+                !separateLeds -> Text(
+                    "Set LEDs to Separate to choose",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = onBg.copy(alpha = 0.45f)
+                )
+                else -> SegmentedPill(listOf("One flame", "Two candles"), if (twoCandles) 1 else 0) {
+                    onTwoCandlesChange(it == 1)
+                }
             }
             SettingGap()
             val rainbowSpeeds = listOf(30, 15, 6)

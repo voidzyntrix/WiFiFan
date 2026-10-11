@@ -82,6 +82,13 @@ class SettingsStore(context: Context) {
     var smoothCandle: Boolean
         get() = prefs.getBoolean(KEY_SMOOTH_CANDLE, false)
         set(value) { prefs.edit().putBoolean(KEY_SMOOTH_CANDLE, value).apply() }
+    /**
+     * Candle with Separate LEDs (firmware 1.6.1+): two independent candles instead of one
+     * flame (LED1 core, LED2 tip).
+     */
+    var twoCandles: Boolean
+        get() = prefs.getBoolean("candle_two_candles", false)
+        set(value) { prefs.edit().putBoolean("candle_two_candles", value).apply() }
     /** Seconds the rainbow takes for one trip round the colour wheel. */
     var rainbowSeconds: Int
         get() = prefs.getInt(KEY_RAINBOW_SECONDS, 15)

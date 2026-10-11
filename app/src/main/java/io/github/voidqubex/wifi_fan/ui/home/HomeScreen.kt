@@ -244,6 +244,7 @@ fun BleControlScreen(
     var rainbowSeconds by remember { mutableIntStateOf(ledStore.rainbowSeconds) }
     var fadeMs by remember { mutableIntStateOf(ledStore.fadeMs) }
     var candleHue by remember { mutableIntStateOf(ledStore.candleHue) }
+    var twoCandles by remember { mutableStateOf(ledStore.twoCandles) }
     var keepScreenOn by remember { mutableStateOf(ledStore.keepScreenOn) }
     var updateToasts by remember { mutableStateOf(ledStore.updateToasts) }
     val rootView = LocalView.current
@@ -256,8 +257,11 @@ fun BleControlScreen(
     // Hue picked in the colour controls while Candle runs (null = the Settings candle colour).
     var candleHueOverride by remember { mutableStateOf<Int?>(null) }
     LaunchedEffect(candleHue) { candleHueOverride = null }
-    fun candleCommand(bri: Float) = Commands.CANDLE + "=${(bri * 100).roundToInt()}" +
-        if (fwOptions) "/${if (smoothCandle) 1 else 0}/${candleHueOverride ?: candleHue}" else ""
+    // Candle style (one flame / two candles, Separate LEDs) needs firmware 1.6.1.
+    val fwCandleStyle = fwAtLeast("1.6.1")
+    fun candleCommand(bri: Float) = LedCommands.candle(
+        bri, fwOptions, smoothCandle, candleHueOverride ?: candleHue, fwCandleStyle, twoCandles
+    )
     fun rainbowCommand(sat: Float, bri: Float) =
         Commands.RAINBOW + "=${(sat * 100).roundToInt()}/${(bri * 100).roundToInt()}" +
             if (fwOptions) "/$rainbowSeconds" else ""
@@ -266,7 +270,7 @@ fun BleControlScreen(
         if (fwOptions && isConnected) bleManager.sendData("fade=$fadeMs")
     }
     // Changing candle/rainbow options while that mode runs applies them right away.
-    LaunchedEffect(smoothCandle, rainbowSeconds, candleHue) {
+    LaunchedEffect(smoothCandle, rainbowSeconds, candleHue, twoCandles) {
         if (!fwOptions || !isConnected) return@LaunchedEffect
         val hsv = FloatArray(3).also { AndroidColor.colorToHSV(ledColor, it) }
         when (ledMode) {
@@ -764,16 +768,25 @@ fun BleControlScreen(
     }
 
     // What the preview shows: the board's mode, approximated.
+    // One-flame candle (Separate, firmware 1.6.1+): LED1 is the bright, yellower core, LED2 the
+    // dimmer, redder tip; a gentle sway moves light between them (4 s preview loop).
+    val flame = ledMode == LED_MODE_CANDLE && twoLeds && fwCandleStyle && !twoCandles
+    val flameHue = (candleHueOverride ?: candleHue).toFloat()
+    val flamePhase = rainbowHue / 360f * 6.2832f
+    val flameSway = 0.2f * sin(flamePhase) + 0.05f * sin(flamePhase * 3f + 0.7f)
+    val flameCore = (0.88f + 0.06f * sin(flamePhase * 2f)) * (1f + 0.6f * flameSway)
+    val flameTip = 0.7f * (0.86f + 0.06f * sin(flamePhase * 2f - 0.4f) + 0.05f * sin(flamePhase * 9f)) *
+        (1f - 0.6f * flameSway)
     val previewHue = when (ledMode) {
         LED_MODE_RAINBOW, LED_MODE_PARTY -> rainbowHue
-        LED_MODE_CANDLE -> candleHue.toFloat()
+        LED_MODE_CANDLE -> if (flame) flameHue + 5f else candleHue.toFloat()
         LED_MODE_MUSIC, LED_MODE_VISUALIZER, LED_MODE_SCREEN -> liveHue
         LED_MODE_OCEAN -> 205f + 20f * sin(rainbowHue / 360f * 6.2832f)
         LED_MODE_AURORA -> 200f + 80f * sin(rainbowHue / 360f * 6.2832f / 4f)
         else -> hue
     }
     val previewSat = when (ledMode) {
-        LED_MODE_CANDLE -> 0.94f
+        LED_MODE_CANDLE -> if (flame) 0.86f else 0.94f
         LED_MODE_OCEAN -> 0.9f
         LED_MODE_AURORA -> 0.82f
         LED_MODE_PARTY -> 1f
@@ -781,7 +794,8 @@ fun BleControlScreen(
         else -> sat
     }
     val previewVal = when (ledMode) {
-        LED_MODE_CANDLE -> bri * (0.82f + 0.1f * sin(rainbowHue / 360f * 6.2832f * 2f))
+        LED_MODE_CANDLE -> if (flame) bri * flameCore.coerceIn(0.25f, 1f)
+            else bri * (0.82f + 0.1f * sin(rainbowHue / 360f * 6.2832f * 2f))
         LED_MODE_BREATHE -> bri * (0.575f + 0.425f * sin(rainbowHue / 360f * 6.2832f))
         // Linked: both pulse up and down; Separate: the light swings LED1 -> LED2 -> LED1.
         LED_MODE_CHASE -> bri * (if (twoLeds) 0.5f + 0.5f * sin(rainbowHue / 360f * 6.2832f)
@@ -794,7 +808,7 @@ fun BleControlScreen(
     val previewHue2 = when (ledMode) {
         LED_MODE_RAINBOW -> (rainbowHue + 180f) % 360f
         LED_MODE_PARTY -> (rainbowHue + 120f) % 360f
-        LED_MODE_CANDLE -> candleHue.toFloat()
+        LED_MODE_CANDLE -> if (flame) (flameHue - 5f).coerceAtLeast(0f) else candleHue.toFloat()
         LED_MODE_MUSIC, LED_MODE_VISUALIZER, LED_MODE_SCREEN -> liveHue2
         LED_MODE_OCEAN -> 205f - 20f * sin(phase)
         LED_MODE_AURORA -> 200f - 80f * sin(phase / 4f)
@@ -804,11 +818,13 @@ fun BleControlScreen(
     val previewSat2 = when (ledMode) {
         LED_MODE_RAINBOW, LED_MODE_CHASE -> sat
         LED_MODE_MUSIC, LED_MODE_VISUALIZER, LED_MODE_SCREEN -> liveSat2
-        LED_MODE_CANDLE, LED_MODE_OCEAN, LED_MODE_AURORA, LED_MODE_PARTY -> previewSat
+        LED_MODE_CANDLE -> if (flame) 0.99f else previewSat
+        LED_MODE_OCEAN, LED_MODE_AURORA, LED_MODE_PARTY -> previewSat
         else -> sat2
     }
     val previewVal2 = when (ledMode) {
-        LED_MODE_CANDLE -> bri * (0.82f + 0.1f * sin(phase * 3f + 1f))
+        LED_MODE_CANDLE -> if (flame) bri * flameTip.coerceIn(0.2f, 1f)
+            else bri * (0.82f + 0.1f * sin(phase * 3f + 1f))
         LED_MODE_BREATHE -> bri * (0.575f - 0.425f * sin(phase))
         LED_MODE_CHASE -> bri * (0.5f - 0.5f * sin(phase))
         LED_MODE_MUSIC, LED_MODE_VISUALIZER -> bri * (0.15f + 0.85f * liveLevel2)
@@ -898,6 +914,8 @@ fun BleControlScreen(
                         onFadeMsChange = { fadeMs = it; ledStore.fadeMs = it },
                         candleHue = candleHue,
                         onCandleHueChange = { candleHue = it; ledStore.candleHue = it },
+                        twoCandles = twoCandles,
+                        onTwoCandlesChange = { twoCandles = it; ledStore.twoCandles = it },
                         keepScreenOn = keepScreenOn,
                         onKeepScreenOnChange = { keepScreenOn = it; ledStore.keepScreenOn = it },
                         updateToasts = updateToasts,

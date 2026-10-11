@@ -301,6 +301,16 @@ abstract class ScreenshotTests(private val size: String) {
         Settings(Look.LIGHT_MONO, version = "1.6.0", separate = true)
     }
 
+    // One-flame candle (1.12.1): Candle style pill in Settings, core/tip preview on Home.
+    @Test fun settingsCandleStyleDarkColoured() = shot("settings-candle-style", Look.DARK_COLOURED) {
+        Settings(Look.DARK_COLOURED, version = "1.6.1", separate = true)
+    }
+
+    @Test fun homeSeparateCandleDarkMono() = shot(
+        "home-separate-candle", Look.DARK_MONO,
+        prepare = { separate(it); it.ledMode = 2 }
+    ) { Home(Look.DARK_MONO, "1.6.1") }
+
     @Composable
     private fun DialogBox(content: @Composable () -> Unit) {
         Box(

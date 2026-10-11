@@ -8,7 +8,7 @@ plugins {
 
 // The app's version. Bump it for every release; the in-app updater compares it
 // with the newest wififan-app-<version>.apk on GitHub.
-val appVersion = "1.12.0"
+val appVersion = "1.12.1"
 
 // Release signing: keystore.properties in the project root (local builds) or
 // WIFIFAN_* environment variables (GitHub Actions). See docs/APP_UPDATES.md.

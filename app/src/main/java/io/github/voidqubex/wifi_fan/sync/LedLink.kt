@@ -23,6 +23,25 @@ object LedCommands {
 
     /** Linked (0) or Separate (1) LEDs (firmware 1.6.0+; the board boots Linked). */
     fun split(separate: Boolean) = "split=${if (separate) 1 else 0}"
+
+    /**
+     * Candle at brightness [bri] (0..1): `candle=V`, plus `/M/H` (smooth, flame hue in degrees)
+     * when the board takes options (firmware 1.3.0+), plus `/S` (Separate-mode style: 0 one
+     * flame, 1 two candles) when it knows candle styles (firmware 1.6.1+).
+     */
+    fun candle(
+        bri: Float,
+        options: Boolean,
+        smooth: Boolean,
+        hue: Int,
+        styles: Boolean = false,
+        twoCandles: Boolean = false
+    ): String {
+        val v = (bri * 100).roundToInt()
+        if (!options) return "${Commands.CANDLE}=$v"
+        val opts = "${Commands.CANDLE}=$v/${if (smooth) 1 else 0}/$hue"
+        return if (styles) "$opts/${if (twoCandles) 1 else 0}" else opts
+    }
 }
 
 /** How the sync services talk to the board, with no UI involved. */
