@@ -1743,7 +1743,8 @@ private fun SettingsScreen(
     onBack: () -> Unit
 ) {
     val otaState by otaManager.state.collectAsState()
-    val categoryStore = remember { SettingsStore(LocalContext.current) }
+    val settingsContext = LocalContext.current
+    val categoryStore = remember { SettingsStore(settingsContext) }
     var boardOpen by remember { mutableStateOf(!categoryStore.categoryCollapsed("board")) }
     var uiOpen by remember { mutableStateOf(!categoryStore.categoryCollapsed("ui")) }
     var firmwareOpen by remember { mutableStateOf(!categoryStore.categoryCollapsed("firmware")) }
