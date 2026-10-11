@@ -232,6 +232,7 @@ fun AmbientParticleBackground(
 
 private const val LED_MODE_SOLID = 0
 private const val LED_MODE_RAINBOW = 1
+private const val LED_MODE_CANDLE = 2
 
 /** Below this the LED is effectively off (1 % = 3 of 255), so there is nothing to preserve. */
 private const val MIN_VISIBLE_BRIGHTNESS = 0.01f
@@ -704,6 +705,7 @@ class Commands {
         const val SLEEP: String = "sleep"
         const val LED: String = "l="           // l=R/G/B (0-255), older firmware
         const val LED_HSV: String = "h="       // h=H/S/V: hue 0-359, sat/brightness 0-100 (firmware 1.1.0+)
+        const val CANDLE: String = "candle"   // candle=V: flickering candle flame (firmware 1.2.0+)
         const val RAINBOW: String = "rain"     // rain=S/V: start rainbow / adjust its sat/brightness
     }
 }
@@ -1028,7 +1030,17 @@ fun BleControlScreen(
             ledMode = LED_MODE_SOLID
         }
 
-        fun sendCurrent() = if (ledMode == LED_MODE_RAINBOW) sendRainbow() else sendSolid()
+        // Candle: the board flickers a warm flame around this brightness.
+        fun sendCandle() {
+            bleManager.sendData(Commands.CANDLE + "=${(bri * 100).roundToInt()}")
+            ledMode = LED_MODE_CANDLE
+        }
+
+        fun sendCurrent() = when (ledMode) {
+            LED_MODE_RAINBOW -> sendRainbow()
+            LED_MODE_CANDLE -> sendCandle()
+            else -> sendSolid()
+        }
 
         // Live update while dragging, throttled so BLE writes aren't flooded.
         fun sendThrottled() {
@@ -1069,8 +1081,15 @@ fun BleControlScreen(
 
                     // Live preview: the LED glowing in the dark
                     LedPreview(
-                        hue = if (ledMode == LED_MODE_RAINBOW) rainbowHue else hue,
-                        sat = sat, value = bri,
+                        hue = when (ledMode) {
+                            LED_MODE_RAINBOW -> rainbowHue
+                            LED_MODE_CANDLE -> 19f
+                            else -> hue
+                        },
+                        sat = if (ledMode == LED_MODE_CANDLE) 0.94f else sat,
+                        // candle: preview breathes like the board's flame
+                        value = if (ledMode == LED_MODE_CANDLE)
+                            bri * (0.82f + 0.1f * sin(rainbowHue / 360f * 6.2832f * 2f)) else bri,
                         modifier = Modifier.fillMaxWidth().height(130.dp)
                     )
                     Spacer(Modifier.height(4.dp))
@@ -1219,6 +1238,8 @@ fun BleControlScreen(
                     Spacer(Modifier.height(24.dp))
 
                     val rainbowSrc = remember { MutableInteractionSource() }
+                    val candleSrc = remember { MutableInteractionSource() }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     AppButton(
                         mono = mono,
                         onClick = {
@@ -1231,8 +1252,19 @@ fun BleControlScreen(
                         },
                         shape = RoundedCornerShape(14.dp),
                         interactionSource = rainbowSrc,
-                        modifier = pressScaleModifier(rainbowSrc).fillMaxWidth()
+                        modifier = pressScaleModifier(rainbowSrc).weight(1f)
                     ) { Text("Rainbow") }
+                    AppButton(
+                        mono = mono,
+                        onClick = {
+                            if (bri < MIN_VISIBLE_BRIGHTNESS) bri = 1f
+                            sendCandle()
+                        },
+                        shape = RoundedCornerShape(14.dp),
+                        interactionSource = candleSrc,
+                        modifier = pressScaleModifier(candleSrc).weight(1f)
+                    ) { Text("Candle") }
+                    }
 
                     Spacer(Modifier.height(8.dp))
 
