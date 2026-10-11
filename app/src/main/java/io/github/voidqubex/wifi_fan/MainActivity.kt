@@ -789,9 +789,17 @@ fun BleControlScreen(
     var smoothCandle by remember { mutableStateOf(ledStore.smoothCandle) }
     var rainbowSeconds by remember { mutableIntStateOf(ledStore.rainbowSeconds) }
     var fadeMs by remember { mutableIntStateOf(ledStore.fadeMs) }
+    var candleHue by remember { mutableIntStateOf(ledStore.candleHue) }
+    var keepScreenOn by remember { mutableStateOf(ledStore.keepScreenOn) }
+    var updateToasts by remember { mutableStateOf(ledStore.updateToasts) }
+    val rootView = LocalView.current
+    DisposableEffect(keepScreenOn) {
+        rootView.keepScreenOn = keepScreenOn
+        onDispose { rootView.keepScreenOn = false }
+    }
     val fwOptions = boardVersion?.let { GitHubReleases.compareVersions(it, "1.3.0") >= 0 } ?: false
     fun candleCommand(bri: Float) = Commands.CANDLE + "=${(bri * 100).roundToInt()}" +
-        if (fwOptions) "/${if (smoothCandle) 1 else 0}" else ""
+        if (fwOptions) "/${if (smoothCandle) 1 else 0}/$candleHue" else ""
     fun rainbowCommand(sat: Float, bri: Float) =
         Commands.RAINBOW + "=${(sat * 100).roundToInt()}/${(bri * 100).roundToInt()}" +
             if (fwOptions) "/$rainbowSeconds" else ""
@@ -800,7 +808,7 @@ fun BleControlScreen(
         if (fwOptions && isConnected) bleManager.sendData("fade=$fadeMs")
     }
     // Changing candle/rainbow options while that mode runs applies them right away.
-    LaunchedEffect(smoothCandle, rainbowSeconds) {
+    LaunchedEffect(smoothCandle, rainbowSeconds, candleHue) {
         if (!fwOptions || !isConnected) return@LaunchedEffect
         val hsv = FloatArray(3).also { AndroidColor.colorToHSV(ledColor, it) }
         when (ledMode) {
@@ -822,12 +830,12 @@ fun BleControlScreen(
         ) otaManager.checkForUpdate(boardVersion)
     }
     LaunchedEffect(appUpdateState is AppUpdateState.UpdateAvailable) {
-        (appUpdateState as? AppUpdateState.UpdateAvailable)?.let {
+        if (updateToasts) (appUpdateState as? AppUpdateState.UpdateAvailable)?.let {
             Toast.makeText(context, "App update v${it.release.version} available in Settings", Toast.LENGTH_LONG).show()
         }
     }
     LaunchedEffect(fwUpdateState is OtaState.UpdateAvailable) {
-        (fwUpdateState as? OtaState.UpdateAvailable)?.let {
+        if (updateToasts) (fwUpdateState as? OtaState.UpdateAvailable)?.let {
             Toast.makeText(context, "Board firmware v${it.release.version} available in Settings", Toast.LENGTH_LONG).show()
         }
     }
@@ -1162,36 +1170,48 @@ fun BleControlScreen(
                     )
 
                     Spacer(Modifier.height(12.dp))
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // Segmented switch: one pill, the selected half is filled.
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(40.dp)
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+                            .border(
+                                1.dp,
+                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f),
+                                RoundedCornerShape(20.dp)
+                            )
+                            .padding(3.dp)
+                    ) {
                         listOf(false to "Color", true to "Kelvin").forEach { (kel, label) ->
                             val sel = ledKelvinMode == kel
+                            val bg by animateColorAsState(
+                                if (sel) MaterialTheme.colorScheme.primary else Color.Transparent,
+                                tween(200), label = "segBg"
+                            )
                             Box(
                                 contentAlignment = Alignment.Center,
                                 modifier = Modifier
                                     .weight(1f)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(
-                                        if (sel) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
-                                        else Color.Transparent
-                                    )
-                                    .border(
-                                        1.dp,
-                                        if (sel) MaterialTheme.colorScheme.primary
-                                        else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f),
-                                        RoundedCornerShape(12.dp)
-                                    )
-                                    .bounceClickable {
+                                    .fillMaxHeight()
+                                    .clip(RoundedCornerShape(17.dp))
+                                    .background(bg)
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null
+                                    ) {
                                         if (kel != ledKelvinMode) {
                                             ledKelvinMode = kel
                                             if (kel) { setKelvin(ledKelvin); sendSolid() }
                                         }
                                     }
-                                    .padding(vertical = 8.dp)
                             ) {
                                 Text(
                                     label,
-                                    color = if (sel) MaterialTheme.colorScheme.primary
-                                    else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = if (sel) MaterialTheme.colorScheme.onPrimary
+                                    else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                                 )
                             }
                         }
@@ -1443,6 +1463,12 @@ fun BleControlScreen(
                         onRainbowSecondsChange = { rainbowSeconds = it; ledStore.rainbowSeconds = it },
                         fadeMs = fadeMs,
                         onFadeMsChange = { fadeMs = it; ledStore.fadeMs = it },
+                        candleHue = candleHue,
+                        onCandleHueChange = { candleHue = it; ledStore.candleHue = it },
+                        keepScreenOn = keepScreenOn,
+                        onKeepScreenOnChange = { keepScreenOn = it; ledStore.keepScreenOn = it },
+                        updateToasts = updateToasts,
+                        onUpdateToastsChange = { updateToasts = it; ledStore.updateToasts = it },
                         onLayoutChange = onLayoutChange,
                         onColorChange = onColorChange,
                         onAccentChange = onAccentChange,
@@ -1539,7 +1565,8 @@ fun BleControlScreen(
                                     }
                                 }
 
-                                if (uiLayout == UiLayout.SIMPLE) {
+                                // Classic layout removed; the Simple layout is the only one.
+                                run {
                                     // ===================================================
                                     // SIMPLE BODY — fan + frosted-glass control panel
                                     // ===================================================
@@ -1792,280 +1819,6 @@ fun BleControlScreen(
                                                             alpha = if (isPowerOn) 0.55f else 0.2f
                                                         )
                                                     )
-                                                }
-
-                                                PowerButton(
-                                                    isPowerOn = isPowerOn, mono = mono, onClick = {
-                                                        if (isPowerOn) {
-                                                            bleManager.sendData(Commands.POWER_OFF)
-                                                            isPowerOn = false
-                                                            isTurbo = false
-                                                            isEco = false
-                                                            isNatureWind = false
-                                                            isSleep = false
-                                                        } else {
-                                                            bleManager.sendData(Commands.POWER_ON)
-                                                            isPowerOn = true
-                                                        }
-                                                    })
-                                            }
-                                        }
-                                    }
-                                } else {
-                                    // ===================================================
-                                    // CLASSIC BODY — circular dial + mode cards
-                                    // ===================================================
-                                    val classicModeLabel = when {
-                                        isTurbo -> "TURBO"
-                                        isEco -> "ECO"
-                                        isNatureWind -> "NATURE"
-                                        isSleep -> "SLEEP"
-                                        else -> "SPEED"
-                                    }
-                                    val classicFanAlpha by animateFloatAsState(
-                                        targetValue = if (isPowerOn) 1f else 0.3f,
-                                        animationSpec = tween(400),
-                                        label = "classicFanAlpha"
-                                    )
-                                    val cNumberAlpha by animateFloatAsState(
-                                        targetValue = if (isPowerOn) 0.88f else 0.22f,
-                                        animationSpec = tween(350),
-                                        label = "cNumberAlpha"
-                                    )
-                                    val cLabelAlpha by animateFloatAsState(
-                                        targetValue = if (isPowerOn) 0.4f else 0.18f,
-                                        animationSpec = tween(350),
-                                        label = "cLabelAlpha"
-                                    )
-                                    val density = LocalDensity.current
-                                    val radiusPx = with(density) { 124.dp.toPx() }
-                                    val cPrimary = MaterialTheme.colorScheme.primary
-                                    val cOnBg = MaterialTheme.colorScheme.onBackground
-                                    // Translucent neutral track so the dial reads as glass over
-                                    // the wallpaper instead of a flat, opaque ring.
-                                    val cTrack = cOnBg.copy(alpha = 0.15f)
-
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .weight(1f),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        // Soft radial glow for depth
-                                        Canvas(Modifier.size(330.dp)) {
-                                            drawCircle(
-                                                brush = Brush.radialGradient(
-                                                    colors = listOf(
-                                                        cOnBg.copy(alpha = 0.07f), Color.Transparent
-                                                    ), radius = 165.dp.toPx()
-                                                ), radius = 165.dp.toPx()
-                                            )
-                                        }
-
-                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                            // Dial — fan sits inside the ring
-                                            Box(
-                                                modifier = Modifier.size(290.dp),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                CircularSlider(
-                                                    modifier = Modifier.fillMaxSize(),
-                                                    value = speed.toInt().coerceIn(1, 6),
-                                                    primaryColor = cPrimary,
-                                                    secondaryColor = cTrack,
-                                                    minValue = 1,
-                                                    maxValue = 6,
-                                                    circleRadius = radiusPx,
-                                                    disabled = !controlsEnabled,
-                                                    onPositionChange = { v ->
-                                                        speed = v.toFloat()
-                                                        bleManager.sendData(Commands.SPEED + v)
-                                                        isTurbo = false; isEco = false
-                                                        isNatureWind = false; isSleep = false
-                                                    })
-                                                Image(
-                                                    painter = painterResource(R.drawable.fan2),
-                                                    contentDescription = "Fan",
-                                                    contentScale = ContentScale.Fit,
-                                                    modifier = Modifier
-                                                        .size(270.dp)
-                                                        .rotate(angle)
-                                                        .alpha(classicFanAlpha)
-                                                )
-                                            }
-
-                                            Spacer(Modifier.height(16.dp))
-
-                                            // Speed read-out below the dial — odometer style
-                                            AnimatedContent(
-                                                targetState = speed.toInt(), transitionSpec = {
-                                                    val sign =
-                                                        if (targetState > initialState) -1 else 1
-                                                    (slideInVertically(tween(180)) { (it * 0.45f * sign).toInt() } + fadeIn(
-                                                        tween(180)
-                                                    )).togetherWith(slideOutVertically(tween(160)) { (-it * 0.45f * sign).toInt() } + fadeOut(
-                                                            tween(130)
-                                                        ))
-                                                }, label = "cSpeedNumber"
-                                            ) { spd ->
-                                                Text(
-                                                    text = "$spd",
-                                                    fontSize = 56.sp,
-                                                    fontWeight = FontWeight.Thin,
-                                                    color = cOnBg.copy(alpha = cNumberAlpha),
-                                                    lineHeight = 56.sp
-                                                )
-                                            }
-
-                                            Text(
-                                                text = classicModeLabel,
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = cOnBg.copy(alpha = cLabelAlpha),
-                                                letterSpacing = 2.sp,
-                                                fontSize = 10.sp
-                                            )
-                                        }
-                                    }
-
-                                    // ── Controls panel — frosted glass, same as Simple ──
-                                    // A translucent panel parked at the bottom; its bounds
-                                    // (captured via onGloballyPositioned) feed the root
-                                    // backdrop blur above — exactly like the Simple layout.
-                                    val cPanelShape =
-                                        RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
-                                    val cGlassTint =
-                                        MaterialTheme.colorScheme.surface.copy(alpha = 0.55f)
-                                    val cGlassBorder = if (isDark) Color.White.copy(alpha = 0.16f)
-                                    else Color.White.copy(alpha = 0.42f)
-                                    Box(modifier = Modifier
-                                        .fillMaxWidth()
-                                        .onGloballyPositioned {
-                                            panelPos = it.positionInRoot()
-                                            panelSize = it.size
-                                        }
-                                        .clip(cPanelShape)
-                                        .border(1.dp, cGlassBorder, cPanelShape)) {
-                                        Column(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .background(cGlassTint)
-                                                .padding(horizontal = 16.dp)
-                                                .padding(top = 18.dp)
-                                                .navigationBarsPadding(),
-                                            horizontalAlignment = Alignment.CenterHorizontally
-                                        ) {
-                                            // ── Mode cards ─────────────────────────────────
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                            ) {
-                                                ModeCard(
-                                                    title = "Turbo",
-                                                    icon = R.drawable.turbo,
-                                                    selected = isTurbo,
-                                                    enabled = controlsEnabled,
-                                                    mono = mono,
-                                                    onClick = {
-                                                        bleManager.sendData(Commands.TURBO)
-                                                        isEco = false; isSleep =
-                                                        false; isNatureWind = false
-                                                        isTurbo = true; speed = 7f
-                                                    })
-                                                ModeCard(
-                                                    title = "Eco",
-                                                    icon = R.drawable.eco,
-                                                    selected = isEco,
-                                                    enabled = controlsEnabled,
-                                                    mono = mono,
-                                                    onClick = {
-                                                        bleManager.sendData(Commands.ECO)
-                                                        isTurbo = false; isSleep =
-                                                        false; isNatureWind = false
-                                                        isEco = true; speed = 4f
-                                                    })
-                                                ModeCard(
-                                                    title = "Nature",
-                                                    icon = R.drawable.nature_wind,
-                                                    selected = isNatureWind,
-                                                    enabled = controlsEnabled,
-                                                    mono = mono,
-                                                    onClick = {
-                                                        bleManager.sendData(Commands.NATURE_WIND)
-                                                        isTurbo = false; isEco = false; isSleep =
-                                                        false
-                                                        isNatureWind = true
-                                                    })
-                                                ModeCard(
-                                                    title = "Sleep",
-                                                    icon = R.drawable.sleep,
-                                                    selected = isSleep,
-                                                    enabled = controlsEnabled,
-                                                    mono = mono,
-                                                    onClick = {
-                                                        bleManager.sendData(Commands.SLEEP)
-                                                        isTurbo = false; isEco =
-                                                        false; isNatureWind = false
-                                                        isSleep = true; speed = 1f
-                                                    })
-                                            }
-
-                                            Spacer(Modifier.height(16.dp))
-
-                                            // ── Timer + Power ──────────────────────────────
-                                            Row(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .padding(bottom = 16.dp),
-                                                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                val cTimerSrc =
-                                                    remember { MutableInteractionSource() }
-                                                AppButton(
-                                                    mono = mono,
-                                                    onClick = { showTimerDialog = true },
-                                                    enabled = isPowerOn,
-                                                    shape = RoundedCornerShape(14.dp),
-                                                    interactionSource = cTimerSrc,
-                                                    colors = ButtonDefaults.buttonColors(
-                                                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                                                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                                                    ),
-                                                    modifier = pressScaleModifier(cTimerSrc).weight(
-                                                        1f
-                                                    )
-                                                ) {
-                                                    Icon(
-                                                        painter = painterResource(R.drawable.timer),
-                                                        contentDescription = "Timer",
-                                                        modifier = Modifier.size(18.dp)
-                                                    )
-                                                    Spacer(Modifier.width(8.dp))
-                                                    Text(if (currentTimer > 0) "Timer  ${currentTimer}h" else "Timer")
-                                                }
-
-                                                val cLedSrc =
-                                                    remember { MutableInteractionSource() }
-                                                AppButton(
-                                                    mono = mono,
-                                                    onClick = { showLedDialog = true },
-                                                    enabled = isPowerOn,
-                                                    shape = RoundedCornerShape(14.dp),
-                                                    interactionSource = cLedSrc,
-                                                    colors = ButtonDefaults.buttonColors(
-                                                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                                                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                                                    ),
-                                                    modifier = pressScaleModifier(cLedSrc).weight(1f)
-                                                ) {
-                                                    Icon(
-                                                        painter = painterResource(R.drawable.led),
-                                                        contentDescription = "LED",
-                                                        modifier = Modifier.size(18.dp)
-
-                                                    )
-                                                    Spacer(Modifier.width(8.dp))
-                                                    Text("LED")
                                                 }
 
                                                 PowerButton(
@@ -2471,6 +2224,12 @@ private fun SettingsScreen(
     onRainbowSecondsChange: (Int) -> Unit,
     fadeMs: Int,
     onFadeMsChange: (Int) -> Unit,
+    candleHue: Int,
+    onCandleHueChange: (Int) -> Unit,
+    keepScreenOn: Boolean,
+    onKeepScreenOnChange: (Boolean) -> Unit,
+    updateToasts: Boolean,
+    onUpdateToastsChange: (Boolean) -> Unit,
     onLayoutChange: (UiLayout) -> Unit,
     onColorChange: (AppColorScheme) -> Unit,
     onAccentChange: (Int) -> Unit,
@@ -2523,26 +2282,6 @@ private fun SettingsScreen(
         }
 
         Spacer(Modifier.height(28.dp))
-
-        // ── UI Layout ───────────────────────────────────────────────
-        SettingHeading("Layout", "How the controls are arranged")
-        Spacer(Modifier.height(12.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            ChoiceCard(
-                label = "Simple",
-                description = "Simple panel and a slider",
-                selected = uiLayout == UiLayout.SIMPLE,
-                modifier = Modifier.weight(1f),
-                onClick = { onLayoutChange(UiLayout.SIMPLE) })
-            ChoiceCard(
-                label = "Classic",
-                description = "Circular dial and cards",
-                selected = uiLayout == UiLayout.CLASSIC,
-                modifier = Modifier.weight(1f),
-                onClick = { onLayoutChange(UiLayout.CLASSIC) })
-        }
-
-        Spacer(Modifier.height(32.dp))
 
         // ── Background ──────────────────────────────────────────────
         SettingHeading("Background", "What appears behind the controls")
@@ -2642,6 +2381,21 @@ private fun SettingsScreen(
         }
 
         Spacer(Modifier.height(24.dp))
+        SettingHeading("Candle colour", "Tint of the candle flame")
+        Spacer(Modifier.height(12.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            listOf(Triple("Ember", "deep red", 10), Triple("Warm", "orange", 19), Triple("Amber", "yellowish", 30))
+                .forEach { (label, desc, hueDeg) ->
+                    ChoiceCard(
+                        label = label, description = desc,
+                        selected = candleHue == hueDeg,
+                        modifier = Modifier.weight(1f),
+                        onClick = { onCandleHueChange(hueDeg) }
+                    )
+                }
+        }
+
+        Spacer(Modifier.height(24.dp))
         SettingHeading("Rainbow speed", "Time for one trip round the colour wheel")
         Spacer(Modifier.height(12.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -2672,10 +2426,31 @@ private fun SettingsScreen(
         }
         Spacer(Modifier.height(8.dp))
         Text(
-            text = "Smooth candle, rainbow speed and fade need board firmware 1.3.0 or newer.",
+            text = "Candle options, rainbow speed and fade need board firmware 1.3.0 or newer.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
         )
+
+        Spacer(Modifier.height(32.dp))
+        SettingHeading("General", "App behaviour")
+        Spacer(Modifier.height(12.dp))
+        listOf(
+            Triple("Keep screen on", keepScreenOn, onKeepScreenOnChange),
+            Triple("Update notifications at launch", updateToasts, onUpdateToastsChange)
+        ).forEach { (label, checked, onChange) ->
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    modifier = Modifier.weight(1f)
+                )
+                Switch(checked = checked, onCheckedChange = onChange)
+            }
+        }
 
         Spacer(Modifier.height(24.dp))
     }
