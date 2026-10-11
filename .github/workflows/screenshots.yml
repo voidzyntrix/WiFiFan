@@ -10,6 +10,7 @@ on:
 jobs:
   screenshots:
     runs-on: ubuntu-latest
+    timeout-minutes: 15   # a hung test must not block the runner for hours
     steps:
       - uses: actions/checkout@v4
 

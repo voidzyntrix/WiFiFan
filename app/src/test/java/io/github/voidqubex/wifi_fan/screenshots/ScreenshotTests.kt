@@ -318,14 +318,16 @@ abstract class ScreenshotTests(private val size: String) {
     ) { Home(Look.DARK_MONO, "1.6.1") }
 
     // Auto light (1.13.0): Settings card, home toggle and status line.
+    // Board LED minimised so the card is on screen (performScrollTo waits on a scroll animation
+    // that never ends with the paused test clock).
+    private fun boardCollapsed(store: SettingsStore) = store.setCategoryCollapsed("board", true)
+
     @Test fun settingsAutoLightDarkColoured() = shot(
-        "settings-auto-light", Look.DARK_COLOURED,
-        after = { compose.onNodeWithText("Wait before Night").performScrollTo() }
+        "settings-auto-light", Look.DARK_COLOURED, prepare = ::boardCollapsed
     ) { Settings(Look.DARK_COLOURED, autoLight = true) }
 
     @Test fun settingsAutoLightLight() = shot(
-        "settings-auto-light", Look.LIGHT_MONO,
-        after = { compose.onNodeWithText("Wait before Night").performScrollTo() }
+        "settings-auto-light", Look.LIGHT_MONO, prepare = ::boardCollapsed
     ) { Settings(Look.LIGHT_MONO, autoLight = true) }
 
     private fun autoReading(store: SettingsStore) {

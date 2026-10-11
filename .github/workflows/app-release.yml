@@ -13,6 +13,7 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    timeout-minutes: 20   # a hung test must not block the runner for hours
     steps:
       - uses: actions/checkout@v4
         with:
