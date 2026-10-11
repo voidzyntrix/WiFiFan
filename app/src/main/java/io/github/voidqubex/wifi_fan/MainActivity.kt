@@ -554,8 +554,11 @@ fun BleControlScreen(
     }
     fun fwAtLeast(v: String) = boardVersion?.let { GitHubReleases.compareVersions(it, v) >= 0 } ?: false
     val fwOptions = fwAtLeast("1.3.0")
+    // Hue picked in the colour controls while Candle runs (null = the Settings candle colour).
+    var candleHueOverride by remember { mutableStateOf<Int?>(null) }
+    LaunchedEffect(candleHue) { candleHueOverride = null }
     fun candleCommand(bri: Float) = Commands.CANDLE + "=${(bri * 100).roundToInt()}" +
-        if (fwOptions) "/${if (smoothCandle) 1 else 0}/$candleHue" else ""
+        if (fwOptions) "/${if (smoothCandle) 1 else 0}/${candleHueOverride ?: candleHue}" else ""
     fun rainbowCommand(sat: Float, bri: Float) =
         Commands.RAINBOW + "=${(sat * 100).roundToInt()}/${(bri * 100).roundToInt()}" +
             if (fwOptions) "/$rainbowSeconds" else ""
@@ -646,7 +649,7 @@ fun BleControlScreen(
     val fwEffects = fwAtLeast("1.4.0")
 
     // Solid colour: HSV (hue in degrees, saturation/brightness in percent).
-    fun sendSolid() {
+    fun sendHsvColour() {
         val color = AndroidColor.HSVToColor(floatArrayOf(hue, sat, bri))
         bleManager.sendData(
             if (hsvCommands) {
@@ -658,6 +661,10 @@ fun BleControlScreen(
             }
         )
         ledColor = color
+    }
+
+    fun sendSolid() {
+        sendHsvColour()
         ledMode = LED_MODE_SOLID
     }
 
@@ -668,12 +675,21 @@ fun BleControlScreen(
         ledMode = LED_MODE_RAINBOW
     }
 
+    // Picking a colour keeps the modes that use one (Breathe, Candle); anything else becomes Solid.
+    fun colourPicked() {
+        when (ledMode) {
+            LED_MODE_BREATHE -> {}
+            LED_MODE_CANDLE -> candleHueOverride = ((hue.roundToInt() % 360) + 360) % 360
+            else -> ledMode = LED_MODE_SOLID
+        }
+    }
+
     // Kelvin is just another way to pick hue/saturation: same commands as the colour picker.
     fun setKelvin(k: Float) {
         ledKelvin = k
         val hs = LedColor.kelvinToHueSat(k)
         hue = hs[0]; sat = hs[1]
-        ledMode = LED_MODE_SOLID
+        colourPicked()
     }
 
     // Candle: the board flickers a warm flame around this brightness.
@@ -692,7 +708,8 @@ fun BleControlScreen(
     fun sendCurrent() = when (ledMode) {
         LED_MODE_RAINBOW -> sendRainbow()
         LED_MODE_CANDLE -> sendCandle()
-        LED_MODE_BREATHE, LED_MODE_OCEAN, LED_MODE_PARTY, LED_MODE_AURORA -> sendEffect(ledMode)
+        LED_MODE_BREATHE -> { sendHsvColour(); sendEffect(LED_MODE_BREATHE) }   // breathes in the picked colour
+        LED_MODE_OCEAN, LED_MODE_PARTY, LED_MODE_AURORA -> sendEffect(ledMode)
         else -> sendSolid()
     }
 
@@ -910,6 +927,8 @@ fun BleControlScreen(
                                             )
                                         }
                                     }
+                                    CircleIconButton(R.drawable.settings, "Settings") { showSettings = true }
+                                    Spacer(Modifier.width(8.dp))
                                     val powerBg by animateColorAsState(
                                         if (ledOn) MaterialTheme.colorScheme.primary else onBg.copy(alpha = 0.07f),
                                         tween(250), label = "powerBg"
@@ -933,8 +952,6 @@ fun BleControlScreen(
                                             tint = powerFg
                                         )
                                     }
-                                    Spacer(Modifier.width(8.dp))
-                                    CircleIconButton(R.drawable.settings, "Settings") { showSettings = true }
                                 }
 
                                 Spacer(Modifier.height(8.dp))
@@ -1163,7 +1180,7 @@ fun BleControlScreen(
                                                         ) {
                                                             if (kel != ledKelvinMode) {
                                                                 ledKelvinMode = kel
-                                                                if (kel) { setKelvin(ledKelvin); sendSolid() }
+                                                                if (kel) { setKelvin(ledKelvin); sendCurrent() }
                                                             }
                                                         }
                                                 ) {
@@ -1205,7 +1222,7 @@ fun BleControlScreen(
                                                     thumbColor = hsvColor(shownHue, 1f),
                                                     onFraction = {
                                                         hue = it * 360f
-                                                        ledMode = LED_MODE_SOLID
+                                                        colourPicked()
                                                         sendThrottled()
                                                     },
                                                     onFinished = { sendCurrent() }
@@ -1229,7 +1246,7 @@ fun BleControlScreen(
                                                     listOf(1900f, 2700f, 3500f, 4500f, 5600f, 6500f).forEach { k ->
                                                         PresetDot(LedColor.kelvinScreenColor(k)) {
                                                             if (bri < MIN_VISIBLE_BRIGHTNESS) bri = lastOnBri
-                                                            setKelvin(k); sendSolid()
+                                                            setKelvin(k); sendCurrent()
                                                         }
                                                     }
                                                 } else {
@@ -1238,9 +1255,10 @@ fun BleControlScreen(
                                                             val hsv = FloatArray(3)
                                                             AndroidColor.colorToHSV(preset, hsv)
                                                             hue = hsv[0]; sat = hsv[1]
+                                                            colourPicked()
                                                             // A preset changes the colour, not the brightness you chose.
                                                             if (bri < MIN_VISIBLE_BRIGHTNESS) bri = lastOnBri
-                                                            sendSolid()
+                                                            sendCurrent()
                                                         }
                                                     }
                                                 }
@@ -1522,47 +1540,28 @@ private fun ConnectScreen(
     }
 }
 
-/** A slowly colour-cycling LED glow; sends out rings while [active]. */
+/** The home-screen LED circle, colour-cycling and breathing; it breathes faster while [active]. */
 @Composable
 private fun GlowBeacon(active: Boolean, modifier: Modifier = Modifier) {
     val t = rememberInfiniteTransition(label = "beacon")
-    val pulse by t.animateFloat(
-        initialValue = 0f, targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(2400, easing = LinearEasing)),
-        label = "beaconPulse"
-    )
     val hue by t.animateFloat(
         initialValue = 0f, targetValue = 360f,
         animationSpec = infiniteRepeatable(tween(12000, easing = LinearEasing)),
         label = "beaconHue"
     )
-    val ringAlpha by animateFloatAsState(if (active) 1f else 0f, tween(500), label = "beaconRings")
-    val glow = Color(AndroidColor.HSVToColor(floatArrayOf(hue, 0.75f, 1f)))
-
-    Canvas(modifier) {
-        val maxR = size.minDimension / 2f
-        drawCircle(
-            brush = Brush.radialGradient(listOf(glow.copy(alpha = 0.35f), Color.Transparent), center, maxR),
-            radius = maxR
-        )
-        if (ringAlpha > 0f) {
-            for (i in 0 until 3) {
-                val p = (pulse + i / 3f) % 1f
-                drawCircle(
-                    color = glow.copy(alpha = (1f - p) * 0.5f * ringAlpha),
-                    radius = maxR * (0.36f + 0.64f * p),
-                    style = Stroke(width = 1.5.dp.toPx())
-                )
-            }
-        }
-        val coreR = maxR * 0.34f
-        drawCircle(
-            brush = Brush.radialGradient(
-                listOf(Color.White, glow, glow.copy(alpha = 0.6f)), center, coreR
-            ),
-            radius = coreR
-        )
-    }
+    val breath by t.animateFloat(
+        initialValue = 0f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            tween(if (active) 1100 else 2600, easing = FastOutSlowInEasing),
+            RepeatMode.Reverse
+        ),
+        label = "beaconBreath"
+    )
+    LedPreview(
+        hue = hue, sat = 0.8f,
+        value = if (active) 0.45f + 0.55f * breath else 0.3f + 0.45f * breath,
+        modifier = modifier
+    )
 }
 
 @Composable
@@ -1744,6 +1743,10 @@ private fun SettingsScreen(
     onBack: () -> Unit
 ) {
     val otaState by otaManager.state.collectAsState()
+    val categoryStore = remember { SettingsStore(LocalContext.current) }
+    var boardOpen by remember { mutableStateOf(!categoryStore.categoryCollapsed("board")) }
+    var uiOpen by remember { mutableStateOf(!categoryStore.categoryCollapsed("ui")) }
+    var firmwareOpen by remember { mutableStateOf(!categoryStore.categoryCollapsed("firmware")) }
 
     Column(
         modifier = Modifier
@@ -1787,7 +1790,9 @@ private fun SettingsScreen(
 
         Spacer(Modifier.height(28.dp))
 
-        SettingsCategory("Board LED")
+        CollapsibleCategory("Board LED", boardOpen, {
+            boardOpen = !boardOpen; categoryStore.setCategoryCollapsed("board", !boardOpen)
+        }) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
@@ -1859,8 +1864,12 @@ private fun SettingsScreen(
         )
 
 
+        }
+
         Spacer(Modifier.height(40.dp))
-        SettingsCategory("App UI")
+        CollapsibleCategory("App UI", uiOpen, {
+            uiOpen = !uiOpen; categoryStore.setCategoryCollapsed("ui", !uiOpen)
+        }) {
         // ── Background ──────────────────────────────────────────────
         SettingHeading("Background", "What appears behind the controls")
         Spacer(Modifier.height(12.dp))
@@ -1944,8 +1953,12 @@ private fun SettingsScreen(
         }
 
 
+        }
+
         Spacer(Modifier.height(40.dp))
-        SettingsCategory("Firmware & updates")
+        CollapsibleCategory("Firmware & updates", firmwareOpen, {
+            firmwareOpen = !firmwareOpen; categoryStore.setCategoryCollapsed("firmware", !firmwareOpen)
+        }) {
         // ── Firmware update over Bluetooth ──────────────────────────
         FirmwareSection(
             otaManager   = otaManager,
@@ -1958,10 +1971,9 @@ private fun SettingsScreen(
 
         // ── App update from GitHub releases ─────────────────────────
         AppUpdateSection()
+        }
 
-        Spacer(Modifier.height(32.dp))
-
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(48.dp))
     }
 }
 
@@ -2237,15 +2249,37 @@ private fun HueSlider(
     }
 }
 
-/** Big title that groups the settings below it. */
+/** Tappable title that minimises the settings below it; the choice is remembered. */
 @Composable
-private fun SettingsCategory(title: String) {
-    Text(
-        text = title,
-        style = MaterialTheme.typography.titleLarge,
-        fontWeight = FontWeight.Bold,
-        color = MaterialTheme.colorScheme.primary
-    )
+private fun CollapsibleCategory(
+    title: String,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    val arrow by animateFloatAsState(if (expanded) -90f else 180f, tween(250), label = "categoryArrow")
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .bounceClickable(pressedScale = 0.98f, onClick = onToggle)
+            .padding(vertical = 6.dp)
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.weight(1f)
+        )
+        Icon(
+            painter = painterResource(R.drawable.arrow_back),
+            contentDescription = if (expanded) "Minimise $title" else "Expand $title",
+            modifier = Modifier.size(20.dp).rotate(arrow),
+            tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+        )
+    }
     Spacer(Modifier.height(4.dp))
     Box(
         Modifier
@@ -2253,7 +2287,16 @@ private fun SettingsCategory(title: String) {
             .height(1.dp)
             .background(MaterialTheme.colorScheme.onBackground.copy(alpha = 0.12f))
     )
-    Spacer(Modifier.height(16.dp))
+    androidx.compose.animation.AnimatedVisibility(
+        visible = expanded,
+        enter = fadeIn(tween(200)) + androidx.compose.animation.expandVertically(tween(300)),
+        exit = fadeOut(tween(150)) + androidx.compose.animation.shrinkVertically(tween(250))
+    ) {
+        Column {
+            Spacer(Modifier.height(16.dp))
+            content()
+        }
+    }
 }
 
 @Composable

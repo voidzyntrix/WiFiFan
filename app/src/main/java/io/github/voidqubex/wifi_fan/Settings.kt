@@ -82,6 +82,11 @@ class SettingsStore(context: Context) {
     var candleHue: Int
         get() = prefs.getInt(KEY_CANDLE_HUE, 19)
         set(value) { prefs.edit().putInt(KEY_CANDLE_HUE, value).apply() }
+    /** Whether a settings category (by [key]) is minimised. */
+    fun categoryCollapsed(key: String): Boolean = prefs.getBoolean("collapsed_$key", false)
+    fun setCategoryCollapsed(key: String, value: Boolean) {
+        prefs.edit().putBoolean("collapsed_$key", value).apply()
+    }
     var keepScreenOn: Boolean
         get() = prefs.getBoolean(KEY_KEEP_SCREEN_ON, false)
         set(value) { prefs.edit().putBoolean(KEY_KEEP_SCREEN_ON, value).apply() }
