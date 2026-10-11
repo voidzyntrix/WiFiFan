@@ -4,6 +4,13 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.remember
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.aspectRatio
@@ -121,6 +128,49 @@ object LedColor {
 /** The LED as a simple circle: filled with its colour, thin outline, soft glow around it. */
 @Composable
 fun LedPreview(hue: Float, sat: Float, value: Float, modifier: Modifier = Modifier) {
+    Box(modifier, contentAlignment = Alignment.Center) {
+        LedDisc(hue, sat, value, Modifier.fillMaxHeight(0.78f).aspectRatio(1f))
+    }
+}
+
+/**
+ * Both LEDs of a two-LED board side by side (Separate mode), each a smaller disc of its own
+ * colour. Tapping a disc calls [onTap] with 0 (LED1) or 1 (LED2).
+ */
+@Composable
+fun LedPreviewPair(
+    hue1: Float, sat1: Float, value1: Float,
+    hue2: Float, sat2: Float, value2: Float,
+    modifier: Modifier = Modifier,
+    onTap: ((Int) -> Unit)? = null
+) {
+    BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
+        // As big as fits: 64 % of the height, or two discs and a gap across the width.
+        val d = minOf(maxHeight * 0.64f, (maxWidth - 40.dp) / 2.2f)
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(d * 0.2f),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            listOf(Triple(hue1, sat1, value1), Triple(hue2, sat2, value2)).forEachIndexed { i, (h, s, v) ->
+                LedDisc(
+                    h, s, v,
+                    Modifier
+                        .size(d)
+                        .then(
+                            if (onTap == null) Modifier
+                            else Modifier.clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) { onTap(i) }
+                        )
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun LedDisc(hue: Float, sat: Float, value: Float, modifier: Modifier) {
     val target = Color(
         android.graphics.Color.HSVToColor(
             floatArrayOf(((hue % 360f) + 360f) % 360f, sat.coerceIn(0f, 1f), 1f)
@@ -130,25 +180,20 @@ fun LedPreview(hue: Float, sat: Float, value: Float, modifier: Modifier = Modifi
     val level by animateFloatAsState(value.coerceIn(0f, 1f), tween(150), label = "ledLevel")
     // Fully off still shows a dim, outlined disc.
     val lit = (level * 4f).coerceIn(0f, 1f)
-
-    Box(modifier, contentAlignment = Alignment.Center) {
-        Box(
-            Modifier
-                .fillMaxHeight(0.78f)
-                .aspectRatio(1f)
-                .shadow(
-                    elevation = (2f + 34f * lit * (0.35f + 0.65f * level)).dp,
-                    shape = ledShape(),
-                    ambientColor = color,
-                    spotColor = color
-                )
-                .clip(ledShape())
-                .background(lerp(Color(0xFF1A1A1A), color, (0.15f + 0.85f * level) * lit))
-                .border(
-                    2.dp,
-                    lerp(Color.White.copy(alpha = 0.18f), color, lit).copy(alpha = 0.45f + 0.55f * lit),
-                    ledShape()
-                )
-        )
-    }
+    Box(
+        modifier
+            .shadow(
+                elevation = (2f + 34f * lit * (0.35f + 0.65f * level)).dp,
+                shape = ledShape(),
+                ambientColor = color,
+                spotColor = color
+            )
+            .clip(ledShape())
+            .background(lerp(Color(0xFF1A1A1A), color, (0.15f + 0.85f * level) * lit))
+            .border(
+                2.dp,
+                lerp(Color.White.copy(alpha = 0.18f), color, lit).copy(alpha = 0.45f + 0.55f * lit),
+                ledShape()
+            )
+    )
 }

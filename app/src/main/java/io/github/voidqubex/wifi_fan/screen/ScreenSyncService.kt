@@ -52,6 +52,7 @@ class ScreenSyncService : Service() {
     private var thread: HandlerThread? = null
     private var handler: Handler? = null
     private var smoothed: FloatArray? = null
+    private var smoothed2: FloatArray? = null
     private var link: LedLink? = null
     private var scope: CoroutineScope? = null
 
@@ -133,20 +134,37 @@ class ScreenSyncService : Service() {
                     px[k++] = (r shl 16) or (g shl 8) or b
                 }
             }
-            val target = dominantColour(px)
-            val prev = smoothed
-            val next = if (prev == null) target else floatArrayOf(
-                lerpHue(prev[0], target[0], SMOOTHING),
-                prev[1] + (target[1] - prev[1]) * SMOOTHING
-            )
+            val l = link ?: return
+            if (l.twoLeds) {
+                // Separate LEDs: the left half of the screen goes to LED1, the right half to LED2.
+                val (left, right) = halves(px, image.width)
+                val next = smooth(smoothed, dominantColour(left))
+                val next2 = smooth(smoothed2, dominantColour(right))
+                smoothed = next
+                smoothed2 = next2
+                SyncHub.hue.value = next[0]
+                SyncHub.sat.value = next[1]
+                SyncHub.hue2.value = next2[0]
+                SyncHub.sat2.value = next2[1]
+                val bri = SyncParams.bri
+                l.colours(next[0], next[1], bri, next2[0], next2[1], bri, PERIOD_MS - 15)
+                return
+            }
+            val next = smooth(smoothed, dominantColour(px))
             smoothed = next
             SyncHub.hue.value = next[0]
             SyncHub.sat.value = next[1]
-            link?.colour(next[0], next[1], SyncParams.bri, PERIOD_MS - 15)
+            l.colour(next[0], next[1], SyncParams.bri, PERIOD_MS - 15)
         } finally {
             image.close()
         }
     }
+
+    private fun smooth(prev: FloatArray?, target: FloatArray): FloatArray =
+        if (prev == null) target else floatArrayOf(
+            lerpHue(prev[0], target[0], SMOOTHING),
+            prev[1] + (target[1] - prev[1]) * SMOOTHING
+        )
 
     override fun onDestroy() {
         scope?.cancel()
@@ -244,6 +262,23 @@ class ScreenSyncService : Service() {
             val coherence = (sqrt(cx * cx + cy * cy) / wSum).toFloat()
             val sat = ((sSum / wSum).toFloat() * coherence * 1.15f).coerceIn(0f, 1f)
             return floatArrayOf(hue, sat)
+        }
+
+        /**
+         * Splits a row-major image [width] pixels wide into its left and right halves (an odd
+         * middle column goes to the right).
+         */
+        fun halves(pixels: IntArray, width: Int): Pair<IntArray, IntArray> {
+            if (width <= 1) return pixels to pixels
+            val rows = pixels.size / width
+            val half = width / 2
+            val left = IntArray(rows * half)
+            val right = IntArray(rows * (width - half))
+            for (y in 0 until rows) {
+                System.arraycopy(pixels, y * width, left, y * half, half)
+                System.arraycopy(pixels, y * width + half, right, y * (width - half), width - half)
+            }
+            return left to right
         }
 
         private fun rgbToHsv(r: Int, g: Int, b: Int, out: FloatArray) {

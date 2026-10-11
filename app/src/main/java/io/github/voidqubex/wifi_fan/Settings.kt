@@ -57,6 +57,27 @@ class SettingsStore(context: Context) {
         get() = prefs.getFloat(KEY_LED_KELVIN, 4000f)
         set(value) { prefs.edit().putFloat(KEY_LED_KELVIN, value).apply() }
 
+    /**
+     * Two-LED boards (firmware 1.6.0+): Separate gives each LED its own colour. The board itself
+     * forgets this at every power-up, so the app sends it on each connect.
+     */
+    var separateLeds: Boolean
+        get() = prefs.getBoolean("separate_leds", false)
+        set(value) { prefs.edit().putBoolean("separate_leds", value).apply() }
+    /** LED2's colour in Separate mode: hue/saturation, or a colour temperature. */
+    var led2Hue: Float
+        get() = prefs.getFloat("led2_hue", 210f)
+        set(value) { prefs.edit().putFloat("led2_hue", value).apply() }
+    var led2Sat: Float
+        get() = prefs.getFloat("led2_sat", 1f)
+        set(value) { prefs.edit().putFloat("led2_sat", value).apply() }
+    var led2KelvinMode: Boolean
+        get() = prefs.getBoolean("led2_kelvin_mode", false)
+        set(value) { prefs.edit().putBoolean("led2_kelvin_mode", value).apply() }
+    var led2Kelvin: Float
+        get() = prefs.getFloat("led2_kelvin", 4000f)
+        set(value) { prefs.edit().putFloat("led2_kelvin", value).apply() }
+
     /** Candle mode: smooth (slow, gentle) instead of the lively flicker. */
     var smoothCandle: Boolean
         get() = prefs.getBoolean(KEY_SMOOTH_CANDLE, false)

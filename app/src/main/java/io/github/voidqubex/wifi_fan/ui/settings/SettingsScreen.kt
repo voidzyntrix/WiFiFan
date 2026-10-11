@@ -55,6 +55,7 @@ import io.github.voidqubex.wifi_fan.R
 import io.github.voidqubex.wifi_fan.SettingsStore
 import io.github.voidqubex.wifi_fan.ota.AppUpdateState
 import io.github.voidqubex.wifi_fan.ota.AppUpdater
+import io.github.voidqubex.wifi_fan.ota.GitHubReleases
 import io.github.voidqubex.wifi_fan.ota.OtaManager
 import io.github.voidqubex.wifi_fan.ota.OtaState
 import io.github.voidqubex.wifi_fan.ui.components.CircleIconButton
@@ -102,7 +103,9 @@ internal fun SettingsScreen(
     boardVersion: String?,
     isConnected: Boolean,
     onBack: () -> Unit,
-    onWhatsNew: () -> Unit = {}
+    onWhatsNew: () -> Unit = {},
+    separateLeds: Boolean = false,
+    onSeparateLedsChange: (Boolean) -> Unit = {}
 ) {
     val otaState by otaManager.state.collectAsState()
     val settingsContext = LocalContext.current
@@ -139,6 +142,25 @@ internal fun SettingsScreen(
         SettingsCard("Board LED", boardOpen, Modifier.entrance(1), {
             boardOpen = !boardOpen; store.setCategoryCollapsed("board", !boardOpen)
         }) {
+            // Two-LED boards (firmware 1.6.0+): one look on both, or each LED on its own.
+            val twoLedBoard = boardVersion?.let { GitHubReleases.compareVersions(it, "1.6.0") >= 0 } ?: false
+            SettingHeading(
+                "LEDs",
+                if (separateLeds && twoLedBoard) "Each LED has its own colour; effects run in two-LED versions"
+                else "Both LEDs show the same light"
+            )
+            if (twoLedBoard) {
+                SegmentedPill(listOf("Linked", "Separate"), if (separateLeds) 1 else 0) {
+                    onSeparateLedsChange(it == 1)
+                }
+            } else {
+                Text(
+                    "Needs board firmware 1.6.0",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = onBg.copy(alpha = 0.45f)
+                )
+            }
+            SettingGap()
             SettingSwitch(
                 "Smooth candle", "Slow, gentle flicker (easier on the eyes at night)",
                 smoothCandle, onSmoothCandleChange

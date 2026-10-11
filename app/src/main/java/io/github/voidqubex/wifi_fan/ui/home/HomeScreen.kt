@@ -110,6 +110,8 @@ import io.github.voidqubex.wifi_fan.SettingsStore
 import io.github.voidqubex.wifi_fan.bluetooth.BleManager
 import io.github.voidqubex.wifi_fan.led.LedColor
 import io.github.voidqubex.wifi_fan.led.LedPreview
+import io.github.voidqubex.wifi_fan.led.LedPreviewPair
+import io.github.voidqubex.wifi_fan.sync.LedCommands
 import io.github.voidqubex.wifi_fan.ota.AppUpdateState
 import io.github.voidqubex.wifi_fan.ota.AppUpdater
 import io.github.voidqubex.wifi_fan.ota.GitHubReleases
@@ -139,6 +141,7 @@ import io.github.voidqubex.wifi_fan.ui.theme.circle
 import io.github.voidqubex.wifi_fan.ui.theme.onActiveFill
 import io.github.voidqubex.wifi_fan.ui.theme.rounded
 import kotlin.math.roundToInt
+import kotlin.math.cos
 import kotlin.math.sin
 
 // ---------------------------------------------------------------------------
@@ -191,6 +194,23 @@ fun BleControlScreen(
         ledStore.ledMode = ledMode
         ledStore.ledKelvinMode = ledKelvinMode
         ledStore.ledKelvin = ledKelvin
+    }
+    // Two-LED boards (firmware 1.6.0+): Linked shows one look on both LEDs, Separate gives LED2
+    // its own colour (hue/saturation or kelvin, like LED1's).
+    var separate by remember { mutableStateOf(ledStore.separateLeds) }
+    var led2KelvinMode by remember { mutableStateOf(ledStore.led2KelvinMode) }
+    var led2Kelvin by remember { mutableFloatStateOf(ledStore.led2Kelvin) }
+    var hue2 by remember {
+        mutableFloatStateOf(if (led2KelvinMode) LedColor.kelvinToHueSat(led2Kelvin)[0] else ledStore.led2Hue)
+    }
+    var sat2 by remember {
+        mutableFloatStateOf(if (led2KelvinMode) LedColor.kelvinToHueSat(led2Kelvin)[1] else ledStore.led2Sat)
+    }
+    LaunchedEffect(hue2, sat2, led2KelvinMode, led2Kelvin) {
+        ledStore.led2Hue = hue2
+        ledStore.led2Sat = sat2
+        ledStore.led2KelvinMode = led2KelvinMode
+        ledStore.led2Kelvin = led2Kelvin
     }
 
     val connectionState by bleManager.connectionState.collectAsState()
@@ -339,6 +359,9 @@ fun BleControlScreen(
     val hsvCommands = fwAtLeast("1.1.0")
     val fwCandle = fwAtLeast("1.2.0")
     val fwEffects = fwAtLeast("1.4.0")
+    val fwSplit = fwAtLeast("1.6.0")
+    /** Separate LEDs are on and the board has them. */
+    val twoLeds = separate && fwSplit
 
     // A colour as h=H/S/V (hue in degrees, saturation/brightness in percent), or l=R/G/B.
     fun sendColour(h: Float, s: Float, v: Float) {
@@ -356,7 +379,9 @@ fun BleControlScreen(
 
     // Solid colour.
     fun sendHsvColour() {
-        sendColour(hue, sat, bri)
+        // Separate: both colours in one command; brightness applies to both.
+        if (twoLeds) bleManager.sendData(LedCommands.pair(hue, sat, bri, hue2, sat2, bri))
+        else sendColour(hue, sat, bri)
         ledColor = AndroidColor.HSVToColor(floatArrayOf(hue, sat, bri))
     }
 
@@ -372,12 +397,15 @@ fun BleControlScreen(
         ledMode = LED_MODE_RAINBOW
     }
 
-    // Picking a colour keeps the modes that use one (Breathe, Candle); anything else becomes Solid.
-    fun colourPicked() {
-        when (ledMode) {
-            LED_MODE_BREATHE -> {}
-            LED_MODE_MUSIC -> musicKeepColour = true
-            LED_MODE_CANDLE -> candleHueOverride = ((hue.roundToInt() % 360) + 360) % 360
+    // Picking a colour keeps the modes that use one (Breathe, Candle, Chase); anything else becomes
+    // Solid. Candle and Chase only use LED1's colour, so a new LED2 colour makes them Solid.
+    fun colourPicked(led2Only: Boolean = false) {
+        when {
+            ledMode == LED_MODE_BREATHE -> {}
+            ledMode == LED_MODE_MUSIC -> musicKeepColour = true
+            led2Only -> ledMode = LED_MODE_SOLID
+            ledMode == LED_MODE_CHASE -> {}
+            ledMode == LED_MODE_CANDLE -> candleHueOverride = ((hue.roundToInt() % 360) + 360) % 360
             else -> ledMode = LED_MODE_SOLID
         }
     }
@@ -390,6 +418,45 @@ fun BleControlScreen(
         colourPicked()
     }
 
+    // Separate LEDs: the colour card edits LED1 (0), LED2 (1) or both (2).
+    var editLed by remember { mutableIntStateOf(0) }
+    val editsLed2 = twoLeds && editLed == 1
+    val editsBoth = twoLeds && editLed == 2
+    fun copyLed1ToLed2() {
+        hue2 = hue; sat2 = sat; led2KelvinMode = ledKelvinMode; led2Kelvin = ledKelvin
+    }
+    fun editHue(h: Float) {
+        if (editsLed2) { hue2 = h; colourPicked(led2Only = true) }
+        else { hue = h; colourPicked(); if (editsBoth) copyLed1ToLed2() }
+    }
+    fun editSat(s: Float) {
+        if (editsLed2) sat2 = s else { sat = s; if (editsBoth) copyLed1ToLed2() }
+    }
+    fun editColour(h: Float, s: Float) {
+        if (editsLed2) { hue2 = h; sat2 = s; colourPicked(led2Only = true) }
+        else { hue = h; sat = s; colourPicked(); if (editsBoth) copyLed1ToLed2() }
+    }
+    fun editKelvin(k: Float) {
+        if (editsLed2) {
+            led2Kelvin = k
+            val hs = LedColor.kelvinToHueSat(k)
+            hue2 = hs[0]; sat2 = hs[1]
+            colourPicked(led2Only = true)
+        } else {
+            setKelvin(k)
+            if (editsBoth) copyLed1ToLed2()
+        }
+    }
+    fun editKelvinMode(on: Boolean) {
+        if (editsLed2) led2KelvinMode = on
+        else { ledKelvinMode = on; if (editsBoth) led2KelvinMode = on }
+    }
+    // What the colour card shows: the edited LED's colour.
+    val eKelvinMode = if (editsLed2) led2KelvinMode else ledKelvinMode
+    val eKelvin = if (editsLed2) led2Kelvin else ledKelvin
+    val eSat = if (editsLed2) sat2 else sat
+    val eShownHue = if (!editsLed2) shownHue else if (cycling) (rainbowHue + 180f) % 360f else hue2
+
     // Candle: the board flickers a warm flame around this brightness.
     fun sendCandle() {
         bleManager.sendData(candleCommand(bri))
@@ -398,7 +465,7 @@ fun BleControlScreen(
 
     // Effects run on the board; the brightness slider re-sends them at the new level.
     fun sendEffect(mode: Int) {
-        val cmd = LedEffects.first { it.first == mode }.third
+        val cmd = AllLedEffects.first { it.first == mode }.third
         bleManager.sendData("$cmd=${(bri * 100).roundToInt()}")
         ledMode = mode
     }
@@ -406,7 +473,8 @@ fun BleControlScreen(
     fun sendCurrent() = when (ledMode) {
         LED_MODE_RAINBOW -> sendRainbow()
         LED_MODE_CANDLE -> sendCandle()
-        LED_MODE_BREATHE -> { sendHsvColour(); sendEffect(LED_MODE_BREATHE) }   // breathes in the picked colour
+        LED_MODE_BREATHE -> { sendHsvColour(); sendEffect(LED_MODE_BREATHE) }   // breathes in the picked colour(s)
+        LED_MODE_CHASE -> { sendHsvColour(); sendEffect(LED_MODE_CHASE) }       // chases LED1's colour
         LED_MODE_OCEAN, LED_MODE_PARTY, LED_MODE_AURORA -> sendEffect(ledMode)
         LED_MODE_MUSIC, LED_MODE_VISUALIZER, LED_MODE_SCREEN -> {}   // their services send the colour
         else -> sendSolid()
@@ -419,6 +487,17 @@ fun BleControlScreen(
             lastSentMs = now
             sendCurrent()
         }
+    }
+
+    // The board boots Linked and forgets the layout: send it on every connect (firmware 1.6.0+)
+    // and whenever it is changed, then show the current mode again in that layout.
+    var splitSent by remember { mutableStateOf<Boolean?>(null) }
+    LaunchedEffect(fwSplit, isConnected, separate) {
+        if (!fwSplit || !isConnected) { splitSent = null; return@LaunchedEffect }
+        val changed = splitSent != null && splitSent != separate
+        bleManager.sendData(LedCommands.split(separate))
+        splitSent = separate
+        if (separate || changed) sendCurrent()
     }
 
     val ledOn = bri >= MIN_VISIBLE_BRIGHTNESS
@@ -453,10 +532,19 @@ fun BleControlScreen(
         SyncParams.sensitivity = musicSensitivity
         SyncParams.keepColour = musicKeepColour
         SyncParams.beatFlash = beatFlash
+        SyncParams.split = twoLeds
+        SyncParams.hue2 = hue2
+        SyncParams.sat2 = sat2
     }
     val liveHue = if (syncActive == SyncKind.NONE) hue else syncHue
     val liveSat = if (syncActive == SyncKind.NONE) sat else syncSat
     val liveLevel = if (syncActive == SyncKind.NONE) 0f else syncLevel
+    val syncLevel2 by SyncHub.level2.collectAsState()
+    val syncHue2 by SyncHub.hue2.collectAsState()
+    val syncSat2 by SyncHub.sat2.collectAsState()
+    val liveHue2 = if (syncActive == SyncKind.NONE) hue2 else syncHue2
+    val liveSat2 = if (syncActive == SyncKind.NONE) sat2 else syncSat2
+    val liveLevel2 = if (syncActive == SyncKind.NONE) 0f else syncLevel2
 
     fun micGranted() = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
         PackageManager.PERMISSION_GRANTED
@@ -548,6 +636,7 @@ fun BleControlScreen(
                 pendingKind = SyncKind.SCREEN
                 continueToCapture()
             }
+            LED_MODE_CHASE -> { sendHsvColour(); sendEffect(LED_MODE_CHASE) }   // keeps the colour
             else -> { if (ledKelvinMode) ledKelvinMode = false; sendEffect(mode) }
         }
     }
@@ -558,13 +647,20 @@ fun BleControlScreen(
     fun currentScene(id: Long, name: String) = Scene(
         id = id, name = name, mode = ledMode, hue = hue, sat = sat,
         kelvinMode = ledKelvinMode, kelvin = ledKelvin, bri = bri,
-        candleHue = if (ledMode == LED_MODE_CANDLE) candleHueOverride else null
+        candleHue = if (ledMode == LED_MODE_CANDLE) candleHueOverride else null,
+        // Saved with its layout on two-LED boards; LED2's colour only when Separate.
+        split = if (fwSplit) twoLeds else null,
+        hue2 = if (twoLeds) hue2 else 0f,
+        sat2 = if (twoLeds) sat2 else 0f,
+        kelvinMode2 = twoLeds && led2KelvinMode,
+        kelvin2 = if (twoLeds) led2Kelvin else 4000f
     )
     // Applying goes through the same paths as changing things by hand.
     fun applyScene(s: Scene) {
         val supported = when (s.mode) {
             LED_MODE_CANDLE -> fwCandle
             LED_MODE_BREATHE, LED_MODE_OCEAN, LED_MODE_PARTY, LED_MODE_AURORA -> fwEffects
+            LED_MODE_CHASE -> fwSplit
             else -> Scene.canSave(s.mode)
         }
         ledKelvinMode = s.kelvinMode
@@ -582,17 +678,36 @@ fun BleControlScreen(
         if (!supported) {
             Toast.makeText(context, "\"${s.name}\" needs newer board firmware; showing its colour.", Toast.LENGTH_SHORT).show()
         }
-        sendCurrent()
+        if (s.split == true) {
+            led2KelvinMode = s.kelvinMode2
+            if (s.kelvinMode2) {
+                led2Kelvin = s.kelvin2
+                val hs = LedColor.kelvinToHueSat(s.kelvin2)
+                hue2 = hs[0]; sat2 = hs[1]
+            } else {
+                hue2 = s.hue2; sat2 = s.sat2
+            }
+        }
+        // A scene saved Linked or Separate brings its layout back (older scenes keep the current
+        // one). A layout change re-sends the mode itself, once the board has the new layout.
+        val layout = s.split
+        if (fwSplit && layout != null && layout != separate) {
+            separate = layout
+            ledStore.separateLeds = layout
+        } else {
+            sendCurrent()
+        }
     }
     val selectedSceneId = if (!ledOn) null else scenes.firstOrNull {
         it.matches(ledMode, hue, sat, ledKelvinMode, ledKelvin, bri) &&
+            it.matchesLeds(twoLeds, hue2, sat2, led2KelvinMode, led2Kelvin) &&
             (it.mode != LED_MODE_CANDLE || it.candleHue == candleHueOverride)
     }?.id
     val sceneSuggestion = when {
         ledMode == LED_MODE_SOLID && ledKelvinMode -> "${(ledKelvin / 100).roundToInt() * 100} K"
         ledMode == LED_MODE_SOLID -> "Scene ${scenes.size + 1}"
         else -> (listOf(LED_MODE_RAINBOW to "Rainbow", LED_MODE_CANDLE to "Candle") +
-            LedEffects.map { it.first to it.second }).firstOrNull { it.first == ledMode }?.second
+            AllLedEffects.map { it.first to it.second }).firstOrNull { it.first == ledMode }?.second
             ?: "Scene ${scenes.size + 1}"
     }
 
@@ -668,7 +783,35 @@ fun BleControlScreen(
     val previewVal = when (ledMode) {
         LED_MODE_CANDLE -> bri * (0.82f + 0.1f * sin(rainbowHue / 360f * 6.2832f * 2f))
         LED_MODE_BREATHE -> bri * (0.575f + 0.425f * sin(rainbowHue / 360f * 6.2832f))
+        // Linked: both pulse up and down; Separate: the light swings LED1 -> LED2 -> LED1.
+        LED_MODE_CHASE -> bri * (if (twoLeds) 0.5f + 0.5f * sin(rainbowHue / 360f * 6.2832f)
+            else 0.55f - 0.45f * cos(rainbowHue / 360f * 6.2832f))
         LED_MODE_MUSIC, LED_MODE_VISUALIZER -> bri * (0.15f + 0.85f * liveLevel)
+        else -> bri
+    }
+    // LED2 in Separate mode, following the board's two-LED versions of each mode.
+    val phase = rainbowHue / 360f * 6.2832f
+    val previewHue2 = when (ledMode) {
+        LED_MODE_RAINBOW -> (rainbowHue + 180f) % 360f
+        LED_MODE_PARTY -> (rainbowHue + 120f) % 360f
+        LED_MODE_CANDLE -> candleHue.toFloat()
+        LED_MODE_MUSIC, LED_MODE_VISUALIZER, LED_MODE_SCREEN -> liveHue2
+        LED_MODE_OCEAN -> 205f - 20f * sin(phase)
+        LED_MODE_AURORA -> 200f - 80f * sin(phase / 4f)
+        LED_MODE_CHASE -> hue
+        else -> hue2
+    }
+    val previewSat2 = when (ledMode) {
+        LED_MODE_RAINBOW, LED_MODE_CHASE -> sat
+        LED_MODE_MUSIC, LED_MODE_VISUALIZER, LED_MODE_SCREEN -> liveSat2
+        LED_MODE_CANDLE, LED_MODE_OCEAN, LED_MODE_AURORA, LED_MODE_PARTY -> previewSat
+        else -> sat2
+    }
+    val previewVal2 = when (ledMode) {
+        LED_MODE_CANDLE -> bri * (0.82f + 0.1f * sin(phase * 3f + 1f))
+        LED_MODE_BREATHE -> bri * (0.575f - 0.425f * sin(phase))
+        LED_MODE_CHASE -> bri * (0.5f - 0.5f * sin(phase))
+        LED_MODE_MUSIC, LED_MODE_VISUALIZER -> bri * (0.15f + 0.85f * liveLevel2)
         else -> bri
     }
     val modeName = when (ledMode) {
@@ -677,11 +820,15 @@ fun BleControlScreen(
         LED_MODE_MUSIC -> "Music"
         LED_MODE_VISUALIZER -> "Visualizer"
         LED_MODE_SCREEN -> "Screen sync"
-        LED_MODE_SOLID -> if (ledKelvinMode) "${(ledKelvin / 50).roundToInt() * 50} K" else
-            AndroidColor.HSVToColor(floatArrayOf(shownHue, sat, 1f)).let {
-                "#%02X%02X%02X".format(AndroidColor.red(it), AndroidColor.green(it), AndroidColor.blue(it))
-            }
-        else -> LedEffects.firstOrNull { it.first == ledMode }?.second ?: ""
+        LED_MODE_SOLID -> {
+            fun label(kel: Boolean, k: Float, h: Float, s: Float) = if (kel) "${(k / 50).roundToInt() * 50} K" else
+                AndroidColor.HSVToColor(floatArrayOf(h, s, 1f)).let {
+                    "#%02X%02X%02X".format(AndroidColor.red(it), AndroidColor.green(it), AndroidColor.blue(it))
+                }
+            label(ledKelvinMode, ledKelvin, shownHue, sat) +
+                if (twoLeds) "  ·  " + label(led2KelvinMode, led2Kelvin, hue2, sat2) else ""
+        }
+        else -> AllLedEffects.firstOrNull { it.first == ledMode }?.second ?: ""
     }
 
     // -----------------------------------------------------------------------
@@ -762,7 +909,9 @@ fun BleControlScreen(
                         boardVersion = boardVersion,
                         isConnected = isConnected,
                         onBack = { showSettings = false },
-                        onWhatsNew = { whatsNewOpen = true })
+                        onWhatsNew = { whatsNewOpen = true },
+                        separateLeds = separate,
+                        onSeparateLedsChange = { separate = it; ledStore.separateLeds = it })
                 } else {
                     AnimatedContent(
                         targetState = isConnected,
@@ -777,6 +926,7 @@ fun BleControlScreen(
                                 Triple(LED_MODE_RAINBOW, "Rainbow", true),
                                 Triple(LED_MODE_CANDLE, "Candle", fwCandle)
                             ) + LedEffects.map { Triple(it.first, it.second, fwEffects) } + listOf(
+                                Triple(LedChase.first, LedChase.second, fwSplit),
                                 Triple(LED_MODE_MUSIC, "Music", true),
                                 Triple(LED_MODE_VISUALIZER, "Visualizer", true),
                                 Triple(LED_MODE_SCREEN, "Screen", true)
@@ -791,8 +941,8 @@ fun BleControlScreen(
                             val arrowRot by animateFloatAsState(
                                 if (modeMenu) 90f else -90f, tween(250), label = "modeArrow"
                             )
-                            val briTop = if (ledKelvinMode) LedColor.kelvinScreenColor(ledKelvin)
-                            else Color(AndroidColor.HSVToColor(floatArrayOf(shownHue, sat, 1f)))
+                            val briTop = if (eKelvinMode) LedColor.kelvinScreenColor(eKelvin)
+                            else Color(AndroidColor.HSVToColor(floatArrayOf(eShownHue, eSat, 1f)))
                             fun hsvColor(h: Float, s: Float) =
                                 Color(AndroidColor.HSVToColor(floatArrayOf(h, s, 1f)))
                             val pad = screenPadding()
@@ -861,12 +1011,23 @@ fun BleControlScreen(
                                     horizontalAlignment = Alignment.CenterHorizontally,
                                     modifier = Modifier.fillMaxWidth().entrance(1)
                                 ) {
-                                    LedPreview(
-                                        hue = previewHue, sat = previewSat, value = previewVal,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(if (isCompact()) 160.dp else 200.dp)
-                                    )
+                                    val previewModifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(if (isCompact()) 160.dp else 200.dp)
+                                    if (twoLeds) {
+                                        // Both LEDs side by side; tapping one edits its colour.
+                                        LedPreviewPair(
+                                            hue1 = previewHue, sat1 = previewSat, value1 = previewVal,
+                                            hue2 = previewHue2, sat2 = previewSat2, value2 = previewVal2,
+                                            modifier = previewModifier,
+                                            onTap = { haptics.tap(); editLed = it }
+                                        )
+                                    } else {
+                                        LedPreview(
+                                            hue = previewHue, sat = previewSat, value = previewVal,
+                                            modifier = previewModifier
+                                        )
+                                    }
                                     AnimatedContent(
                                         targetState = if (ledOn) modeName else "Off",
                                         transitionSpec = {
@@ -1098,14 +1259,19 @@ fun BleControlScreen(
 
                                 // ── Colour ──
                                 PanelCard(Modifier.entrance(5)) {
-                                    SegmentedPill(listOf("Color", "Kelvin"), if (ledKelvinMode) 1 else 0) {
-                                        ledKelvinMode = it == 1
-                                        if (ledKelvinMode) { setKelvin(ledKelvin); sendCurrent() }
+                                    if (twoLeds) {
+                                        // Separate LEDs: which LED the controls below change.
+                                        SegmentedPill(listOf("LED 1", "LED 2", "Both"), editLed) { editLed = it }
+                                        Spacer(Modifier.height(12.dp))
+                                    }
+                                    SegmentedPill(listOf("Color", "Kelvin"), if (eKelvinMode) 1 else 0) {
+                                        editKelvinMode(it == 1)
+                                        if (it == 1) { editKelvin(eKelvin); sendCurrent() }
                                     }
                                     Spacer(Modifier.height(16.dp))
 
                                     AnimatedContent(
-                                        targetState = ledKelvinMode,
+                                        targetState = eKelvinMode,
                                         transitionSpec = { fadeIn(tween(220)).togetherWith(fadeOut(tween(140))) },
                                         label = "colourControls"
                                     ) { kel ->
@@ -1113,16 +1279,16 @@ fun BleControlScreen(
                                             if (kel) {
                                                 SliderLabel("Temperature")
                                                 GradientBar(
-                                                    fraction = (ledKelvin - LedColor.KELVIN_MIN) /
+                                                    fraction = (eKelvin - LedColor.KELVIN_MIN) /
                                                         (LedColor.KELVIN_MAX - LedColor.KELVIN_MIN),
                                                     stops = (0..8).map {
                                                         LedColor.kelvinScreenColor(
                                                             LedColor.KELVIN_MIN + it / 8f * (LedColor.KELVIN_MAX - LedColor.KELVIN_MIN)
                                                         )
                                                     },
-                                                    thumbColor = LedColor.kelvinScreenColor(ledKelvin),
+                                                    thumbColor = LedColor.kelvinScreenColor(eKelvin),
                                                     onFraction = {
-                                                        setKelvin(LedColor.KELVIN_MIN + it * (LedColor.KELVIN_MAX - LedColor.KELVIN_MIN))
+                                                        editKelvin(LedColor.KELVIN_MIN + it * (LedColor.KELVIN_MAX - LedColor.KELVIN_MIN))
                                                         sendThrottled()
                                                     },
                                                     onFinished = { sendCurrent() }
@@ -1130,12 +1296,11 @@ fun BleControlScreen(
                                             } else {
                                                 SliderLabel("Hue")
                                                 GradientBar(
-                                                    fraction = shownHue / 360f,
+                                                    fraction = eShownHue / 360f,
                                                     stops = (0..6).map { hsvColor(it * 60f, 1f) },
-                                                    thumbColor = hsvColor(shownHue, 1f),
+                                                    thumbColor = hsvColor(eShownHue, 1f),
                                                     onFraction = {
-                                                        hue = it * 360f
-                                                        colourPicked()
+                                                        editHue(it * 360f)
                                                         sendThrottled()
                                                     },
                                                     onFinished = { sendCurrent() }
@@ -1143,10 +1308,10 @@ fun BleControlScreen(
                                                 Spacer(Modifier.height(8.dp))
                                                 SliderLabel("Saturation")
                                                 GradientBar(
-                                                    fraction = sat,
-                                                    stops = listOf(hsvColor(shownHue, 0f), hsvColor(shownHue, 1f)),
-                                                    thumbColor = hsvColor(shownHue, sat),
-                                                    onFraction = { sat = it; sendThrottled() },
+                                                    fraction = eSat,
+                                                    stops = listOf(hsvColor(eShownHue, 0f), hsvColor(eShownHue, 1f)),
+                                                    thumbColor = hsvColor(eShownHue, eSat),
+                                                    onFraction = { editSat(it); sendThrottled() },
                                                     onFinished = { sendCurrent() }
                                                 )
                                             }
@@ -1159,7 +1324,7 @@ fun BleControlScreen(
                                                     listOf(1900f, 2700f, 3500f, 4500f, 5600f, 6500f).forEach { k ->
                                                         PresetDot(LedColor.kelvinScreenColor(k)) {
                                                             if (bri < MIN_VISIBLE_BRIGHTNESS) bri = lastOnBri
-                                                            setKelvin(k); sendCurrent()
+                                                            editKelvin(k); sendCurrent()
                                                         }
                                                     }
                                                 } else {
@@ -1167,8 +1332,7 @@ fun BleControlScreen(
                                                         PresetDot(Color(preset)) {
                                                             val hsv = FloatArray(3)
                                                             AndroidColor.colorToHSV(preset, hsv)
-                                                            hue = hsv[0]; sat = hsv[1]
-                                                            colourPicked()
+                                                            editColour(hsv[0], hsv[1])
                                                             // A preset changes the colour, not the brightness you chose.
                                                             if (bri < MIN_VISIBLE_BRIGHTNESS) bri = lastOnBri
                                                             sendCurrent()

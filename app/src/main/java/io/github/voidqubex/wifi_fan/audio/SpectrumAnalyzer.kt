@@ -109,5 +109,23 @@ class SpectrumAnalyzer(private val sampleRate: Int = AudioCapture.SAMPLE_RATE, v
             val coherence = (sqrt(x * x + y * y) / sum).toFloat()
             return floatArrayOf(hue, (0.45f + 0.55f * coherence).coerceIn(0f, 1f))
         }
+
+        /**
+         * Separate LEDs: LED1 follows the bass (with half the mids), LED2 the treble (with half
+         * the mids), so LED1 swings red..yellow..green and LED2 green..cyan..blue. Each result is
+         * (hue, saturation, weight); weight 0.3..1 scales that LED's brightness by how loud its
+         * own bands are. Silence keeps [fallback1] / [fallback2].
+         */
+        fun twoLedColours(bands: FloatArray, fallback1: Float, fallback2: Float): Array<FloatArray> {
+            val bass = bands[0]
+            val mid = bands[1] * 0.5f
+            val treble = bands[2]
+            val c1 = colour(floatArrayOf(bass, mid, 0f), fallback1)
+            val c2 = colour(floatArrayOf(0f, mid, treble), fallback2)
+            return arrayOf(
+                floatArrayOf(c1[0], c1[1], 0.3f + 0.7f * max(bass, mid).coerceIn(0f, 1f)),
+                floatArrayOf(c2[0], c2[1], 0.3f + 0.7f * max(treble, mid).coerceIn(0f, 1f))
+            )
+        }
     }
 }

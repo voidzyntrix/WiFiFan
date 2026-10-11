@@ -13,7 +13,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.dp
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -68,6 +70,7 @@ abstract class ScreenshotTests(private val size: String) {
         look: Look,
         oled: Boolean = false,
         prepare: (SettingsStore) -> Unit = {},
+        after: () -> Unit = {},
         content: @Composable () -> Unit
     ) {
         val store = SettingsStore(ApplicationProvider.getApplicationContext())
@@ -93,6 +96,8 @@ abstract class ScreenshotTests(private val size: String) {
             }
         }
         compose.mainClock.advanceTimeBy(2_000)
+        after()
+        compose.mainClock.advanceTimeBy(1_000)
         compose.onRoot().captureRoboImage("build/outputs/roborazzi/${size}_${name}_${look.id}.png")
     }
 
@@ -112,9 +117,9 @@ abstract class ScreenshotTests(private val size: String) {
     }
 
     @Composable
-    private fun Home(look: Look) {
+    private fun Home(look: Look, version: String = "1.4.0") {
         val context = LocalContext.current
-        val ble = remember { connectedBle(context) }
+        val ble = remember { connectedBle(context, version) }
         val ota = remember { OtaManager(ble, CoroutineScope(Dispatchers.Main)) }
         BleControlScreen(
             bleManager = ble,
@@ -131,7 +136,7 @@ abstract class ScreenshotTests(private val size: String) {
     }
 
     @Composable
-    private fun Settings(look: Look) {
+    private fun Settings(look: Look, version: String = "1.4.0", separate: Boolean = false) {
         val context = LocalContext.current
         val ble = remember { BleManager(context) }
         val ota = remember { OtaManager(ble, CoroutineScope(Dispatchers.Main)) }
@@ -157,9 +162,10 @@ abstract class ScreenshotTests(private val size: String) {
             onAccentChange = {},
             onBackgroundChange = {},
             otaManager = ota,
-            boardVersion = "1.4.0",
+            boardVersion = version,
             isConnected = true,
-            onBack = {}
+            onBack = {},
+            separateLeds = separate
         )
     }
 
@@ -256,6 +262,43 @@ abstract class ScreenshotTests(private val size: String) {
                 beatFlash = true, onBeatFlash = {}, onStop = {}
             )
         }
+    }
+
+    // Two LEDs, Separate (1.12.0): two-colour preview, LED selector, Settings > LEDs.
+    private fun separate(store: SettingsStore) {
+        store.separateLeds = true
+        store.led2Hue = 205f
+        store.led2Sat = 1f
+    }
+
+    @Test fun homeSeparateDarkMono() = shot("home-separate", Look.DARK_MONO, prepare = ::separate) {
+        Home(Look.DARK_MONO, "1.6.0")
+    }
+
+    @Test fun homeSeparateDarkColoured() = shot("home-separate", Look.DARK_COLOURED, prepare = ::separate) {
+        Home(Look.DARK_COLOURED, "1.6.0")
+    }
+
+    @Test fun homeSeparateLight() = shot("home-separate", Look.LIGHT_MONO, prepare = ::separate) {
+        Home(Look.LIGHT_MONO, "1.6.0")
+    }
+
+    @Test fun homeSeparateColoursDarkColoured() = shot(
+        "home-separate-colours", Look.DARK_COLOURED, prepare = ::separate,
+        after = { compose.onNodeWithText("LED 2").performScrollTo() }
+    ) { Home(Look.DARK_COLOURED, "1.6.0") }
+
+    @Test fun homeSeparateRainbowDarkMono() = shot(
+        "home-separate-rainbow", Look.DARK_MONO,
+        prepare = { separate(it); it.ledMode = 1 }
+    ) { Home(Look.DARK_MONO, "1.6.0") }
+
+    @Test fun settingsLedsDarkColoured() = shot("settings-leds", Look.DARK_COLOURED) {
+        Settings(Look.DARK_COLOURED, version = "1.6.0", separate = true)
+    }
+
+    @Test fun settingsLedsLight() = shot("settings-leds", Look.LIGHT_MONO) {
+        Settings(Look.LIGHT_MONO, version = "1.6.0", separate = true)
     }
 
     @Composable

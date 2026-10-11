@@ -17,6 +17,10 @@ object SyncHub {
     val level = MutableStateFlow(0f)
     val hue = MutableStateFlow(0f)
     val sat = MutableStateFlow(1f)
+    /** LED2 in Separate mode (the services fill these only while the LEDs are split). */
+    val level2 = MutableStateFlow(0f)
+    val hue2 = MutableStateFlow(0f)
+    val sat2 = MutableStateFlow(1f)
 
     /** A service that couldn't start or had to stop leaves a message here; the screen shows it. */
     val error = MutableStateFlow<String?>(null)
@@ -31,6 +35,9 @@ object SyncHub {
         level.value = 0f
         hue.value = SyncParams.hue
         sat.value = SyncParams.sat
+        level2.value = 0f
+        hue2.value = SyncParams.hue2
+        sat2.value = SyncParams.sat2
         error.value = null
     }
 }
@@ -44,4 +51,9 @@ object SyncParams {
     @Volatile var keepColour = false
     /** Music and Visualizer: spike the brightness on each beat. */
     @Volatile var beatFlash = true
+    /** Separate LEDs (Settings, and board firmware 1.6.0+): the services drive each LED on its own. */
+    @Volatile var split = false
+    /** LED2's picked colour in Separate mode. */
+    @Volatile var hue2 = 210f
+    @Volatile var sat2 = 1f
 }

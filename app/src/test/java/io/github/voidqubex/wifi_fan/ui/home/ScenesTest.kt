@@ -22,6 +22,28 @@ class ScenesTest {
         assertEquals(list, scenesFromJson(scenesToJson(list)))
     }
 
+    @Test fun twoLedScenes() {
+        val separate = Scene(
+            10, "Duo", LED_MODE_SOLID, hue = 30f, sat = 1f, bri = 0.7f,
+            split = true, hue2 = 200f, sat2 = 0.9f
+        )
+        val linked = Scene(11, "One", LED_MODE_BREATHE, hue = 120f, sat = 1f, split = false)
+        assertEquals(listOf(separate, linked), scenesFromJson(scenesToJson(listOf(separate, linked))))
+        // Saved by 1.11.0 (no two-LED fields): loads, and matches either layout.
+        val old = scenesFromJson(
+            """[{"id":3,"name":"Old","mode":0,"hue":10,"sat":1,"kelvinMode":false,"kelvin":4000,"bri":0.5}]"""
+        ).single()
+        assertEquals(null, old.split)
+        assertTrue(old.matchesLeds(true, 0f, 0f, false, 4000f))
+        assertTrue(old.matchesLeds(false, 0f, 0f, false, 4000f))
+        // Two-LED scenes match their layout and LED2's colour.
+        assertTrue(separate.matchesLeds(true, 201f, 0.9f, false, 4000f))
+        assertFalse(separate.matchesLeds(true, 260f, 0.9f, false, 4000f))
+        assertFalse(separate.matchesLeds(false, 200f, 0.9f, false, 4000f))
+        assertFalse(linked.matchesLeds(true, 0f, 0f, false, 4000f))
+        assertTrue(linked.matchesLeds(false, 0f, 0f, false, 4000f))
+    }
+
     @Test fun seedsDefaultsOnce() {
         val store = SettingsStore(ApplicationProvider.getApplicationContext())
         assertEquals(listOf("Night", "Read"), store.loadScenes().map { it.name })
