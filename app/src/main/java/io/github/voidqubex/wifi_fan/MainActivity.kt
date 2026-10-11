@@ -19,13 +19,28 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.BlurEffect
+import androidx.compose.ui.graphics.TileMode
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.layer.GraphicsLayer
+import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.graphics.rememberGraphicsLayer
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
@@ -752,10 +767,23 @@ fun BleControlScreen(
     // Root
     // -----------------------------------------------------------------------
 
+    // The backdrop is recorded into a layer so the cards can draw a blurred copy of it.
+    val backdropLayer = rememberGraphicsLayer()
+    val blurLayer = rememberGraphicsLayer()
+    SideEffect { blurLayer.renderEffect = BlurEffect(60f, 60f, TileMode.Clamp) }
+
     Scaffold { _ ->
+        CompositionLocalProvider(LocalBlurLayer provides blurLayer) {
         Box(modifier = modifier.fillMaxSize()) {
 
             // ── Backdrop ────────────────────────────────────────────────
+            Box(
+                Modifier.fillMaxSize().drawWithContent {
+                    backdropLayer.record { this@drawWithContent.drawContent() }
+                    blurLayer.record { drawLayer(backdropLayer) }
+                    drawLayer(backdropLayer)
+                }
+            ) {
             when (background) {
                 AppBackground.IMAGE -> Image(
                     painter = painterResource(R.drawable.background),
@@ -776,6 +804,8 @@ fun BleControlScreen(
                         .fillMaxSize()
                         .background(Color.Black.copy(alpha = 0.35f))
                 )
+            }
+
             }
 
             // Settings page slides in over the control screen
@@ -829,6 +859,11 @@ fun BleControlScreen(
                             ) + LedEffects.map { Triple(it.first, it.second, fwEffects) }
                             val modeLabel = modeList.firstOrNull { it.first == ledMode }?.second ?: "Solid"
                             var modeMenu by remember { mutableStateOf(false) }
+                            val menuState = remember { MutableTransitionState(false) }
+                            menuState.targetState = modeMenu
+                            var anchorW by remember { mutableIntStateOf(0) }
+                            var anchorH by remember { mutableIntStateOf(0) }
+                            val density = LocalDensity.current
                             val arrowRot by animateFloatAsState(
                                 if (modeMenu) 90f else -90f, tween(250), label = "modeArrow"
                             )
@@ -933,48 +968,17 @@ fun BleControlScreen(
 
                                 Spacer(Modifier.height(12.dp))
 
-                                // ── Brightness ──
-                                PanelCard(Modifier.entrance(2)) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text(
-                                            "Brightness",
-                                            style = MaterialTheme.typography.titleSmall,
-                                            fontWeight = FontWeight.SemiBold,
-                                            color = onBg,
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                        Text(
-                                            "${(bri * 100).roundToInt()} %",
-                                            style = MaterialTheme.typography.labelLarge,
-                                            color = onBg.copy(alpha = 0.6f)
-                                        )
-                                    }
-                                    Spacer(Modifier.height(6.dp))
-                                    GradientBar(
-                                        fraction = bri,
-                                        stops = listOf(Color.Black, briTop),
-                                        thumbColor = briTop,
-                                        onFraction = {
-                                            bri = it
-                                            if (it >= MIN_VISIBLE_BRIGHTNESS) lastOnBri = it
-                                            sendThrottled()
-                                        },
-                                        onFinished = { sendCurrent() }
-                                    )
-                                }
-
-                                Spacer(Modifier.height(12.dp))
-
                                 // ── Mode (dropdown) ──
-                                PanelCard(Modifier.entrance(3)) {
+                                PanelCard(Modifier.entrance(2)) {
                                     Box {
                                         Row(
                                             verticalAlignment = Alignment.CenterVertically,
                                             modifier = Modifier
                                                 .fillMaxWidth()
+                                                .onSizeChanged { anchorW = it.width; anchorH = it.height }
                                                 .clip(RoundedCornerShape(14.dp))
                                                 .background(onBg.copy(alpha = 0.07f))
-                                                .bounceClickable(pressedScale = 0.98f) { modeMenu = true }
+                                                .bounceClickable(pressedScale = 0.98f) { modeMenu = !modeMenu }
                                                 .padding(horizontal = 16.dp, vertical = 12.dp)
                                         ) {
                                             Text(
@@ -1007,24 +1011,67 @@ fun BleControlScreen(
                                                 tint = onBg.copy(alpha = 0.6f)
                                             )
                                         }
-                                        DropdownMenu(
-                                            expanded = modeMenu,
-                                            onDismissRequest = { modeMenu = false },
-                                            modifier = Modifier.widthIn(min = 200.dp)
-                                        ) {
-                                            modeList.forEach { (mode, label, enabled) ->
-                                                DropdownMenuItem(
-                                                    text = {
-                                                        Text(
-                                                            label,
-                                                            fontWeight = if (mode == ledMode) FontWeight.SemiBold else FontWeight.Normal,
-                                                            color = if (mode == ledMode) MaterialTheme.colorScheme.primary
-                                                            else MaterialTheme.colorScheme.onSurface
-                                                        )
-                                                    },
-                                                    enabled = enabled,
-                                                    onClick = { modeMenu = false; startMode(mode) }
-                                                )
+                                        if (menuState.currentState || menuState.targetState) {
+                                            Popup(
+                                                alignment = Alignment.TopStart,
+                                                offset = IntOffset(0, anchorH + with(density) { 8.dp.roundToPx() }),
+                                                onDismissRequest = { modeMenu = false },
+                                                properties = PopupProperties(focusable = true)
+                                            ) {
+                                                AnimatedVisibility(
+                                                    visibleState = menuState,
+                                                    enter = fadeIn(tween(180)) + scaleIn(
+                                                        tween(220), initialScale = 0.9f,
+                                                        transformOrigin = TransformOrigin(0.5f, 0f)
+                                                    ),
+                                                    exit = fadeOut(tween(120)) + scaleOut(
+                                                        tween(150), targetScale = 0.92f,
+                                                        transformOrigin = TransformOrigin(0.5f, 0f)
+                                                    )
+                                                ) {
+                                                    val menuShape = RoundedCornerShape(20.dp)
+                                                    Column(
+                                                        Modifier
+                                                            .width(with(density) { anchorW.toDp() })
+                                                            .clip(menuShape)
+                                                            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.97f))
+                                                            .border(1.dp, onBg.copy(alpha = 0.1f), menuShape)
+                                                            .padding(6.dp)
+                                                    ) {
+                                                        modeList.forEach { (mode, label, enabled) ->
+                                                            val sel = mode == ledMode
+                                                            Row(
+                                                                verticalAlignment = Alignment.CenterVertically,
+                                                                modifier = Modifier
+                                                                    .fillMaxWidth()
+                                                                    .clip(RoundedCornerShape(14.dp))
+                                                                    .background(
+                                                                        if (sel) MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
+                                                                        else Color.Transparent
+                                                                    )
+                                                                    .alpha(if (enabled) 1f else 0.35f)
+                                                                    .bounceClickable(enabled = enabled, pressedScale = 0.97f) {
+                                                                        modeMenu = false; startMode(mode)
+                                                                    }
+                                                                    .padding(horizontal = 14.dp, vertical = 12.dp)
+                                                            ) {
+                                                                Text(
+                                                                    label,
+                                                                    modifier = Modifier.weight(1f),
+                                                                    style = MaterialTheme.typography.bodyLarge,
+                                                                    fontWeight = if (sel) FontWeight.SemiBold else FontWeight.Normal,
+                                                                    color = if (sel) MaterialTheme.colorScheme.primary else onBg
+                                                                )
+                                                                if (sel) Box(
+                                                                    Modifier
+                                                                        .size(8.dp)
+                                                                        .clip(CircleShape)
+                                                                        .background(MaterialTheme.colorScheme.primary)
+                                                                )
+                                                            }
+                                                        }
+                                                    }
+                                                }
                                             }
                                         }
                                     }
@@ -1036,6 +1083,38 @@ fun BleControlScreen(
                                             color = onBg.copy(alpha = 0.5f)
                                         )
                                     }
+                                }
+
+                                Spacer(Modifier.height(12.dp))
+
+                                // ── Brightness ──
+                                PanelCard(Modifier.entrance(3)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            "Brightness",
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = onBg,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        Text(
+                                            "${(bri * 100).roundToInt()} %",
+                                            style = MaterialTheme.typography.labelLarge,
+                                            color = onBg.copy(alpha = 0.6f)
+                                        )
+                                    }
+                                    Spacer(Modifier.height(6.dp))
+                                    GradientBar(
+                                        fraction = bri,
+                                        stops = listOf(Color.Black, briTop),
+                                        thumbColor = briTop,
+                                        onFraction = {
+                                            bri = it
+                                            if (it >= MIN_VISIBLE_BRIGHTNESS) lastOnBri = it
+                                            sendThrottled()
+                                        },
+                                        onFinished = { sendCurrent() }
+                                    )
                                 }
 
                                 Spacer(Modifier.height(12.dp))
@@ -1195,17 +1274,28 @@ fun BleControlScreen(
                 }
             }
         }
+        }
     }
 }
+
+/** The blurred screen backdrop that [PanelCard] draws behind itself. */
+private val LocalBlurLayer = staticCompositionLocalOf<GraphicsLayer?> { null }
 
 /** Rounded translucent panel that groups a block of controls. */
 @Composable
 private fun PanelCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+    val blurLayer = LocalBlurLayer.current
+    var pos by remember { mutableStateOf(Offset.Zero) }
     Column(
         modifier = modifier
             .fillMaxWidth()
+            .onGloballyPositioned { pos = it.positionInRoot() }
             .clip(RoundedCornerShape(24.dp))
-            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.72f))
+            // frosted glass: the blurred backdrop, shifted so it lines up with the screen
+            .drawBehind {
+                if (blurLayer != null) translate(-pos.x, -pos.y) { drawLayer(blurLayer) }
+            }
+            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.4f))
             .border(
                 1.dp,
                 MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
