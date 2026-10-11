@@ -407,9 +407,11 @@ private fun DeviceList(
         ) {
             if (sorted.isNotEmpty()) {
                 Text(
-                    "Long-press to rename",
+                    "Hold to rename",
                     style = MaterialTheme.typography.labelSmall,
                     color = cs.onSurface.copy(alpha = 0.4f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f).padding(start = 8.dp)
                 )
             }
