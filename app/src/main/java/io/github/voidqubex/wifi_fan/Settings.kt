@@ -87,6 +87,14 @@ class SettingsStore(context: Context) {
     fun setCategoryCollapsed(key: String, value: Boolean) {
         prefs.edit().putBoolean("collapsed_$key", value).apply()
     }
+    /** App font: JetBrains Mono instead of the system font. */
+    var monoFont: Boolean
+        get() = prefs.getBoolean("mono_font", false)
+        set(value) { prefs.edit().putBoolean("mono_font", value).apply() }
+    /** Corner roundness: 0 Square, 1 Small, 2 Medium, 3 Large. */
+    var cornerStyle: Int
+        get() = prefs.getInt("corner_style", 2).coerceIn(0, 3)
+        set(value) { prefs.edit().putInt("corner_style", value).apply() }
     var keepScreenOn: Boolean
         get() = prefs.getBoolean(KEY_KEEP_SCREEN_ON, false)
         set(value) { prefs.edit().putBoolean(KEY_KEEP_SCREEN_ON, value).apply() }

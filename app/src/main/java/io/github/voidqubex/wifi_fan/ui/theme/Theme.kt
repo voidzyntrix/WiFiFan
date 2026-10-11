@@ -2,7 +2,9 @@ package io.github.voidqubex.wifi_fan.ui.theme
 
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.material3.MaterialTheme
@@ -12,9 +14,36 @@ import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
+
+/** Look options from Settings that apply to the whole app; changing them recomposes live. */
+object AppLook {
+    var monoFont by mutableStateOf(false)
+    /** Multiplier for every corner radius (0 = square). */
+    var cornerScale by mutableFloatStateOf(1f)
+}
+
+/** Corner multipliers for the Settings choices Square, Small, Medium, Large. */
+val CornerScales = listOf(0f, 0.5f, 1f, 1.6f)
+
+/** A rounded shape that follows the app's corner setting. */
+fun rounded(radius: Dp) = RoundedCornerShape(radius * AppLook.cornerScale)
+
+private fun scaledShapes(k: Float) = Shapes(
+    extraSmall = RoundedCornerShape(4.dp * k),
+    small = RoundedCornerShape(8.dp * k),
+    medium = RoundedCornerShape(12.dp * k),
+    large = RoundedCornerShape(16.dp * k),
+    extraLarge = RoundedCornerShape(28.dp * k)
+)
 
 private val FallbackDark = darkColorScheme(
     background = DarkBackground,
@@ -112,7 +141,8 @@ fun WiFiFanTheme(
     CompositionLocalProvider(LocalRippleConfiguration provides null) {
         MaterialTheme(
             colorScheme = colorScheme,
-            typography = Typography,
+            typography = if (AppLook.monoFont) MonoTypography else Typography,
+            shapes = scaledShapes(AppLook.cornerScale),
             content = content
         )
     }

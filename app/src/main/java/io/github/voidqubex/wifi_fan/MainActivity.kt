@@ -174,6 +174,9 @@ import io.github.voidqubex.wifi_fan.led.LedPreview
 import io.github.voidqubex.wifi_fan.ota.OtaManager
 import io.github.voidqubex.wifi_fan.ota.OtaState
 import io.github.voidqubex.wifi_fan.ui.theme.AccentPresets
+import io.github.voidqubex.wifi_fan.ui.theme.AppLook
+import io.github.voidqubex.wifi_fan.ui.theme.CornerScales
+import io.github.voidqubex.wifi_fan.ui.theme.rounded
 import io.github.voidqubex.wifi_fan.ui.theme.WiFiFanTheme
 import kotlinx.coroutines.delay
 import java.time.LocalTime
@@ -287,7 +290,7 @@ private fun AppButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    shape: Shape = RoundedCornerShape(14.dp),
+    shape: Shape = rounded(14.dp),
     interactionSource: MutableInteractionSource? = null,
     colors: ButtonColors = ButtonDefaults.buttonColors(),
     contentPadding: PaddingValues = ButtonDefaults.ContentPadding,
@@ -397,7 +400,7 @@ private fun GradientBar(
             brush = Brush.horizontalGradient(stops),
             topLeft = Offset(0f, top),
             size = androidx.compose.ui.geometry.Size(size.width, barH),
-            cornerRadius = CornerRadius(barH / 2f)
+            cornerRadius = CornerRadius(barH / 2f * AppLook.cornerScale.coerceAtMost(1f))
         )
         val tc = Offset(fraction * size.width, size.height / 2f)
         drawCircle(Color.Black.copy(alpha = 0.3f), radius = 13.dp.toPx(), center = tc)
@@ -432,6 +435,8 @@ class MainActivity : ComponentActivity() {
         bleManager = BleManager(this)
         otaManager = OtaManager(bleManager, lifecycleScope)
         val settingsStore = SettingsStore(this)
+        AppLook.monoFont = settingsStore.monoFont
+        AppLook.cornerScale = CornerScales[settingsStore.cornerStyle]
         WindowCompat.setDecorFitsSystemWindows(window, false)
         enableEdgeToEdge()
         setContent {
@@ -993,7 +998,7 @@ fun BleControlScreen(
                                             modifier = Modifier
                                                 .fillMaxWidth()
                                                 .onSizeChanged { anchorW = it.width; anchorH = it.height }
-                                                .clip(RoundedCornerShape(14.dp))
+                                                .clip(rounded(14.dp))
                                                 .background(onBg.copy(alpha = 0.07f))
                                                 .bounceClickable(pressedScale = 0.98f) { modeMenu = !modeMenu }
                                                 .padding(horizontal = 16.dp, vertical = 12.dp)
@@ -1047,7 +1052,7 @@ fun BleControlScreen(
                                                         transformOrigin = TransformOrigin(0.5f, 0f)
                                                     )
                                                 ) {
-                                                    val menuShape = RoundedCornerShape(20.dp)
+                                                    val menuShape = rounded(20.dp)
                                                     Column(
                                                         Modifier
                                                             .width(with(density) { anchorW.toDp() })
@@ -1062,7 +1067,7 @@ fun BleControlScreen(
                                                                 verticalAlignment = Alignment.CenterVertically,
                                                                 modifier = Modifier
                                                                     .fillMaxWidth()
-                                                                    .clip(RoundedCornerShape(14.dp))
+                                                                    .clip(rounded(14.dp))
                                                                     .background(
                                                                         if (sel) MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
                                                                         else Color.Transparent
@@ -1140,54 +1145,9 @@ fun BleControlScreen(
 
                                 // ── Colour ──
                                 PanelCard(Modifier.entrance(4)) {
-                                    // Segmented switch with a sliding thumb.
-                                    val thumb by animateFloatAsState(
-                                        if (ledKelvinMode) 1f else 0f,
-                                        spring(stiffness = Spring.StiffnessMediumLow), label = "segThumb"
-                                    )
-                                    BoxWithConstraints(
-                                        Modifier
-                                            .fillMaxWidth()
-                                            .height(40.dp)
-                                            .clip(RoundedCornerShape(20.dp))
-                                            .background(onBg.copy(alpha = 0.08f))
-                                    ) {
-                                        val half = maxWidth / 2
-                                        Box(
-                                            Modifier
-                                                .offset(x = half * thumb)
-                                                .width(half)
-                                                .fillMaxHeight()
-                                                .padding(3.dp)
-                                                .clip(RoundedCornerShape(17.dp))
-                                                .background(MaterialTheme.colorScheme.primary)
-                                        )
-                                        Row(Modifier.fillMaxSize()) {
-                                            listOf(false to "Color", true to "Kelvin").forEach { (kel, label) ->
-                                                val sel = ledKelvinMode == kel
-                                                val fg by animateColorAsState(
-                                                    if (sel) MaterialTheme.colorScheme.onPrimary else onBg.copy(alpha = 0.7f),
-                                                    tween(200), label = "segFg"
-                                                )
-                                                Box(
-                                                    contentAlignment = Alignment.Center,
-                                                    modifier = Modifier
-                                                        .weight(1f)
-                                                        .fillMaxHeight()
-                                                        .clickable(
-                                                            interactionSource = remember { MutableInteractionSource() },
-                                                            indication = null
-                                                        ) {
-                                                            if (kel != ledKelvinMode) {
-                                                                ledKelvinMode = kel
-                                                                if (kel) { setKelvin(ledKelvin); sendCurrent() }
-                                                            }
-                                                        }
-                                                ) {
-                                                    Text(label, style = MaterialTheme.typography.labelLarge, color = fg)
-                                                }
-                                            }
-                                        }
+                                    SegmentedPill(listOf("Color", "Kelvin"), if (ledKelvinMode) 1 else 0) {
+                                        ledKelvinMode = it == 1
+                                        if (ledKelvinMode) { setKelvin(ledKelvin); sendCurrent() }
                                     }
                                     Spacer(Modifier.height(12.dp))
 
@@ -1310,7 +1270,7 @@ private fun PanelCard(modifier: Modifier = Modifier, content: @Composable Column
         modifier = modifier
             .fillMaxWidth()
             .onGloballyPositioned { pos = it.positionInRoot() }
-            .clip(RoundedCornerShape(24.dp))
+            .clip(rounded(24.dp))
             // frosted glass: the blurred backdrop, shifted so it lines up with the screen
             .drawBehind {
                 if (blurLayer != null) translate(-pos.x, -pos.y) { drawLayer(blurLayer) }
@@ -1319,7 +1279,7 @@ private fun PanelCard(modifier: Modifier = Modifier, content: @Composable Column
             .border(
                 1.dp,
                 MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
-                RoundedCornerShape(24.dp)
+                rounded(24.dp)
             )
             .padding(18.dp),
         content = content
@@ -1367,7 +1327,7 @@ private fun ModeChip(
         contentAlignment = Alignment.Center,
         modifier = modifier
             .height(44.dp)
-            .clip(RoundedCornerShape(14.dp))
+            .clip(rounded(14.dp))
             .background(bg)
             .alpha(if (enabled) 1f else 0.35f)
             .bounceClickable(enabled = enabled, pressedScale = 0.94f, onClick = onClick)
@@ -1604,7 +1564,7 @@ private fun DeviceList(
     onCancel: () -> Unit
 ) {
     val cs = MaterialTheme.colorScheme
-    val shape = RoundedCornerShape(24.dp)
+    val shape = rounded(24.dp)
     // Named devices first; unnamed ones are rarely the board.
     val sorted = remember(devices) {
         devices.sortedWith(compareBy({ it.name == null }, { it.name ?: it.address }))
@@ -1650,7 +1610,7 @@ private fun DeviceList(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 8.dp)
-                            .clip(RoundedCornerShape(16.dp))
+                            .clip(rounded(16.dp))
                             .bounceClickable(pressedScale = 0.97f) { onPick(device) }
                             .padding(horizontal = 12.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -1744,239 +1704,143 @@ private fun SettingsScreen(
 ) {
     val otaState by otaManager.state.collectAsState()
     val settingsContext = LocalContext.current
-    val categoryStore = remember { SettingsStore(settingsContext) }
-    var boardOpen by remember { mutableStateOf(!categoryStore.categoryCollapsed("board")) }
-    var uiOpen by remember { mutableStateOf(!categoryStore.categoryCollapsed("ui")) }
-    var firmwareOpen by remember { mutableStateOf(!categoryStore.categoryCollapsed("firmware")) }
+    val store = remember { SettingsStore(settingsContext) }
+    var boardOpen by remember { mutableStateOf(!store.categoryCollapsed("board")) }
+    var uiOpen by remember { mutableStateOf(!store.categoryCollapsed("ui")) }
+    var firmwareOpen by remember { mutableStateOf(!store.categoryCollapsed("firmware")) }
+    val onBg = MaterialTheme.colorScheme.onBackground
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            // Settings always uses the plain theme background, never the wallpaper.
-            .background(MaterialTheme.colorScheme.background)
             .statusBarsPadding()
             .navigationBarsPadding()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp)
+            .padding(horizontal = 20.dp, vertical = 12.dp)
     ) {
-        // Header
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .bounceClickable { if (!otaState.busy) onBack() },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.arrow_back),
-                    contentDescription = "Back",
-                    modifier = Modifier.size(22.dp),
-                    tint = MaterialTheme.colorScheme.onBackground
-                )
-            }
-            Spacer(Modifier.width(4.dp))
+        // ── Header ──
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.entrance(0)) {
+            CircleIconButton(R.drawable.arrow_back, "Back") { if (!otaState.busy) onBack() }
+            Spacer(Modifier.width(14.dp))
             Text(
-                text = "Settings",
-                style = MaterialTheme.typography.headlineSmall,
+                "Settings",
+                style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onBackground
+                color = onBg
             )
         }
+        Spacer(Modifier.height(18.dp))
 
-        Spacer(Modifier.height(28.dp))
-
-        CollapsibleCategory("Board LED", boardOpen, {
-            boardOpen = !boardOpen; categoryStore.setCategoryCollapsed("board", !boardOpen)
+        // ── Board LED ──
+        SettingsCard("Board LED", boardOpen, Modifier.entrance(1), {
+            boardOpen = !boardOpen; store.setCategoryCollapsed("board", !boardOpen)
         }) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text(
-                    text = "Smooth candle",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-                Text(
-                    text = "Slow, gentle flicker (easier on the eyes at night)",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
-                )
+            SettingSwitch(
+                "Smooth candle", "Slow, gentle flicker (easier on the eyes at night)",
+                smoothCandle, onSmoothCandleChange
+            )
+            SettingGap()
+            val candleHues = listOf(10, 19, 30)
+            SettingHeading("Candle colour", "Tint of the candle flame")
+            SegmentedPill(listOf("Ember", "Warm", "Amber"), candleHues.indexOf(candleHue)) {
+                onCandleHueChange(candleHues[it])
             }
-            Switch(checked = smoothCandle, onCheckedChange = onSmoothCandleChange)
-        }
-
-        Spacer(Modifier.height(24.dp))
-        SettingHeading("Candle colour", "Tint of the candle flame")
-        Spacer(Modifier.height(12.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            listOf(Triple("Ember", "deep red", 10), Triple("Warm", "orange", 19), Triple("Amber", "yellowish", 30))
-                .forEach { (label, desc, hueDeg) ->
-                    ChoiceCard(
-                        label = label, description = desc,
-                        selected = candleHue == hueDeg,
-                        modifier = Modifier.weight(1f),
-                        onClick = { onCandleHueChange(hueDeg) }
-                    )
-                }
-        }
-
-        Spacer(Modifier.height(24.dp))
-        SettingHeading("Rainbow speed", "Time for one trip round the colour wheel")
-        Spacer(Modifier.height(12.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            listOf(Triple("Slow", "30 s", 30), Triple("Normal", "15 s", 15), Triple("Fast", "6 s", 6))
-                .forEach { (label, desc, sec) ->
-                    ChoiceCard(
-                        label = label, description = desc,
-                        selected = rainbowSeconds == sec,
-                        modifier = Modifier.weight(1f),
-                        onClick = { onRainbowSecondsChange(sec) }
-                    )
-                }
-        }
-
-        Spacer(Modifier.height(24.dp))
-        SettingHeading("Colour fade", "How fast the LED changes to a new colour")
-        Spacer(Modifier.height(12.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            listOf(Triple("Quick", "0.5 s", 500), Triple("Normal", "1.5 s", 1500), Triple("Slow", "3 s", 3000))
-                .forEach { (label, desc, ms) ->
-                    ChoiceCard(
-                        label = label, description = desc,
-                        selected = fadeMs == ms,
-                        modifier = Modifier.weight(1f),
-                        onClick = { onFadeMsChange(ms) }
-                    )
-                }
-        }
-        Spacer(Modifier.height(8.dp))
-        Text(
-            text = "Candle options, rainbow speed and fade need board firmware 1.3.0 or newer.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
-        )
-
-
-        }
-
-        Spacer(Modifier.height(40.dp))
-        CollapsibleCategory("App UI", uiOpen, {
-            uiOpen = !uiOpen; categoryStore.setCategoryCollapsed("ui", !uiOpen)
-        }) {
-        // ── Background ──────────────────────────────────────────────
-        SettingHeading("Background", "What appears behind the controls")
-        Spacer(Modifier.height(12.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            ChoiceCard(
-                label = "Particles",
-                description = "Gentle drifting dots",
-                selected = background == AppBackground.SIMPLE,
-                modifier = Modifier.weight(1f),
-                onClick = { onBackgroundChange(AppBackground.SIMPLE) })
-            ChoiceCard(
-                label = "Image",
-                description = "An image wallpaper",
-                selected = background == AppBackground.IMAGE,
-                modifier = Modifier.weight(1f),
-                onClick = { onBackgroundChange(AppBackground.IMAGE) })
-        }
-
-        Spacer(Modifier.height(32.dp))
-
-        // ── Color Scheme ────────────────────────────────────────────
-        SettingHeading("Color", "Accent and overall tone")
-        Spacer(Modifier.height(12.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            ChoiceCard(
-                label = "Monochrome",
-                description = "Grayscale, accent on the edges",
-                selected = colorScheme == AppColorScheme.MONOCHROME,
-                modifier = Modifier.weight(1f),
-                onClick = { onColorChange(AppColorScheme.MONOCHROME) })
-            ChoiceCard(
-                label = "Colored",
-                description = "Choose a custom color",
-                selected = colorScheme == AppColorScheme.COLORED,
-                modifier = Modifier.weight(1f),
-                onClick = { onColorChange(AppColorScheme.COLORED) })
-        }
-
-        // ── Accent picker — only relevant for the Colored scheme ─────
-        if (colorScheme == AppColorScheme.COLORED) {
-            Spacer(Modifier.height(28.dp))
-            AccentColorPicker(selected = accentColor, onPick = onAccentChange)
-        }
-
-        Spacer(Modifier.height(32.dp))
-
-        SettingHeading("LED dialog", "While the rainbow runs")
-        Spacer(Modifier.height(12.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+            SettingGap()
+            val rainbowSpeeds = listOf(30, 15, 6)
+            SettingHeading("Rainbow speed", "One trip round the colour wheel: 30, 15 or 6 s")
+            SegmentedPill(listOf("Slow", "Normal", "Fast"), rainbowSpeeds.indexOf(rainbowSeconds)) {
+                onRainbowSecondsChange(rainbowSpeeds[it])
+            }
+            SettingGap()
+            val fades = listOf(500, 1500, 3000)
+            SettingHeading("Colour fade", "Time to reach a new colour: 0.5, 1.5 or 3 s")
+            SegmentedPill(listOf("Quick", "Normal", "Slow"), fades.indexOf(fadeMs)) {
+                onFadeMsChange(fades[it])
+            }
+            Spacer(Modifier.height(14.dp))
             Text(
-                text = "Animate the hue slider and hex code",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onBackground,
-                modifier = Modifier.weight(1f)
+                text = "Candle options, rainbow speed and fade need board firmware 1.3.0 or newer.",
+                style = MaterialTheme.typography.bodySmall,
+                color = onBg.copy(alpha = 0.5f)
             )
-            Switch(checked = rainbowSync, onCheckedChange = onRainbowSyncChange)
         }
 
-        Spacer(Modifier.height(32.dp))
-        SettingHeading("Behaviour", "Screen and notifications")
         Spacer(Modifier.height(12.dp))
-        listOf(
-            Triple("Keep screen on", keepScreenOn, onKeepScreenOnChange),
-            Triple("Update notifications at launch", updateToasts, onUpdateToastsChange)
-        ).forEach { (label, checked, onChange) ->
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = label,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onBackground,
-                    modifier = Modifier.weight(1f)
-                )
-                Switch(checked = checked, onCheckedChange = onChange)
-            }
-        }
 
-
-        }
-
-        Spacer(Modifier.height(40.dp))
-        CollapsibleCategory("Firmware & updates", firmwareOpen, {
-            firmwareOpen = !firmwareOpen; categoryStore.setCategoryCollapsed("firmware", !firmwareOpen)
+        // ── App UI ──
+        SettingsCard("App UI", uiOpen, Modifier.entrance(2), {
+            uiOpen = !uiOpen; store.setCategoryCollapsed("ui", !uiOpen)
         }) {
-        // ── Firmware update over Bluetooth ──────────────────────────
-        FirmwareSection(
-            otaManager   = otaManager,
-            state        = otaState,
-            boardVersion = boardVersion,
-            isConnected  = isConnected
-        )
+            SettingHeading("Background", "What appears behind the controls")
+            SegmentedPill(
+                listOf("Particles", "Image"),
+                if (background == AppBackground.IMAGE) 1 else 0
+            ) { onBackgroundChange(if (it == 1) AppBackground.IMAGE else AppBackground.SIMPLE) }
+            SettingGap()
+            SettingHeading("Colour", "Grayscale with accent edges, or fully coloured")
+            SegmentedPill(
+                listOf("Monochrome", "Coloured"),
+                if (colorScheme == AppColorScheme.COLORED) 1 else 0
+            ) { onColorChange(if (it == 1) AppColorScheme.COLORED else AppColorScheme.MONOCHROME) }
+            androidx.compose.animation.AnimatedVisibility(
+                visible = colorScheme == AppColorScheme.COLORED,
+                enter = fadeIn(tween(200)) + androidx.compose.animation.expandVertically(tween(280)),
+                exit = fadeOut(tween(150)) + androidx.compose.animation.shrinkVertically(tween(240))
+            ) {
+                Column {
+                    Spacer(Modifier.height(18.dp))
+                    AccentColorPicker(selected = accentColor, onPick = onAccentChange)
+                }
+            }
+            SettingGap()
+            SettingHeading("Font", "Used for all text in the app")
+            SegmentedPill(listOf("System", "JetBrains Mono"), if (AppLook.monoFont) 1 else 0) {
+                AppLook.monoFont = it == 1
+                store.monoFont = it == 1
+            }
+            SettingGap()
+            SettingHeading("Corners", "Roundness of cards, buttons and sliders")
+            SegmentedPill(listOf("Square", "Small", "Medium", "Large"), store.cornerStyleState()) {
+                AppLook.cornerScale = CornerScales[it]
+                store.cornerStyle = it
+            }
+            SettingGap()
+            SettingSwitch(
+                "Rainbow preview", "Animate the colour sliders while Rainbow runs",
+                rainbowSync, onRainbowSyncChange
+            )
+            Spacer(Modifier.height(10.dp))
+            SettingSwitch("Keep screen on", null, keepScreenOn, onKeepScreenOnChange)
+            Spacer(Modifier.height(10.dp))
+            SettingSwitch(
+                "Update notifications", "Toast at launch when an update is available",
+                updateToasts, onUpdateToastsChange
+            )
+        }
+
+        Spacer(Modifier.height(12.dp))
+
+        // ── Firmware & updates ──
+        SettingsCard("Firmware & updates", firmwareOpen, Modifier.entrance(3), {
+            firmwareOpen = !firmwareOpen; store.setCategoryCollapsed("firmware", !firmwareOpen)
+        }) {
+            FirmwareSection(
+                otaManager   = otaManager,
+                state        = otaState,
+                boardVersion = boardVersion,
+                isConnected  = isConnected
+            )
+            Spacer(Modifier.height(12.dp))
+            AppUpdateSection()
+        }
 
         Spacer(Modifier.height(32.dp))
-
-        // ── App update from GitHub releases ─────────────────────────
-        AppUpdateSection()
-        }
-
-        Spacer(Modifier.height(48.dp))
     }
 }
+
+/** The corner style index, read from [AppLook] so the pill follows live changes. */
+private fun SettingsStore.cornerStyleState(): Int =
+    CornerScales.indexOfFirst { it == AppLook.cornerScale }.takeIf { it >= 0 } ?: cornerStyle
 
 @Composable
 private fun FirmwareSection(
@@ -1994,63 +1858,26 @@ private fun FirmwareSection(
     }
     BackHandler(enabled = state.busy) { }
 
-
-    SettingHeading("Firmware", "Update the LED board over Bluetooth")
-    Spacer(Modifier.height(12.dp))
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .border(
-                1.5.dp,
-                MaterialTheme.colorScheme.onBackground.copy(alpha = 0.12f),
-                RoundedCornerShape(16.dp)
-            )
-            .padding(16.dp)
+    UpdateBlock(
+        title = when {
+            !isConnected         -> "Board not connected"
+            boardVersion != null -> "Board firmware v$boardVersion"
+            else                 -> "Board firmware version unknown"
+        },
+        status = otaStatusText(state),
+        error = state is OtaState.Error
     ) {
-        Text(
-            text       = when {
-                !isConnected         -> "Board not connected"
-                boardVersion != null -> "Board firmware v$boardVersion"
-                else                 -> "Board firmware version unknown"
-            },
-            style      = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.SemiBold,
-            color      = MaterialTheme.colorScheme.onBackground
-        )
-        Spacer(Modifier.height(4.dp))
-        Text(
-            text  = otaStatusText(state),
-            style = MaterialTheme.typography.bodySmall,
-            color = if (state is OtaState.Error) MaterialTheme.colorScheme.error
-                    else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-        )
-
         if (state.busy || state == OtaState.Checking) {
-            Spacer(Modifier.height(12.dp))
-            if (state is OtaState.Uploading && state.total > 0) {
-                LinearProgressIndicator(
-                    progress = { state.sent.toFloat() / state.total },
-                    modifier = Modifier.fillMaxWidth()
-                )
-            } else {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            UpdateProgress(
+                if (state is OtaState.Uploading && state.total > 0) state.sent.toFloat() / state.total else null
+            )
+        } else if (state is OtaState.UpdateAvailable) {
+            PillButton("Update to v${state.release.version}", highlighted = true, enabled = isConnected) {
+                otaManager.startUpdate(state.release)
             }
         } else {
-            Spacer(Modifier.height(12.dp))
-            if (state is OtaState.UpdateAvailable) {
-                Button(
-                    onClick  = { otaManager.startUpdate(state.release) },
-                    enabled  = isConnected,
-                    shape    = RoundedCornerShape(14.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text("Update to v${state.release.version}") }
-            } else {
-                TextButton(
-                    onClick  = { otaManager.checkForUpdate(boardVersion) },
-                    enabled  = isConnected,
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text("Check for updates") }
+            PillButton("Check for updates", highlighted = false, enabled = isConnected) {
+                otaManager.checkForUpdate(boardVersion)
             }
         }
     }
@@ -2076,63 +1903,113 @@ private fun AppUpdateSection() {
         ActivityResultContracts.StartActivityForResult()
     ) { AppUpdater.continueInstall(context) }
 
-    SettingHeading("App", "Update this app from GitHub")
-    Spacer(Modifier.height(12.dp))
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .border(
-                1.5.dp,
-                MaterialTheme.colorScheme.onBackground.copy(alpha = 0.12f),
-                RoundedCornerShape(16.dp)
-            )
-            .padding(16.dp)
+    UpdateBlock(
+        title = "Glow v$installedVersion",
+        status = appUpdateStatusText(state),
+        error = state is AppUpdateState.Error
     ) {
-        Text(
-            text       = "Glow v$installedVersion",
-            style      = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.SemiBold,
-            color      = MaterialTheme.colorScheme.onBackground
-        )
-        Spacer(Modifier.height(4.dp))
-        Text(
-            text  = appUpdateStatusText(state),
-            style = MaterialTheme.typography.bodySmall,
-            color = if (state is AppUpdateState.Error) MaterialTheme.colorScheme.error
-                    else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-        )
-
-        Spacer(Modifier.height(12.dp))
         when {
-            state is AppUpdateState.Downloading && state.total > 0 -> LinearProgressIndicator(
-                progress = { state.read.toFloat() / state.total },
-                modifier = Modifier.fillMaxWidth()
-            )
-            state.busy || state == AppUpdateState.Checking ->
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-            state is AppUpdateState.UpdateAvailable -> Button(
-                onClick  = { AppUpdater.startUpdate(context, state.release) },
-                shape    = RoundedCornerShape(14.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) { Text("Update to v${state.release.version}") }
-            state == AppUpdateState.NeedsPermission -> Button(
-                onClick  = {
+            state is AppUpdateState.Downloading && state.total > 0 ->
+                UpdateProgress(state.read.toFloat() / state.total)
+            state.busy || state == AppUpdateState.Checking -> UpdateProgress(null)
+            state is AppUpdateState.UpdateAvailable ->
+                PillButton("Update to v${state.release.version}", highlighted = true) {
+                    AppUpdater.startUpdate(context, state.release)
+                }
+            state == AppUpdateState.NeedsPermission ->
+                PillButton("Allow app updates", highlighted = true) {
                     allowInstalls.launch(
                         Intent(
                             Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
                             Uri.parse("package:${context.packageName}")
                         )
                     )
-                },
-                shape    = RoundedCornerShape(14.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) { Text("Allow app updates") }
-            else -> TextButton(
-                onClick  = { AppUpdater.checkForUpdate(context) },
-                modifier = Modifier.fillMaxWidth()
-            ) { Text("Check for updates") }
+                }
+            else -> PillButton("Check for updates", highlighted = false) {
+                AppUpdater.checkForUpdate(context)
+            }
         }
+    }
+}
+
+/** One update target (board or app): name, status line, then a button or progress bar. */
+@Composable
+private fun UpdateBlock(
+    title: String,
+    status: String,
+    error: Boolean,
+    action: @Composable ColumnScope.() -> Unit
+) {
+    val onBg = MaterialTheme.colorScheme.onBackground
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(rounded(18.dp))
+            .background(onBg.copy(alpha = 0.05f))
+            .padding(16.dp)
+    ) {
+        Text(
+            text       = title,
+            style      = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+            color      = onBg
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text  = status,
+            style = MaterialTheme.typography.bodySmall,
+            color = if (error) MaterialTheme.colorScheme.error else onBg.copy(alpha = 0.6f)
+        )
+        Spacer(Modifier.height(12.dp))
+        action()
+    }
+}
+
+/** Progress bar: [fraction] 0..1, or null while the length isn't known. */
+@Composable
+private fun UpdateProgress(fraction: Float?) {
+    val track = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.1f)
+    val mod = Modifier
+        .fillMaxWidth()
+        .height(6.dp)
+        .clip(rounded(3.dp))
+    if (fraction != null) {
+        val shown by animateFloatAsState(fraction, tween(300), label = "updateProgress")
+        LinearProgressIndicator(progress = { shown }, modifier = mod, trackColor = track)
+    } else {
+        LinearProgressIndicator(modifier = mod, trackColor = track)
+    }
+}
+
+/** Full-width button in the app's style; [highlighted] fills it with the accent colour. */
+@Composable
+private fun PillButton(
+    text: String,
+    highlighted: Boolean,
+    enabled: Boolean = true,
+    onClick: () -> Unit
+) {
+    val onBg = MaterialTheme.colorScheme.onBackground
+    val bg by animateColorAsState(
+        if (highlighted) MaterialTheme.colorScheme.primary else onBg.copy(alpha = 0.08f),
+        tween(250), label = "pillButtonBg"
+    )
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(46.dp)
+            .clip(rounded(16.dp))
+            .background(bg)
+            .alpha(if (enabled) 1f else 0.4f)
+            .bounceClickable(enabled = enabled, pressedScale = 0.97f, onClick = onClick)
+    ) {
+        Text(
+            text,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = if (highlighted) MaterialTheme.colorScheme.onPrimary else onBg
+        )
     }
 }
 
@@ -2167,7 +2044,6 @@ private fun otaStatusText(state: OtaState): String = when (state) {
 @Composable
 private fun AccentColorPicker(selected: Int, onPick: (Int) -> Unit) {
     SettingHeading("Accent", "Pick a preset or drag for any shade")
-    Spacer(Modifier.height(14.dp))
 
     // Preset swatches
     Row(
@@ -2176,13 +2052,14 @@ private fun AccentColorPicker(selected: Int, onPick: (Int) -> Unit) {
         AccentPresets.forEach { c ->
             val argb = c.toArgb()
             val isSel = argb == selected
+            val ring by animateDpAsState(if (isSel) 3.dp else 1.dp, tween(200), label = "accentRing")
             Box(
                 modifier = Modifier
-                    .size(32.dp)
+                    .size(30.dp)
                     .clip(CircleShape)
                     .background(c)
                     .border(
-                        width = if (isSel) 3.dp else 1.dp,
+                        width = ring,
                         color = if (isSel) MaterialTheme.colorScheme.onBackground
                         else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.10f),
                         shape = CircleShape
@@ -2191,7 +2068,7 @@ private fun AccentColorPicker(selected: Int, onPick: (Int) -> Unit) {
         }
     }
 
-    Spacer(Modifier.height(20.dp))
+    Spacer(Modifier.height(16.dp))
 
     // Custom hue spectrum
     HueSlider(
@@ -2232,7 +2109,7 @@ private fun HueSlider(
         modifier = modifier
             .fillMaxWidth()
             .height(28.dp)
-            .clip(RoundedCornerShape(14.dp))
+            .clip(rounded(14.dp))
             .onSizeChanged { widthPx = it.width.coerceAtLeast(1) }
             .pointerInput(Unit) {
                 awaitEachGesture {
@@ -2250,61 +2127,60 @@ private fun HueSlider(
     }
 }
 
-/** Tappable title that minimises the settings below it; the choice is remembered. */
+/** A frosted card whose title row minimises the settings inside it. */
 @Composable
-private fun CollapsibleCategory(
+private fun SettingsCard(
     title: String,
     expanded: Boolean,
+    modifier: Modifier = Modifier,
     onToggle: () -> Unit,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val arrow by animateFloatAsState(if (expanded) -90f else 180f, tween(250), label = "categoryArrow")
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .bounceClickable(pressedScale = 0.98f, onClick = onToggle)
-            .padding(vertical = 6.dp)
-    ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.weight(1f)
-        )
-        Icon(
-            painter = painterResource(R.drawable.arrow_back),
-            contentDescription = if (expanded) "Minimise $title" else "Expand $title",
-            modifier = Modifier.size(20.dp).rotate(arrow),
-            tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-        )
-    }
-    Spacer(Modifier.height(4.dp))
-    Box(
-        Modifier
-            .fillMaxWidth()
-            .height(1.dp)
-            .background(MaterialTheme.colorScheme.onBackground.copy(alpha = 0.12f))
-    )
-    androidx.compose.animation.AnimatedVisibility(
-        visible = expanded,
-        enter = fadeIn(tween(200)) + androidx.compose.animation.expandVertically(tween(300)),
-        exit = fadeOut(tween(150)) + androidx.compose.animation.shrinkVertically(tween(250))
-    ) {
-        Column {
-            Spacer(Modifier.height(16.dp))
-            content()
+    val arrow by animateFloatAsState(if (expanded) 90f else -90f, tween(250), label = "cardArrow")
+    PanelCard(modifier) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(rounded(12.dp))
+                .bounceClickable(pressedScale = 0.98f, onClick = onToggle)
+                .padding(vertical = 2.dp)
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f)
+            )
+            Icon(
+                painter = painterResource(R.drawable.arrow_back),
+                contentDescription = if (expanded) "Minimise $title" else "Expand $title",
+                modifier = Modifier.size(18.dp).rotate(arrow),
+                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+            )
+        }
+        androidx.compose.animation.AnimatedVisibility(
+            visible = expanded,
+            enter = fadeIn(tween(200)) + androidx.compose.animation.expandVertically(tween(300)),
+            exit = fadeOut(tween(150)) + androidx.compose.animation.shrinkVertically(tween(250))
+        ) {
+            Column {
+                Spacer(Modifier.height(18.dp))
+                content()
+            }
         }
     }
 }
 
 @Composable
+private fun SettingGap() = Spacer(Modifier.height(22.dp))
+
+@Composable
 private fun SettingHeading(title: String, subtitle: String) {
     Text(
         text = title,
-        style = MaterialTheme.typography.titleMedium,
+        style = MaterialTheme.typography.titleSmall,
         fontWeight = FontWeight.SemiBold,
         color = MaterialTheme.colorScheme.onBackground
     )
@@ -2314,46 +2190,98 @@ private fun SettingHeading(title: String, subtitle: String) {
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
     )
+    Spacer(Modifier.height(10.dp))
 }
 
 @Composable
-private fun ChoiceCard(
-    label: String,
-    description: String,
-    selected: Boolean,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit
+private fun SettingSwitch(
+    title: String,
+    subtitle: String?,
+    checked: Boolean,
+    onChange: (Boolean) -> Unit
 ) {
-    val borderColor by animateColorAsState(
-        targetValue = if (selected) MaterialTheme.colorScheme.primary
-        else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.12f),
-        animationSpec = tween(220),
-        label = "choiceBorder"
-    )
-    val bgColor by animateColorAsState(
-        targetValue = if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
-        else Color.Transparent, animationSpec = tween(220), label = "choiceBg"
-    )
-    Column(
-        modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(bgColor)
-            .border(1.5.dp, borderColor, RoundedCornerShape(16.dp))
-            .bounceClickable(pressedScale = 0.96f, onClick = onClick)
-            .padding(16.dp)
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.SemiBold,
-            color = if (selected) MaterialTheme.colorScheme.primary
-            else MaterialTheme.colorScheme.onBackground
-        )
-        Spacer(Modifier.height(4.dp))
-        Text(
-            text = description,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
-        )
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+            if (subtitle != null) {
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+                )
+            }
+        }
+        Spacer(Modifier.width(12.dp))
+        Switch(checked = checked, onCheckedChange = onChange)
+    }
+}
+
+/** One pill split into [options]; the selected one is filled by a sliding thumb (-1 = none). */
+@Composable
+private fun SegmentedPill(
+    options: List<String>,
+    selected: Int,
+    modifier: Modifier = Modifier,
+    onSelect: (Int) -> Unit
+) {
+    val onBg = MaterialTheme.colorScheme.onBackground
+    val thumb by animateFloatAsState(
+        selected.coerceAtLeast(0).toFloat(),
+        spring(stiffness = Spring.StiffnessMediumLow), label = "pillThumb"
+    )
+    BoxWithConstraints(
+        modifier
+            .fillMaxWidth()
+            .height(40.dp)
+            .clip(rounded(20.dp))
+            .background(onBg.copy(alpha = 0.08f))
+    ) {
+        val seg = maxWidth / options.size
+        if (selected >= 0) {
+            Box(
+                Modifier
+                    .offset(x = seg * thumb)
+                    .width(seg)
+                    .fillMaxHeight()
+                    .padding(3.dp)
+                    .clip(rounded(17.dp))
+                    .background(MaterialTheme.colorScheme.primary)
+            )
+        }
+        Row(Modifier.fillMaxSize()) {
+            options.forEachIndexed { i, label ->
+                val fg by animateColorAsState(
+                    if (i == selected) MaterialTheme.colorScheme.onPrimary else onBg.copy(alpha = 0.7f),
+                    tween(200), label = "pillFg"
+                )
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { if (i != selected) onSelect(i) }
+                ) {
+                    Text(
+                        label,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = fg,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(horizontal = 4.dp)
+                    )
+                }
+            }
+        }
     }
 }

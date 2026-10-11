@@ -1,6 +1,10 @@
 package io.github.voidqubex.wifi_fan.ui.theme
 
 import androidx.compose.material3.Typography
+import androidx.compose.ui.text.ExperimentalTextApi
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontVariation
+import io.github.voidqubex.wifi_fan.R
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -32,3 +36,38 @@ val Typography = Typography(
     )
     */
 )
+
+/** JetBrains Mono, from the bundled variable font (one file, every weight). */
+@OptIn(ExperimentalTextApi::class)
+val JetBrainsMono = FontFamily(
+    listOf(
+        FontWeight.Light, FontWeight.Normal, FontWeight.Medium, FontWeight.SemiBold, FontWeight.Bold
+    ).map { w ->
+        Font(
+            R.font.jetbrains_mono,
+            weight = w,
+            variationSettings = FontVariation.Settings(FontVariation.weight(w.weight))
+        )
+    }
+)
+
+private fun Typography.withFamily(f: FontFamily) = Typography(
+    displayLarge = displayLarge.copy(fontFamily = f),
+    displayMedium = displayMedium.copy(fontFamily = f),
+    displaySmall = displaySmall.copy(fontFamily = f),
+    headlineLarge = headlineLarge.copy(fontFamily = f),
+    headlineMedium = headlineMedium.copy(fontFamily = f),
+    headlineSmall = headlineSmall.copy(fontFamily = f),
+    titleLarge = titleLarge.copy(fontFamily = f),
+    titleMedium = titleMedium.copy(fontFamily = f),
+    titleSmall = titleSmall.copy(fontFamily = f),
+    bodyLarge = bodyLarge.copy(fontFamily = f),
+    bodyMedium = bodyMedium.copy(fontFamily = f),
+    bodySmall = bodySmall.copy(fontFamily = f),
+    labelLarge = labelLarge.copy(fontFamily = f),
+    labelMedium = labelMedium.copy(fontFamily = f),
+    labelSmall = labelSmall.copy(fontFamily = f)
+)
+
+/** Every text style in JetBrains Mono. */
+val MonoTypography = Typography.withFamily(JetBrainsMono)
