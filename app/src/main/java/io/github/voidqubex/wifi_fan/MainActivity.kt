@@ -18,6 +18,7 @@ import androidx.core.view.WindowCompat
 import androidx.lifecycle.lifecycleScope
 import io.github.voidqubex.wifi_fan.bluetooth.BleManager
 import io.github.voidqubex.wifi_fan.ota.OtaManager
+import io.github.voidqubex.wifi_fan.sync.SyncHub
 import io.github.voidqubex.wifi_fan.ui.home.BleControlScreen
 import io.github.voidqubex.wifi_fan.ui.theme.AppLook
 import io.github.voidqubex.wifi_fan.ui.theme.GlowTheme
@@ -33,7 +34,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        bleManager = BleManager(this)
+        bleManager = (application as GlowApp).bleManager
+        SyncHub.uiAlive = true
         otaManager = OtaManager(bleManager, lifecycleScope)
         val settingsStore = SettingsStore(this)
         AppLook.monoFont = settingsStore.monoFont
@@ -72,7 +74,10 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        bleManager.disconnect()
+        SyncHub.uiAlive = false
+        // Leaving for good ends the Bluetooth link (a rotation doesn't), unless music, visualizer or
+        // screen sync is still driving the LED: the service lets go of the board when it stops.
+        if (isFinishing && !SyncHub.isActive()) bleManager.disconnect()
     }
 }
 

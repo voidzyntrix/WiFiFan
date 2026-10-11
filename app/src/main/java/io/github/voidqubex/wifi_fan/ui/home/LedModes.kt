@@ -11,6 +11,8 @@ internal const val LED_MODE_AURORA = 6
 internal const val LED_MODE_MUSIC = 7
 /** Screen sync: the dominant screen colour (app-side, foreground service). */
 internal const val LED_MODE_SCREEN = 8
+/** Visualizer: bass, mids and treble of what the speakers play set the colour (app-side, foreground service). */
+internal const val LED_MODE_VISUALIZER = 9
 
 /** Board effects (firmware 1.4.0+): mode -> (button label, command). */
 internal val LedEffects = listOf(

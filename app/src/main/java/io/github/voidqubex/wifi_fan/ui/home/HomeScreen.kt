@@ -91,8 +91,11 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
-import io.github.voidqubex.wifi_fan.audio.MusicReactor
+import io.github.voidqubex.wifi_fan.audio.AudioSyncService
 import io.github.voidqubex.wifi_fan.screen.ScreenSyncService
+import io.github.voidqubex.wifi_fan.sync.SyncHub
+import io.github.voidqubex.wifi_fan.sync.SyncKind
+import io.github.voidqubex.wifi_fan.sync.SyncParams
 import io.github.voidqubex.wifi_fan.ui.whatsnew.WhatsNewDialog
 import kotlinx.coroutines.CancellationException
 import androidx.compose.ui.window.Popup
@@ -381,7 +384,7 @@ fun BleControlScreen(
         LED_MODE_CANDLE -> sendCandle()
         LED_MODE_BREATHE -> { sendHsvColour(); sendEffect(LED_MODE_BREATHE) }   // breathes in the picked colour
         LED_MODE_OCEAN, LED_MODE_PARTY, LED_MODE_AURORA -> sendEffect(ledMode)
-        LED_MODE_MUSIC, LED_MODE_SCREEN -> {}   // their loops send the colour
+        LED_MODE_MUSIC, LED_MODE_VISUALIZER, LED_MODE_SCREEN -> {}   // their services send the colour
         else -> sendSolid()
     }
 
@@ -402,49 +405,101 @@ fun BleControlScreen(
             sendSolid()                       // fades to black, ends any effect
         } else {
             bri = lastOnBri
-            // Screen sync needs a fresh capture consent, so it comes back as Solid.
-            ledMode = if (lastOnMode == LED_MODE_SCREEN) LED_MODE_SOLID else lastOnMode
+            // Screen sync and Visualizer need a fresh capture consent, so they come back as Solid.
+            ledMode = if (lastOnMode == LED_MODE_SCREEN || lastOnMode == LED_MODE_VISUALIZER) LED_MODE_SOLID
+            else lastOnMode
             sendCurrent()
         }
     }
 
-    // Music / Screen mode state.
+    // ── Music / Visualizer / Screen sync ──
+    // Foreground services do the listening and capturing, so they keep driving the LED with the
+    // app closed. This screen starts and stops them, and shows what they report.
     LaunchedEffect(musicKeepColour) { ledStore.musicKeepColour = musicKeepColour }
-    var musicLevel by remember { mutableFloatStateOf(0f) }
-    var musicHue by remember { mutableFloatStateOf(hue) }
-    var screenHue by remember { mutableFloatStateOf(hue) }
-    var screenSat by remember { mutableFloatStateOf(sat) }
+    val syncActive by SyncHub.active.collectAsState()
+    val syncLevel by SyncHub.level.collectAsState()
+    val syncHue by SyncHub.hue.collectAsState()
+    val syncSat by SyncHub.sat.collectAsState()
+    val syncError by SyncHub.error.collectAsState()
+    // What the services read live.
+    SideEffect {
+        SyncParams.hue = hue
+        SyncParams.sat = sat
+        SyncParams.bri = bri
+        SyncParams.sensitivity = musicSensitivity
+        SyncParams.keepColour = musicKeepColour
+    }
+    val liveHue = if (syncActive == SyncKind.NONE) hue else syncHue
+    val liveSat = if (syncActive == SyncKind.NONE) sat else syncSat
+    val liveLevel = if (syncActive == SyncKind.NONE) 0f else syncLevel
+
     fun micGranted() = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
         PackageManager.PERMISSION_GRANTED
-    val micLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) ledMode = LED_MODE_MUSIC
-        else Toast.makeText(
-            context, "Music mode listens through the microphone; without it the LED stays as it is.",
-            Toast.LENGTH_LONG
-        ).show()
+    fun stopSync(kind: SyncKind) {
+        when (kind) {
+            SyncKind.SCREEN -> ScreenSyncService.stop(context)
+            SyncKind.MUSIC, SyncKind.VISUALIZER -> AudioSyncService.stop(context)
+            SyncKind.NONE -> {}
+        }
     }
+
+    // What the capture consent screen was opened for (Visualizer or Screen sync).
+    var pendingKind by remember { mutableStateOf(SyncKind.NONE) }
     val captureLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
         val data = result.data
+        val visualizer = pendingKind == SyncKind.VISUALIZER
         if (result.resultCode == Activity.RESULT_OK && data != null) {
-            ScreenSyncService.start(context, result.resultCode, data)
+            if (visualizer) {
+                AudioSyncService.startSpeaker(context, result.resultCode, data)
+                ledMode = LED_MODE_VISUALIZER
+            } else {
+                ScreenSyncService.start(context, result.resultCode, data)
+                ledMode = LED_MODE_SCREEN
+            }
             if (ledKelvinMode) ledKelvinMode = false
-            ledMode = LED_MODE_SCREEN
         } else {
-            Toast.makeText(context, "Screen sync needs permission to see the screen.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(
+                context,
+                if (visualizer) "The visualizer needs permission to capture the audio your phone plays."
+                else "Screen sync needs permission to see the screen.",
+                Toast.LENGTH_SHORT
+            ).show()
         }
+        pendingKind = SyncKind.NONE
     }
     // Consent first, then the foreground service starts (required on Android 14+).
-    fun requestScreenCapture() {
+    fun requestCapture() {
         val mpm = context.getSystemService(MediaProjectionManager::class.java)
         captureLauncher.launch(mpm.createScreenCaptureIntent())
     }
     val notifyLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
-        requestScreenCapture()   // the Stop button lives in the notification, but it works without
+        requestCapture()   // the Stop button lives in the notification, but it works without
+    }
+    fun continueToCapture() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) notifyLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        else requestCapture()
+    }
+    val micLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (!granted) {
+            Toast.makeText(
+                context, "This mode listens to audio; without the permission the LED stays as it is.",
+                Toast.LENGTH_LONG
+            ).show()
+            pendingKind = SyncKind.NONE
+        } else if (pendingKind == SyncKind.VISUALIZER) {
+            continueToCapture()
+        } else {
+            ledMode = LED_MODE_MUSIC
+            pendingKind = SyncKind.NONE
+        }
     }
 
-    // Start a mode from the mode chips.
+    // Start a mode from the mode menu.
     fun startMode(mode: Int) {
         if (bri < MIN_VISIBLE_BRIGHTNESS) bri = lastOnBri
         when (mode) {
@@ -455,119 +510,80 @@ fun BleControlScreen(
                 sendRainbow()
             }
             LED_MODE_CANDLE -> sendCandle()
-            LED_MODE_MUSIC -> if (micGranted()) ledMode = LED_MODE_MUSIC
+            LED_MODE_MUSIC -> {
+                pendingKind = SyncKind.MUSIC
+                if (micGranted()) { ledMode = LED_MODE_MUSIC; pendingKind = SyncKind.NONE }
                 else micLauncher.launch(Manifest.permission.RECORD_AUDIO)
+            }
+            LED_MODE_VISUALIZER -> if (ledMode != LED_MODE_VISUALIZER) {
+                pendingKind = SyncKind.VISUALIZER
+                if (micGranted()) continueToCapture() else micLauncher.launch(Manifest.permission.RECORD_AUDIO)
+            }
             LED_MODE_SCREEN -> if (ledMode != LED_MODE_SCREEN) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                    ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
-                    PackageManager.PERMISSION_GRANTED
-                ) notifyLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                else requestScreenCapture()
+                pendingKind = SyncKind.SCREEN
+                continueToCapture()
             }
             else -> { if (ledKelvinMode) ledKelvinMode = false; sendEffect(mode) }
         }
     }
 
-    // ── Music mode: the microphone drives the LED while the app is in the foreground ──
-    val lifecycleOwner = LocalLifecycleOwner.current
-    var inForeground by remember { mutableStateOf(true) }
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            when (event) {
-                Lifecycle.Event.ON_START -> inForeground = true
-                Lifecycle.Event.ON_STOP -> inForeground = false
-                else -> {}
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    // Music starts once it is wanted. The app is visible here, which Android requires to open the
+    // microphone. Starting it while Visualizer runs restarts the service as Music.
+    val musicWanted = ledMode == LED_MODE_MUSIC && isConnected && ledOn && micGranted()
+    LaunchedEffect(musicWanted, syncActive) {
+        if (musicWanted && syncActive != SyncKind.MUSIC) AudioSyncService.startMic(context)
     }
-    val musicActive = ledMode == LED_MODE_MUSIC && isConnected && ledOn && inForeground && micGranted()
-    LaunchedEffect(musicActive) {
-        if (!musicActive) return@LaunchedEffect
-        // Short fades so the board doesn't smear the pulses.
-        if (fwOptions) bleManager.sendData("fade=60")
-        val main = Handler(Looper.getMainLooper())
-        var beatHue = hue
-        var lastSend = 0L
-        try {
-            MusicReactor().run({ musicSensitivity }) { level, beat ->
-                if (beat && !musicKeepColour) beatHue = (beatHue + 47f) % 360f
-                val now = System.currentTimeMillis()
-                val send = now - lastSend >= 55L          // at most ~18 commands/s
-                if (send) lastSend = now
-                main.post {
-                    musicLevel = level
-                    musicHue = if (musicKeepColour) hue else beatHue
-                    if (send && ledMode == LED_MODE_MUSIC) {
-                        sendColour(musicHue, if (musicKeepColour) sat else 1f, bri * (0.04f + 0.96f * level))
-                    }
-                }
-            }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Toast.makeText(context, "Music mode can't use the microphone: ${e.message}", Toast.LENGTH_LONG).show()
-            ledMode = LED_MODE_SOLID
-            sendCurrent()
-        } finally {
-            main.removeCallbacksAndMessages(null)
-            musicLevel = 0f
-            if (fwOptions && bleManager.connectionState.value == BluetoothProfile.STATE_CONNECTED) {
-                bleManager.sendData("fade=$fadeMs")
-            }
+    // Stop what runs for a mode that is no longer shown, or while the LED is off. (Music and
+    // Visualizer share one service, which restarts instead when the other one is picked.)
+    LaunchedEffect(syncActive, ledMode, ledOn) {
+        val wanted = if (!ledOn) SyncKind.NONE else when (ledMode) {
+            LED_MODE_MUSIC -> SyncKind.MUSIC
+            LED_MODE_VISUALIZER -> SyncKind.VISUALIZER
+            LED_MODE_SCREEN -> SyncKind.SCREEN
+            else -> SyncKind.NONE
+        }
+        fun sameService(a: SyncKind, b: SyncKind) = a != SyncKind.SCREEN && b != SyncKind.SCREEN
+        if (syncActive != SyncKind.NONE && (wanted == SyncKind.NONE || !sameService(syncActive, wanted))) {
+            stopSync(syncActive)
         }
     }
-
-    // ── Screen sync: a foreground service mirrors the screen colour, also in the background ──
-    val screenRunning by ScreenSyncService.running.collectAsState()
-    var screenStarted by remember { mutableStateOf(false) }
-    val screenActive = ledMode == LED_MODE_SCREEN && isConnected
-    DisposableEffect(screenActive) {
-        if (screenActive) {
-            val main = Handler(Looper.getMainLooper())
-            var lastSend = 0L
-            ScreenSyncService.sink = { h, s ->
-                val now = System.currentTimeMillis()
-                if (now - lastSend >= 100L) {
-                    lastSend = now
-                    main.post {
-                        screenHue = h; screenSat = s
-                        if (ledMode == LED_MODE_SCREEN && bri >= MIN_VISIBLE_BRIGHTNESS) sendColour(h, s, bri)
-                    }
-                }
-            }
+    // A sync that ended by itself (notification Stop, disconnect): back to the picked colour.
+    var prevSync by remember { mutableStateOf(SyncKind.NONE) }
+    LaunchedEffect(syncActive) {
+        val was = prevSync
+        prevSync = syncActive
+        val mine = when (was) {
+            SyncKind.MUSIC -> LED_MODE_MUSIC
+            SyncKind.VISUALIZER -> LED_MODE_VISUALIZER
+            SyncKind.SCREEN -> LED_MODE_SCREEN
+            SyncKind.NONE -> -1
         }
-        onDispose {
-            if (screenActive) {
-                ScreenSyncService.sink = null
-                ScreenSyncService.stop(context)
-                screenStarted = false
-            }
-        }
-    }
-    LaunchedEffect(screenRunning) {
-        if (screenRunning) screenStarted = true
-        else if (screenStarted && ledMode == LED_MODE_SCREEN) {
-            // Stopped from the notification (or by the system): back to the picked colour.
-            screenStarted = false
+        if (was != SyncKind.NONE && syncActive == SyncKind.NONE && ledMode == mine) {
             ledMode = LED_MODE_SOLID
             sendCurrent()
         }
     }
-    // Disconnected, or restored from a previous run without a capture: Screen falls back to Solid.
+    LaunchedEffect(syncError) {
+        val message = syncError ?: return@LaunchedEffect
+        SyncHub.error.value = null
+        Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+        if (ledMode == LED_MODE_MUSIC || ledMode == LED_MODE_VISUALIZER || ledMode == LED_MODE_SCREEN) {
+            ledMode = LED_MODE_SOLID
+            sendCurrent()
+        }
+    }
+    // Disconnected, or restored from a previous run without a capture: Visualizer and Screen fall
+    // back to Solid (they need a fresh capture consent).
     LaunchedEffect(isConnected) {
-        if (ledMode == LED_MODE_SCREEN && (!isConnected || !ScreenSyncService.running.value)) {
-            ledMode = LED_MODE_SOLID
-        }
+        val needsCapture = ledMode == LED_MODE_SCREEN || ledMode == LED_MODE_VISUALIZER
+        if (needsCapture && (!isConnected || SyncHub.active.value == SyncKind.NONE)) ledMode = LED_MODE_SOLID
     }
 
     // What the preview shows: the board's mode, approximated.
     val previewHue = when (ledMode) {
         LED_MODE_RAINBOW, LED_MODE_PARTY -> rainbowHue
         LED_MODE_CANDLE -> candleHue.toFloat()
-        LED_MODE_MUSIC -> musicHue
-        LED_MODE_SCREEN -> screenHue
+        LED_MODE_MUSIC, LED_MODE_VISUALIZER, LED_MODE_SCREEN -> liveHue
         LED_MODE_OCEAN -> 205f + 20f * sin(rainbowHue / 360f * 6.2832f)
         LED_MODE_AURORA -> 200f + 80f * sin(rainbowHue / 360f * 6.2832f / 4f)
         else -> hue
@@ -577,20 +593,20 @@ fun BleControlScreen(
         LED_MODE_OCEAN -> 0.9f
         LED_MODE_AURORA -> 0.82f
         LED_MODE_PARTY -> 1f
-        LED_MODE_MUSIC -> if (musicKeepColour) sat else 1f
-        LED_MODE_SCREEN -> screenSat
+        LED_MODE_MUSIC, LED_MODE_VISUALIZER, LED_MODE_SCREEN -> liveSat
         else -> sat
     }
     val previewVal = when (ledMode) {
         LED_MODE_CANDLE -> bri * (0.82f + 0.1f * sin(rainbowHue / 360f * 6.2832f * 2f))
         LED_MODE_BREATHE -> bri * (0.575f + 0.425f * sin(rainbowHue / 360f * 6.2832f))
-        LED_MODE_MUSIC -> bri * (0.15f + 0.85f * musicLevel)
+        LED_MODE_MUSIC, LED_MODE_VISUALIZER -> bri * (0.15f + 0.85f * liveLevel)
         else -> bri
     }
     val modeName = when (ledMode) {
         LED_MODE_RAINBOW -> "Rainbow"
         LED_MODE_CANDLE -> "Candle"
         LED_MODE_MUSIC -> "Music"
+        LED_MODE_VISUALIZER -> "Visualizer"
         LED_MODE_SCREEN -> "Screen sync"
         LED_MODE_SOLID -> if (ledKelvinMode) "${(ledKelvin / 50).roundToInt() * 50} K" else
             AndroidColor.HSVToColor(floatArrayOf(shownHue, sat, 1f)).let {
@@ -693,6 +709,7 @@ fun BleControlScreen(
                                 Triple(LED_MODE_CANDLE, "Candle", fwCandle)
                             ) + LedEffects.map { Triple(it.first, it.second, fwEffects) } + listOf(
                                 Triple(LED_MODE_MUSIC, "Music", true),
+                                Triple(LED_MODE_VISUALIZER, "Visualizer", true),
                                 Triple(LED_MODE_SCREEN, "Screen", true)
                             )
                             val modeLabel = modeList.firstOrNull { it.first == ledMode }?.second ?: "Solid"
@@ -938,7 +955,7 @@ fun BleControlScreen(
                                 if (ledMode == LED_MODE_MUSIC) {
                                     Spacer(Modifier.height(12.dp))
                                     MusicPanel(
-                                        level = musicLevel,
+                                        level = liveLevel,
                                         sensitivity = musicSensitivity,
                                         onSensitivity = { musicSensitivity = it },
                                         onSensitivityDone = { ledStore.musicSensitivity = musicSensitivity },
@@ -947,10 +964,21 @@ fun BleControlScreen(
                                         micAllowed = micGranted(),
                                         modifier = Modifier.entrance(2)
                                     )
+                                } else if (ledMode == LED_MODE_VISUALIZER) {
+                                    Spacer(Modifier.height(12.dp))
+                                    VisualizerPanel(
+                                        level = liveLevel,
+                                        running = syncActive == SyncKind.VISUALIZER,
+                                        sensitivity = musicSensitivity,
+                                        onSensitivity = { musicSensitivity = it },
+                                        onSensitivityDone = { ledStore.musicSensitivity = musicSensitivity },
+                                        onStop = { startMode(LED_MODE_SOLID) },
+                                        modifier = Modifier.entrance(2)
+                                    )
                                 } else if (ledMode == LED_MODE_SCREEN) {
                                     Spacer(Modifier.height(12.dp))
                                     ScreenSyncPanel(
-                                        running = screenRunning,
+                                        running = syncActive == SyncKind.SCREEN,
                                         onStop = { startMode(LED_MODE_SOLID) },
                                         modifier = Modifier.entrance(2)
                                     )
