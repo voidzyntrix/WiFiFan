@@ -2,13 +2,14 @@ package io.github.voidqubex.wifi_fan
 
 import android.content.Context
 import androidx.compose.ui.graphics.toArgb
+import io.github.voidqubex.wifi_fan.ui.theme.CornerScales
 import io.github.voidqubex.wifi_fan.ui.theme.DefaultAccent
 
 /** Which control-screen layout to render. The Simple layout is always frosted glass. */
 enum class UiLayout { SIMPLE, CLASSIC }
 
 /** Which color palette the theme uses. */
-enum class AppColorScheme { MONOCHROME, COLORED }
+enum class AppColorScheme { MONOCHROME, TINTED, COLORED }
 
 /** What sits behind the UI. */
 enum class AppBackground { SIMPLE, IMAGE }
@@ -91,10 +92,17 @@ class SettingsStore(context: Context) {
     var monoFont: Boolean
         get() = prefs.getBoolean("mono_font", false)
         set(value) { prefs.edit().putBoolean("mono_font", value).apply() }
-    /** Corner roundness: 0 Square, 1 Small, 2 Medium, 3 Large. */
+    /** Corner roundness: 0 Square, 1 Small, 2 Medium, 3 Large, 4 Custom. */
     var cornerStyle: Int
-        get() = prefs.getInt("corner_style", 2).coerceIn(0, 3)
+        get() = prefs.getInt("corner_style", 2).coerceIn(0, 4)
         set(value) { prefs.edit().putInt("corner_style", value).apply() }
+    /** Corner multiplier for the Custom style (0 square .. 2). */
+    var customCorner: Float
+        get() = prefs.getFloat("custom_corner", 1f)
+        set(value) { prefs.edit().putFloat("custom_corner", value).apply() }
+    /** The corner multiplier the current style stands for. */
+    val cornerScale: Float
+        get() = cornerStyle.let { if (it == 4) customCorner else CornerScales[it] }
     var keepScreenOn: Boolean
         get() = prefs.getBoolean(KEY_KEEP_SCREEN_ON, false)
         set(value) { prefs.edit().putBoolean(KEY_KEEP_SCREEN_ON, value).apply() }

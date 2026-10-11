@@ -8,7 +8,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.shadow
@@ -18,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import io.github.voidqubex.wifi_fan.ui.theme.circle
 import kotlin.math.exp
 import kotlin.math.max
 import kotlin.math.min
@@ -138,16 +138,16 @@ fun LedPreview(hue: Float, sat: Float, value: Float, modifier: Modifier = Modifi
                 .aspectRatio(1f)
                 .shadow(
                     elevation = (2f + 34f * lit * (0.35f + 0.65f * level)).dp,
-                    shape = CircleShape,
+                    shape = circle(),
                     ambientColor = color,
                     spotColor = color
                 )
-                .clip(CircleShape)
+                .clip(circle())
                 .background(lerp(Color(0xFF1A1A1A), color, (0.15f + 0.85f * level) * lit))
                 .border(
                     2.dp,
                     lerp(Color.White.copy(alpha = 0.18f), color, lit).copy(alpha = 0.45f + 0.55f * lit),
-                    CircleShape
+                    circle()
                 )
         )
     }

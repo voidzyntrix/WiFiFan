@@ -91,7 +91,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -177,6 +176,9 @@ import io.github.voidqubex.wifi_fan.ui.theme.AccentPresets
 import io.github.voidqubex.wifi_fan.ui.theme.AppLook
 import io.github.voidqubex.wifi_fan.ui.theme.CornerScales
 import io.github.voidqubex.wifi_fan.ui.theme.rounded
+import io.github.voidqubex.wifi_fan.ui.theme.circle
+import io.github.voidqubex.wifi_fan.ui.theme.dotCorner
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import io.github.voidqubex.wifi_fan.ui.theme.WiFiFanTheme
 import kotlinx.coroutines.delay
 import java.time.LocalTime
@@ -244,7 +246,7 @@ fun AmbientParticleBackground(
     Canvas(modifier = modifier) {
         @Suppress("UNUSED_EXPRESSION") frameNanos
         particles.forEach { p ->
-            drawCircle(
+            drawDot(
                 color = tint.copy(alpha = p.alpha),
                 radius = p.radiusDp.dp.toPx(),
                 center = Offset(p.xFrac * size.width, p.yFrac * size.height)
@@ -403,9 +405,9 @@ private fun GradientBar(
             cornerRadius = CornerRadius(barH / 2f * AppLook.cornerScale.coerceAtMost(1f))
         )
         val tc = Offset(fraction * size.width, size.height / 2f)
-        drawCircle(Color.Black.copy(alpha = 0.3f), radius = 13.dp.toPx(), center = tc)
-        drawCircle(Color.White, radius = 11.dp.toPx(), center = tc)
-        drawCircle(thumbColor, radius = 8.dp.toPx(), center = tc)
+        drawDot(Color.Black.copy(alpha = 0.3f), radius = 13.dp.toPx(), center = tc)
+        drawDot(Color.White, radius = 11.dp.toPx(), center = tc)
+        drawDot(thumbColor, radius = 8.dp.toPx(), center = tc)
     }
 }
 
@@ -436,7 +438,7 @@ class MainActivity : ComponentActivity() {
         otaManager = OtaManager(bleManager, lifecycleScope)
         val settingsStore = SettingsStore(this)
         AppLook.monoFont = settingsStore.monoFont
-        AppLook.cornerScale = CornerScales[settingsStore.cornerStyle]
+        AppLook.cornerScale = settingsStore.cornerScale
         WindowCompat.setDecorFitsSystemWindows(window, false)
         enableEdgeToEdge()
         setContent {
@@ -447,7 +449,9 @@ class MainActivity : ComponentActivity() {
             var rainbowSync by remember { mutableStateOf(settingsStore.rainbowSync) }
 
             WiFiFanTheme(
-                colored = colorScheme == AppColorScheme.COLORED, accent = Color(accentColor)
+                colored = colorScheme == AppColorScheme.COLORED,
+                pureMono = colorScheme == AppColorScheme.MONOCHROME,
+                accent = Color(accentColor)
             ) {
                 Scaffold(modifier = Modifier.fillMaxSize()) { _ ->
                     BleControlScreen(
@@ -507,7 +511,7 @@ fun BleControlScreen(
 ) {
     val context = LocalContext.current
     val isDark = isSystemInDarkTheme()
-    val mono = colorScheme == AppColorScheme.MONOCHROME
+    val mono = colorScheme == AppColorScheme.TINTED
 
     SideEffect {
         (context as? Activity)?.window?.let { window ->
@@ -926,7 +930,7 @@ fun BleControlScreen(
                                                 style = MaterialTheme.typography.labelMedium,
                                                 color = onBg.copy(alpha = 0.5f),
                                                 modifier = Modifier
-                                                    .clip(CircleShape)
+                                                    .clip(circle())
                                                     .bounceClickable { bleManager.disconnect() }
                                                     .padding(horizontal = 8.dp, vertical = 6.dp)
                                             )
@@ -946,7 +950,7 @@ fun BleControlScreen(
                                         contentAlignment = Alignment.Center,
                                         modifier = Modifier
                                             .size(44.dp)
-                                            .clip(CircleShape)
+                                            .clip(circle())
                                             .background(powerBg)
                                             .bounceClickable { togglePower() }
                                     ) {
@@ -1088,7 +1092,7 @@ fun BleControlScreen(
                                                                 if (sel) Box(
                                                                     Modifier
                                                                         .size(8.dp)
-                                                                        .clip(CircleShape)
+                                                                        .clip(circle())
                                                                         .background(MaterialTheme.colorScheme.primary)
                                                                 )
                                                             }
@@ -1261,6 +1265,14 @@ fun BleControlScreen(
 /** The blurred screen backdrop that [PanelCard] draws behind itself. */
 private val LocalBlurLayer = staticCompositionLocalOf<GraphicsLayer?> { null }
 
+/** A dot drawn on a canvas; round like [circle], so it follows the corner setting. */
+private fun DrawScope.drawDot(color: Color, radius: Float, center: Offset) = drawRoundRect(
+    color = color,
+    topLeft = Offset(center.x - radius, center.y - radius),
+    size = androidx.compose.ui.geometry.Size(radius * 2f, radius * 2f),
+    cornerRadius = CornerRadius(dotCorner(radius))
+)
+
 /** Rounded translucent panel that groups a block of controls. */
 @Composable
 private fun PanelCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
@@ -1346,9 +1358,9 @@ private fun PresetDot(color: Color, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .size(30.dp)
-            .clip(CircleShape)
+            .clip(circle())
             .background(color)
-            .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f), CircleShape)
+            .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f), circle())
             .bounceClickable(pressedScale = 0.85f, onClick = onClick)
     )
 }
@@ -1359,7 +1371,7 @@ private fun CircleIconButton(icon: Int, description: String, onClick: () -> Unit
         contentAlignment = Alignment.Center,
         modifier = Modifier
             .size(44.dp)
-            .clip(CircleShape)
+            .clip(circle())
             .background(MaterialTheme.colorScheme.onBackground.copy(alpha = 0.07f))
             .bounceClickable(onClick = onClick)
     ) {
@@ -1421,7 +1433,7 @@ private fun ConnectScreen(
                 .statusBarsPadding()
                 .padding(horizontal = 16.dp, vertical = 8.dp)
                 .size(40.dp)
-                .clip(CircleShape)
+                .clip(circle())
                 .bounceClickable(onClick = onSettings),
             contentAlignment = Alignment.Center
         ) {
@@ -1484,7 +1496,7 @@ private fun ConnectScreen(
                         AppButton(
                             mono = mono,
                             onClick = onScan,
-                            shape = CircleShape,
+                            shape = circle(),
                             enabled = connectionState == BluetoothProfile.STATE_DISCONNECTED,
                             interactionSource = connectSrc,
                             modifier = pressScaleModifier(connectSrc, pressedScale = 0.96f)
@@ -1534,7 +1546,7 @@ private fun StatusPill(text: String, active: Boolean) {
     )
     Row(
         modifier = Modifier
-            .clip(CircleShape)
+            .clip(circle())
             .background(MaterialTheme.colorScheme.background.copy(alpha = 0.55f))
             .padding(horizontal = 14.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -1542,7 +1554,7 @@ private fun StatusPill(text: String, active: Boolean) {
         Box(
             modifier = Modifier
                 .size(7.dp)
-                .clip(CircleShape)
+                .clip(circle())
                 .background(
                     if (active) MaterialTheme.colorScheme.primary.copy(alpha = blink)
                     else onBg.copy(alpha = 0.3f)
@@ -1591,9 +1603,7 @@ private fun DeviceList(
                 modifier = Modifier.weight(1f)
             )
             if (isScanning) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(16.dp), strokeWidth = 2.dp, strokeCap = StrokeCap.Round
-                )
+                ScanDots()
             }
         }
         if (sorted.isEmpty()) {
@@ -1618,7 +1628,7 @@ private fun DeviceList(
                         Box(
                             modifier = Modifier
                                 .size(40.dp)
-                                .clip(CircleShape)
+                                .clip(circle())
                                 .background(iconFill),
                             contentAlignment = Alignment.Center
                         ) {
@@ -1663,8 +1673,8 @@ private fun DeviceList(
                 .padding(horizontal = 12.dp),
             horizontalArrangement = Arrangement.End
         ) {
-            if (!isScanning) TextButton(onClick = onScan) { Text("Scan again") }
-            TextButton(onClick = onCancel) { Text("Cancel") }
+            if (!isScanning) TextButton(onClick = onScan, shape = circle()) { Text("Scan again") }
+            TextButton(onClick = onCancel, shape = circle()) { Text("Cancel") }
         }
     }
 }
@@ -1708,6 +1718,8 @@ private fun SettingsScreen(
     var boardOpen by remember { mutableStateOf(!store.categoryCollapsed("board")) }
     var uiOpen by remember { mutableStateOf(!store.categoryCollapsed("ui")) }
     var firmwareOpen by remember { mutableStateOf(!store.categoryCollapsed("firmware")) }
+    var cornerStyle by remember { mutableIntStateOf(store.cornerStyle) }
+    var customCorner by remember { mutableFloatStateOf(store.customCorner) }
     val onBg = MaterialTheme.colorScheme.onBackground
 
     Column(
@@ -1777,11 +1789,10 @@ private fun SettingsScreen(
                 if (background == AppBackground.IMAGE) 1 else 0
             ) { onBackgroundChange(if (it == 1) AppBackground.IMAGE else AppBackground.SIMPLE) }
             SettingGap()
-            SettingHeading("Colour", "Grayscale with accent edges, or fully coloured")
-            SegmentedPill(
-                listOf("Monochrome", "Coloured"),
-                if (colorScheme == AppColorScheme.COLORED) 1 else 0
-            ) { onColorChange(if (it == 1) AppColorScheme.COLORED else AppColorScheme.MONOCHROME) }
+            SettingHeading("Colour", "Pure grayscale, grayscale with accents, or fully coloured")
+            SegmentedPill(listOf("Monochrome", "Tinted", "Coloured"), colorScheme.ordinal) {
+                onColorChange(AppColorScheme.entries[it])
+            }
             androidx.compose.animation.AnimatedVisibility(
                 visible = colorScheme == AppColorScheme.COLORED,
                 enter = fadeIn(tween(200)) + androidx.compose.animation.expandVertically(tween(280)),
@@ -1799,10 +1810,50 @@ private fun SettingsScreen(
                 store.monoFont = it == 1
             }
             SettingGap()
-            SettingHeading("Corners", "Roundness of cards, buttons and sliders")
-            SegmentedPill(listOf("Square", "Small", "Medium", "Large"), store.cornerStyleState()) {
-                AppLook.cornerScale = CornerScales[it]
+            SettingHeading("Corners", "Roundness of everything: cards, buttons, pills, dots, thumbs")
+            SegmentedPill(listOf("Square", "Small", "Medium", "Large", "Custom"), cornerStyle) {
+                cornerStyle = it
                 store.cornerStyle = it
+                AppLook.cornerScale = if (it == 4) customCorner else CornerScales[it]
+            }
+            androidx.compose.animation.AnimatedVisibility(
+                visible = cornerStyle == 4,
+                enter = fadeIn(tween(200)) + androidx.compose.animation.expandVertically(tween(280)),
+                exit = fadeOut(tween(150)) + androidx.compose.animation.shrinkVertically(tween(240))
+            ) {
+                Column {
+                    Spacer(Modifier.height(14.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "Radius",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = onBg.copy(alpha = 0.6f),
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            "${(customCorner * 100).roundToInt()} %",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = onBg
+                        )
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    GradientBar(
+                        fraction = customCorner / 2f,
+                        stops = listOf(onBg.copy(alpha = 0.12f), onBg.copy(alpha = 0.55f)),
+                        thumbColor = MaterialTheme.colorScheme.primary,
+                        onFraction = {
+                            customCorner = it * 2f
+                            AppLook.cornerScale = customCorner
+                        },
+                        onFinished = { store.customCorner = customCorner }
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "0 % is square, 100 % makes round things fully round, above that cards get rounder.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = onBg.copy(alpha = 0.5f)
+                    )
+                }
             }
             SettingGap()
             SettingSwitch(
@@ -1837,10 +1888,6 @@ private fun SettingsScreen(
         Spacer(Modifier.height(32.dp))
     }
 }
-
-/** The corner style index, read from [AppLook] so the pill follows live changes. */
-private fun SettingsStore.cornerStyleState(): Int =
-    CornerScales.indexOfFirst { it == AppLook.cornerScale }.takeIf { it >= 0 } ?: cornerStyle
 
 @Composable
 private fun FirmwareSection(
@@ -1972,12 +2019,18 @@ private fun UpdateProgress(fraction: Float?) {
     val mod = Modifier
         .fillMaxWidth()
         .height(6.dp)
-        .clip(rounded(3.dp))
+        .clip(circle())
+    // Square caps and no stop dot: the clip gives the bar the app's corner shape.
     if (fraction != null) {
         val shown by animateFloatAsState(fraction, tween(300), label = "updateProgress")
-        LinearProgressIndicator(progress = { shown }, modifier = mod, trackColor = track)
+        LinearProgressIndicator(
+            progress = { shown }, modifier = mod, trackColor = track,
+            strokeCap = StrokeCap.Butt, gapSize = 0.dp, drawStopIndicator = {}
+        )
     } else {
-        LinearProgressIndicator(modifier = mod, trackColor = track)
+        LinearProgressIndicator(
+            modifier = mod, trackColor = track, strokeCap = StrokeCap.Butt, gapSize = 0.dp
+        )
     }
 }
 
@@ -2056,13 +2109,13 @@ private fun AccentColorPicker(selected: Int, onPick: (Int) -> Unit) {
             Box(
                 modifier = Modifier
                     .size(30.dp)
-                    .clip(CircleShape)
+                    .clip(circle())
                     .background(c)
                     .border(
                         width = ring,
                         color = if (isSel) MaterialTheme.colorScheme.onBackground
                         else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.10f),
-                        shape = CircleShape
+                        shape = circle()
                     )
                     .bounceClickable(pressedScale = 0.85f) { onPick(argb) })
         }
@@ -2122,8 +2175,8 @@ private fun HueSlider(
         drawRect(brush = Brush.horizontalGradient(rainbow))
         val r = size.height / 2f
         val tx = (hue / 360f * size.width).coerceIn(r, size.width - r)
-        drawCircle(Color.White, radius = r - 2.dp.toPx(), center = Offset(tx, size.height / 2f))
-        drawCircle(selected, radius = r - 5.dp.toPx(), center = Offset(tx, size.height / 2f))
+        drawDot(Color.White, radius = r - 2.dp.toPx(), center = Offset(tx, size.height / 2f))
+        drawDot(selected, radius = r - 5.dp.toPx(), center = Offset(tx, size.height / 2f))
     }
 }
 
@@ -2220,7 +2273,7 @@ private fun SettingSwitch(
             }
         }
         Spacer(Modifier.width(12.dp))
-        Switch(checked = checked, onCheckedChange = onChange)
+        AppSwitch(checked = checked, onChange = onChange)
     }
 }
 
@@ -2282,6 +2335,60 @@ private fun SegmentedPill(
                     )
                 }
             }
+        }
+    }
+}
+
+/** On/off switch in the app's style; track and knob follow the corner setting. */
+@Composable
+private fun AppSwitch(checked: Boolean, onChange: (Boolean) -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    val pos by animateFloatAsState(
+        if (checked) 1f else 0f, spring(stiffness = Spring.StiffnessMediumLow), label = "switchPos"
+    )
+    val track by animateColorAsState(
+        if (checked) cs.primary else cs.onBackground.copy(alpha = 0.14f), tween(200), label = "switchTrack"
+    )
+    val knob by animateColorAsState(
+        if (checked) cs.onPrimary else cs.onBackground.copy(alpha = 0.7f), tween(200), label = "switchKnob"
+    )
+    Box(
+        Modifier
+            .size(width = 50.dp, height = 30.dp)
+            .clip(circle())
+            .background(track)
+            .bounceClickable(pressedScale = 0.92f) { onChange(!checked) }
+            .padding(4.dp)
+    ) {
+        Box(
+            Modifier
+                .offset(x = 20.dp * pos)
+                .size(22.dp)
+                .clip(circle())
+                .background(knob)
+        )
+    }
+}
+
+/** Three dots lighting up in turn: "still scanning". */
+@Composable
+private fun ScanDots() {
+    val t by rememberInfiniteTransition(label = "scanDots").animateFloat(
+        initialValue = 0f, targetValue = 3f,
+        animationSpec = infiniteRepeatable(tween(900, easing = LinearEasing)),
+        label = "scanPhase"
+    )
+    Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+        repeat(3) { i ->
+            val d = ((t - i) % 3f + 3f) % 3f
+            Box(
+                Modifier
+                    .size(6.dp)
+                    .clip(circle())
+                    .background(
+                        MaterialTheme.colorScheme.primary.copy(alpha = if (d < 1f) 1f - 0.7f * d else 0.3f)
+                    )
+            )
         }
     }
 }
