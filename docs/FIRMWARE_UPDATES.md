@@ -18,6 +18,8 @@ releases (APKs) and firmware releases can live side by side.
 
 ## Updating a board
 
+When new firmware is out and the board is connected, the app offers it at launch in an
+**Update | Later** dialog; **Update** does everything below right in the dialog. Or go
 App → **Settings → Firmware → Check for updates → Update to vX**. Keep the app
 open; at 9600 baud the current ~6.5 KB firmware should take roughly 20-30 s
 (estimate). The board's LED shows the state: blue while waiting in update mode,

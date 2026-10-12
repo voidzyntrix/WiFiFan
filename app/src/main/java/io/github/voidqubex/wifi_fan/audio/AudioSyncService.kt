@@ -20,6 +20,7 @@ import io.github.voidqubex.wifi_fan.GlowApp
 import io.github.voidqubex.wifi_fan.MainActivity
 import io.github.voidqubex.wifi_fan.R
 import io.github.voidqubex.wifi_fan.SettingsStore
+import io.github.voidqubex.wifi_fan.auto.AutoLight
 import io.github.voidqubex.wifi_fan.sync.LedLink
 import io.github.voidqubex.wifi_fan.sync.SyncHub
 import io.github.voidqubex.wifi_fan.sync.SyncKind
@@ -39,6 +40,7 @@ import kotlinx.coroutines.launch
 class AudioSyncService : Service() {
     private var scope: CoroutineScope? = null
     private var projection: MediaProjection? = null
+    private var projectionCallback: MediaProjection.Callback? = null
     private var link: LedLink? = null
     private val main = Handler(Looper.getMainLooper())
 
@@ -71,10 +73,12 @@ class AudioSyncService : Service() {
                 val code = intent?.getIntExtra(EXTRA_CODE, 0) ?: 0
                 val mp = getSystemService(MediaProjectionManager::class.java).getMediaProjection(code, data)
                     ?: return fail("No permission to capture the speakers")
-                mp.registerCallback(object : MediaProjection.Callback() {
+                val callback = object : MediaProjection.Callback() {
                     override fun onStop() { main.post { stopSelf() } }
-                }, main)
+                }
+                mp.registerCallback(callback, main)
                 projection = mp
+                projectionCallback = callback
                 AudioCapture.playback(mp)
             } else {
                 AudioCapture.mic()
@@ -112,11 +116,19 @@ class AudioSyncService : Service() {
     /** Microphone: loudness is brightness, beats step the hue (or keep the picked colour). */
     private suspend fun listen(rec: AudioRecord, link: LedLink) {
         val analyzer = MusicReactor.Analyzer()
+        val flash = BeatFlash()
+        val flash2 = BeatFlash()
         var beatHue = SyncParams.hue
+        val beats = TwoLedBeats(SyncParams.hue)
         AudioCapture.loop(rec, AudioCapture.SAMPLE_RATE * MusicReactor.WINDOW_MS / 1000) { buf, n ->
-            val (level, beat) = analyzer.process(
+            val (raw, beat) = analyzer.process(
                 buf, n, MusicReactor.WINDOW_MS.toLong(), SyncParams.sensitivity
             )
+            if (link.twoLeds) {
+                listenSplit(link, raw, beat, beats, flash, flash2)
+                return@loop
+            }
+            val level = flash.apply(raw, beat, MusicReactor.WINDOW_MS.toLong(), SyncParams.beatFlash)
             val keep = SyncParams.keepColour
             if (beat && !keep) beatHue = (beatHue + 47f) % 360f
             val h = if (keep) SyncParams.hue else beatHue
@@ -124,24 +136,78 @@ class AudioSyncService : Service() {
             SyncHub.level.value = level
             SyncHub.hue.value = h
             SyncHub.sat.value = s
-            link.colour(h, s, SyncParams.bri * (0.04f + 0.96f * level), SEND_GAP_MS)
+            // A beat goes out at once, whatever the throttle says, so the flash is never swallowed.
+            link.colour(h, s, SyncParams.bri * (0.04f + 0.96f * level), if (beat) 0L else SEND_GAP_MS)
         }
+    }
+
+    /**
+     * Music with separate LEDs: beats hand the next colour to the LEDs in turn, and only the LED
+     * that took the beat flashes. With "keep colour" each LED shows its own picked colour.
+     */
+    private fun listenSplit(
+        link: LedLink, raw: Float, beat: Boolean, beats: TwoLedBeats, flash1: BeatFlash, flash2: BeatFlash
+    ) {
+        val window = MusicReactor.WINDOW_MS.toLong()
+        val led = if (beat) beats.onBeat() else -1
+        val level1 = flash1.apply(raw, led == 0, window, SyncParams.beatFlash)
+        val level2 = flash2.apply(raw, led == 1, window, SyncParams.beatFlash)
+        val keep = SyncParams.keepColour
+        val h1 = if (keep) SyncParams.hue else beats.hue1
+        val s1 = if (keep) SyncParams.sat else 1f
+        val h2 = if (keep) SyncParams.hue2 else beats.hue2
+        val s2 = if (keep) SyncParams.sat2 else 1f
+        SyncHub.level.value = level1
+        SyncHub.hue.value = h1
+        SyncHub.sat.value = s1
+        SyncHub.level2.value = level2
+        SyncHub.hue2.value = h2
+        SyncHub.sat2.value = s2
+        val bri = SyncParams.bri
+        link.colours(
+            h1, s1, bri * (0.04f + 0.96f * level1),
+            h2, s2, bri * (0.04f + 0.96f * level2),
+            if (beat) 0L else SEND_GAP_MS
+        )
     }
 
     /** Speakers: bass, mids and treble mix the colour; the overall level is the brightness. */
     private suspend fun visualize(rec: AudioRecord, link: LedLink) {
         val analyzer = MusicReactor.Analyzer()
+        val flash = BeatFlash()
         val spectrum = SpectrumAnalyzer()
         val windowMs = spectrum.size * 1000L / AudioCapture.SAMPLE_RATE
         var hue = SyncParams.hue
+        var hue2 = SyncParams.hue2
         AudioCapture.loop(rec, spectrum.size) { buf, n ->
-            val (level, _) = analyzer.process(buf, n, windowMs, SyncParams.sensitivity)
-            val c = SpectrumAnalyzer.colour(spectrum.process(buf, n), hue)
+            val (raw, beat) = analyzer.process(buf, n, windowMs, SyncParams.sensitivity)
+            val level = flash.apply(raw, beat, windowMs, SyncParams.beatFlash)
+            val bands = spectrum.process(buf, n)
+            if (link.twoLeds) {
+                // Separate LEDs: LED1 is the low end, LED2 the high end, one hh= per frame.
+                val (c1, c2) = SpectrumAnalyzer.twoLedColours(bands, hue, hue2)
+                hue = c1[0]
+                hue2 = c2[0]
+                SyncHub.level.value = level * c1[2]
+                SyncHub.hue.value = c1[0]
+                SyncHub.sat.value = c1[1]
+                SyncHub.level2.value = level * c2[2]
+                SyncHub.hue2.value = c2[0]
+                SyncHub.sat2.value = c2[1]
+                val bri = SyncParams.bri
+                link.colours(
+                    c1[0], c1[1], bri * (0.04f + 0.96f * level * c1[2]),
+                    c2[0], c2[1], bri * (0.04f + 0.96f * level * c2[2]),
+                    if (beat) 0L else SEND_GAP_MS
+                )
+                return@loop
+            }
+            val c = SpectrumAnalyzer.colour(bands, hue)
             hue = c[0]
             SyncHub.level.value = level
             SyncHub.hue.value = c[0]
             SyncHub.sat.value = c[1]
-            link.colour(c[0], c[1], SyncParams.bri * (0.04f + 0.96f * level), SEND_GAP_MS)
+            link.colour(c[0], c[1], SyncParams.bri * (0.04f + 0.96f * level), if (beat) 0L else SEND_GAP_MS)
         }
     }
 
@@ -154,8 +220,14 @@ class AudioSyncService : Service() {
     private fun shutdown(restoreFade: Boolean) {
         scope?.cancel()
         scope = null
-        projection?.stop()
+        // The callback goes first: stopping a projection reports onStop, which would end the new
+        // session this service may be restarting into (Visualizer -> Music).
+        projection?.let { mp ->
+            projectionCallback?.let { mp.unregisterCallback(it) }
+            mp.stop()
+        }
         projection = null
+        projectionCallback = null
         if (restoreFade) {
             val ble = (application as GlowApp).bleManager
             if (ble.connectionState.value == BluetoothProfile.STATE_CONNECTED) {
@@ -166,11 +238,13 @@ class AudioSyncService : Service() {
     }
 
     override fun onDestroy() {
-        shutdown(restoreFade = true)
-        SyncHub.active.value = SyncKind.NONE
-        SyncHub.level.value = 0f
-        // Stopped with the app already closed (notification Stop): let go of the board too.
-        if (!SyncHub.uiAlive) (application as GlowApp).bleManager.disconnect()
+        // Changing the mode starts the new service before this one stops: if Screen sync is up by
+        // now, the shared state and the board's fade are its, not ours to reset.
+        val ours = SyncHub.release(SyncKind.MUSIC, SyncKind.VISUALIZER)
+        shutdown(restoreFade = ours)
+        // Stopped with the app already closed (notification Stop): let go of the board too,
+        // unless Auto light still uses it.
+        if (ours && !SyncHub.uiAlive && !AutoLight.running) (application as GlowApp).bleManager.disconnect()
         super.onDestroy()
     }
 

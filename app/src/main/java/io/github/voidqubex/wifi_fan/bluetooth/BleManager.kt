@@ -70,6 +70,12 @@ class BleManager(private val context: Context) {
     val lines: SharedFlow<String> = _lines
 
     // Board firmware version from its "VER,<x>" reply; null until it answered.
+    /** MAC address and Bluetooth name of the board last connected to (null before the first one). */
+    private val _deviceAddress = MutableStateFlow<String?>(null)
+    val deviceAddress: StateFlow<String?> = _deviceAddress
+    private val _deviceName = MutableStateFlow<String?>(null)
+    val deviceName: StateFlow<String?> = _deviceName
+
     private val _firmwareVersion = MutableStateFlow<String?>(null)
     val firmwareVersion: StateFlow<String?> = _firmwareVersion
 
@@ -208,6 +214,8 @@ class BleManager(private val context: Context) {
         stopScanning()
         val device = bluetoothAdapter.getRemoteDevice(address)
         Log.d("BleManager", "Connecting to ${device.address}")
+        _deviceAddress.value = device.address
+        _deviceName.value = runCatching { device.name }.getOrNull()
         // TRANSPORT_LE: without it some phones try classic Bluetooth first and
         // fail with status 133 on BLE-only modules.
         bluetoothGatt = device.connectGatt(context, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
@@ -219,6 +227,25 @@ class BleManager(private val context: Context) {
         Log.d("BleManager", "Trying to send data: $finalData")
         enqueueWrite(finalData.toByteArray(), pauseAfterMs = 0, job = null)
     }
+
+    /**
+     * Streams of colours (Screen sync) want the shortest Bluetooth connection interval: Android's
+     * default ("balanced") spaces writes 30-50 ms apart, "high" 11-15 ms. Off goes back to balanced.
+     */
+    @SuppressLint("MissingPermission")
+    fun setLowLatency(on: Boolean) {
+        runCatching {
+            bluetoothGatt?.requestConnectionPriority(
+                if (on) BluetoothGatt.CONNECTION_PRIORITY_HIGH else BluetoothGatt.CONNECTION_PRIORITY_BALANCED
+            )
+        }
+    }
+
+    /**
+     * A command is already waiting behind the one being written. A stream of colours skips a frame
+     * then instead of queueing a stale one: the next frame carries the newest colour anyway.
+     */
+    val backlogged: Boolean get() = gattQueue.isNotEmpty()
 
     /**
      * Send raw bytes (no delimiter) and suspend until every chunk was written.

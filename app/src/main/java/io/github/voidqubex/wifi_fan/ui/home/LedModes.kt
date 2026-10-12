@@ -13,6 +13,8 @@ internal const val LED_MODE_MUSIC = 7
 internal const val LED_MODE_SCREEN = 8
 /** Visualizer: bass, mids and treble of what the speakers play set the colour (app-side, foreground service). */
 internal const val LED_MODE_VISUALIZER = 9
+/** Chase (firmware 1.6.0+): LED1's colour bounces between the two LEDs (Linked: both pulse). */
+internal const val LED_MODE_CHASE = 10
 
 /** Board effects (firmware 1.4.0+): mode -> (button label, command). */
 internal val LedEffects = listOf(
@@ -21,6 +23,12 @@ internal val LedEffects = listOf(
     Triple(LED_MODE_PARTY, "Party", "party"),
     Triple(LED_MODE_AURORA, "Aurora", "aurora")
 )
+
+/** Chase needs firmware 1.6.0 (two LEDs), so it is kept apart from [LedEffects]. */
+internal val LedChase = Triple(LED_MODE_CHASE, "Chase", "chase")
+
+/** Every effect the board runs by itself with `<command>=V`. */
+internal val AllLedEffects = LedEffects + LedChase
 
 /** Below this the LED is effectively off (1 % = 3 of 255), so there is nothing to preserve. */
 internal const val MIN_VISIBLE_BRIGHTNESS = 0.01f

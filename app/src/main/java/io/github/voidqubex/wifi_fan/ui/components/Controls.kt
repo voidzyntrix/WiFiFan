@@ -60,6 +60,7 @@ internal fun SegmentedPill(
     onSelect: (Int) -> Unit
 ) {
     val onBg = MaterialTheme.colorScheme.onBackground
+    val haptics = rememberHaptics()
     val thumb by animateFloatAsState(
         selected.coerceAtLeast(0).toFloat(),
         spring(stiffness = Spring.StiffnessMediumLow), label = "pillThumb"
@@ -97,7 +98,7 @@ internal fun SegmentedPill(
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null
-                        ) { if (i != selected) onSelect(i) }
+                        ) { if (i != selected) { haptics.tap(); onSelect(i) } }
                 ) {
                     FitText(
                         label,
@@ -115,6 +116,7 @@ internal fun SegmentedPill(
 @Composable
 internal fun AppSwitch(checked: Boolean, onChange: (Boolean) -> Unit) {
     val cs = MaterialTheme.colorScheme
+    val haptics = rememberHaptics()
     val pos by animateFloatAsState(
         if (checked) 1f else 0f, spring(stiffness = Spring.StiffnessMediumLow), label = "switchPos"
     )
@@ -133,7 +135,7 @@ internal fun AppSwitch(checked: Boolean, onChange: (Boolean) -> Unit) {
             .size(width = 50.dp, height = 30.dp)
             .clip(circle())
             .background(track)
-            .bounceClickable(pressedScale = 0.92f) { onChange(!checked) }
+            .bounceClickable(pressedScale = 0.92f) { haptics.tap(); onChange(!checked) }
             .padding(4.dp)
     ) {
         Box(

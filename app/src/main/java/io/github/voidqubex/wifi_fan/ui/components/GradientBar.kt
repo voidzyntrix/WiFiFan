@@ -21,6 +21,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import io.github.voidqubex.wifi_fan.ui.theme.AppLook
+import kotlin.math.roundToInt
 
 // ---------------------------------------------------------------------------
 // Gradient bar — a draggable colour strip (hue, saturation, brightness, kelvin)
@@ -36,6 +37,7 @@ internal fun GradientBar(
 ) {
     val currentOnFraction by rememberUpdatedState(onFraction)
     val currentOnFinished by rememberUpdatedState(onFinished)
+    val haptics = rememberHaptics()
 
     Canvas(
         modifier = Modifier
@@ -44,7 +46,15 @@ internal fun GradientBar(
             .pointerInput(Unit) {
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
-                    fun report(p: Offset) = currentOnFraction((p.x / size.width).coerceIn(0f, 1f))
+                    // A light tick for every 5 % step while dragging.
+                    var step = -1
+                    fun report(p: Offset) {
+                        val f = (p.x / size.width).coerceIn(0f, 1f)
+                        val s = (f * HAPTIC_STEPS).roundToInt()
+                        if (step >= 0 && s != step) haptics.tick()
+                        step = s
+                        currentOnFraction(f)
+                    }
                     report(down.position)
                     down.consume()
                     drag(down.id) { change -> report(change.position); change.consume() }
@@ -65,3 +75,5 @@ internal fun GradientBar(
         drawDot(thumbColor, radius = 8.dp.toPx(), center = tc)
     }
 }
+
+private const val HAPTIC_STEPS = 20

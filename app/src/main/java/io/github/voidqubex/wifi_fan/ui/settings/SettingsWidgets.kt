@@ -180,7 +180,7 @@ internal fun SettingsCard(
             exit = fadeOut(tween(150)) + androidx.compose.animation.shrinkVertically(tween(250))
         ) {
             Column {
-                Spacer(Modifier.height(18.dp))
+                Spacer(Modifier.height(16.dp))
                 content()
             }
         }
@@ -188,7 +188,11 @@ internal fun SettingsCard(
 }
 
 @Composable
-internal fun SettingGap() = Spacer(Modifier.height(22.dp))
+internal fun SettingGap() = Spacer(Modifier.height(24.dp))
+
+/** Between two switches in a list. */
+@Composable
+internal fun SwitchGap() = Spacer(Modifier.height(16.dp))
 
 @Composable
 internal fun SettingHeading(title: String, subtitle: String) {
@@ -202,9 +206,9 @@ internal fun SettingHeading(title: String, subtitle: String) {
     Text(
         text = subtitle,
         style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.45f)
     )
-    Spacer(Modifier.height(10.dp))
+    Spacer(Modifier.height(12.dp))
 }
 
 @Composable
@@ -229,7 +233,7 @@ internal fun SettingSwitch(
                 Text(
                     text = subtitle,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.45f)
                 )
             }
         }

@@ -22,6 +22,7 @@ import androidx.core.content.IntentCompat
 import io.github.voidqubex.wifi_fan.GlowApp
 import io.github.voidqubex.wifi_fan.MainActivity
 import io.github.voidqubex.wifi_fan.R
+import io.github.voidqubex.wifi_fan.auto.AutoLight
 import io.github.voidqubex.wifi_fan.SettingsStore
 import io.github.voidqubex.wifi_fan.sync.LedLink
 import io.github.voidqubex.wifi_fan.sync.SyncHub
@@ -42,8 +43,8 @@ import kotlin.math.sqrt
 /**
  * Screen sync: mirrors the dominant colour on screen to the LED. Runs as a foreground
  * service (type mediaProjection) so it keeps going while other apps are open, and with the
- * app closed. It drives the board itself, about twelve colours a second, with a short fade
- * so the LED keeps up with the screen.
+ * app closed. It drives the board itself, up to twenty-five colours a second, with a short fade
+ * and the fastest Bluetooth link so the LED keeps up with the screen.
  */
 class ScreenSyncService : Service() {
     private var projection: MediaProjection? = null
@@ -52,6 +53,7 @@ class ScreenSyncService : Service() {
     private var thread: HandlerThread? = null
     private var handler: Handler? = null
     private var smoothed: FloatArray? = null
+    private var smoothed2: FloatArray? = null
     private var link: LedLink? = null
     private var scope: CoroutineScope? = null
 
@@ -97,6 +99,7 @@ class ScreenSyncService : Service() {
         val l = LedLink(ble)
         link = l
         l.setFade(FADE_MS)
+        ble.setLowLatency(true)
         SyncHub.reset()
         SyncHub.active.value = SyncKind.SCREEN
         val s = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -133,16 +136,27 @@ class ScreenSyncService : Service() {
                     px[k++] = (r shl 16) or (g shl 8) or b
                 }
             }
-            val target = dominantColour(px)
-            val prev = smoothed
-            val next = if (prev == null) target else floatArrayOf(
-                lerpHue(prev[0], target[0], SMOOTHING),
-                prev[1] + (target[1] - prev[1]) * SMOOTHING
-            )
+            val l = link ?: return
+            if (l.twoLeds) {
+                // Separate LEDs: the left half of the screen goes to LED1, the right half to LED2.
+                val (left, right) = halves(px, image.width)
+                val next = smooth(smoothed, dominantColour(left))
+                val next2 = smooth(smoothed2, dominantColour(right))
+                smoothed = next
+                smoothed2 = next2
+                SyncHub.hue.value = next[0]
+                SyncHub.sat.value = next[1]
+                SyncHub.hue2.value = next2[0]
+                SyncHub.sat2.value = next2[1]
+                val bri = SyncParams.bri
+                l.colours(next[0], next[1], bri, next2[0], next2[1], bri, SEND_GAP_MS, skipIfBacklogged = true)
+                return
+            }
+            val next = smooth(smoothed, dominantColour(px))
             smoothed = next
             SyncHub.hue.value = next[0]
             SyncHub.sat.value = next[1]
-            link?.colour(next[0], next[1], SyncParams.bri, PERIOD_MS - 15)
+            l.colour(next[0], next[1], SyncParams.bri, SEND_GAP_MS, skipIfBacklogged = true)
         } finally {
             image.close()
         }
@@ -157,14 +171,18 @@ class ScreenSyncService : Service() {
         projection?.stop()
         thread?.quitSafely()
         projection = null
-        SyncHub.active.value = SyncKind.NONE
+        // Changing the mode starts the new service before this one stops: if Music or Visualizer
+        // is up by now, the shared state and the board's fade are theirs, not ours to reset.
+        val ours = SyncHub.release(SyncKind.SCREEN)
         val ble = (application as GlowApp).bleManager
         if (ble.connectionState.value == BluetoothProfile.STATE_CONNECTED) {
-            link?.setFade(SettingsStore(this).fadeMs)     // back to the user's fade time
+            ble.setLowLatency(false)
+            if (ours) link?.setFade(SettingsStore(this).fadeMs)     // back to the user's fade time
         }
         link = null
-        // Stopped with the app already closed (notification Stop): let go of the board too.
-        if (!SyncHub.uiAlive) ble.disconnect()
+        // Stopped with the app already closed (notification Stop): let go of the board too,
+        // unless Auto light still uses it.
+        if (ours && !SyncHub.uiAlive && !AutoLight.running) ble.disconnect()
         super.onDestroy()
     }
 
@@ -197,10 +215,16 @@ class ScreenSyncService : Service() {
         private const val CHANNEL = "screen_sync"
         private const val NOTIFICATION_ID = 7
         private const val WIDTH = 64
-        private const val PERIOD_MS = 80L
-        private const val SMOOTHING = 0.6f
+        /** How often the screen is looked at (about 25 times a second). */
+        private const val PERIOD_MS = 40L
+        /** Least time between two colours sent to the board. */
+        private const val SEND_GAP_MS = 25L
+        /** Share of a small colour change shown per look; bigger changes follow faster (see [smooth]). */
+        private const val SMOOTHING = 0.4f
+        /** A colour change this big (distance on the hue/saturation disc, 0..2) is followed at once. */
+        private const val JUMP = 0.45f
         /** Short, so the LED follows the screen instead of lagging behind it. */
-        private const val FADE_MS = 120
+        private const val FADE_MS = 80
 
         /** Starts capturing with the result of the screen-capture consent screen. */
         fun start(context: Context, resultCode: Int, data: Intent) {
@@ -213,6 +237,26 @@ class ScreenSyncService : Service() {
 
         fun stop(context: Context) {
             context.stopService(Intent(context, ScreenSyncService::class.java))
+        }
+
+        /**
+         * The colour to show after a look: [target] eased in from [prev] (hue, saturation). Small
+         * changes are eased so the LED doesn't flicker with the picture; the bigger the change the
+         * more of it is taken, and a clear jump (a scene cut, a new colour filling the screen) is
+         * followed at once instead of lagging for several looks.
+         */
+        fun smooth(prev: FloatArray?, target: FloatArray): FloatArray {
+            if (prev == null) return target
+            val a = Math.toRadians(prev[0].toDouble())
+            val b = Math.toRadians(target[0].toDouble())
+            val dx = target[1] * cos(b) - prev[1] * cos(a)
+            val dy = target[1] * sin(b) - prev[1] * sin(a)
+            val distance = sqrt(dx * dx + dy * dy).toFloat()
+            val follow = (SMOOTHING + (1f - SMOOTHING) * distance / JUMP).coerceAtMost(1f)
+            return floatArrayOf(
+                lerpHue(prev[0], target[0], follow),
+                prev[1] + (target[1] - prev[1]) * follow
+            )
         }
 
         /**
@@ -244,6 +288,23 @@ class ScreenSyncService : Service() {
             val coherence = (sqrt(cx * cx + cy * cy) / wSum).toFloat()
             val sat = ((sSum / wSum).toFloat() * coherence * 1.15f).coerceIn(0f, 1f)
             return floatArrayOf(hue, sat)
+        }
+
+        /**
+         * Splits a row-major image [width] pixels wide into its left and right halves (an odd
+         * middle column goes to the right).
+         */
+        fun halves(pixels: IntArray, width: Int): Pair<IntArray, IntArray> {
+            if (width <= 1) return pixels to pixels
+            val rows = pixels.size / width
+            val half = width / 2
+            val left = IntArray(rows * half)
+            val right = IntArray(rows * (width - half))
+            for (y in 0 until rows) {
+                System.arraycopy(pixels, y * width, left, y * half, half)
+                System.arraycopy(pixels, y * width + half, right, y * (width - half), width - half)
+            }
+            return left to right
         }
 
         private fun rgbToHsv(r: Int, g: Int, b: Int, out: FloatArray) {

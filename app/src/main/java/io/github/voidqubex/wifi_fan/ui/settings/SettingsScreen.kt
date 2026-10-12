@@ -55,6 +55,7 @@ import io.github.voidqubex.wifi_fan.R
 import io.github.voidqubex.wifi_fan.SettingsStore
 import io.github.voidqubex.wifi_fan.ota.AppUpdateState
 import io.github.voidqubex.wifi_fan.ota.AppUpdater
+import io.github.voidqubex.wifi_fan.ota.GitHubReleases
 import io.github.voidqubex.wifi_fan.ota.OtaManager
 import io.github.voidqubex.wifi_fan.ota.OtaState
 import io.github.voidqubex.wifi_fan.ui.components.CircleIconButton
@@ -63,7 +64,10 @@ import io.github.voidqubex.wifi_fan.ui.components.GradientBar
 import io.github.voidqubex.wifi_fan.ui.components.SegmentedPill
 import io.github.voidqubex.wifi_fan.ui.components.bounceClickable
 import io.github.voidqubex.wifi_fan.ui.components.entrance
+import io.github.voidqubex.wifi_fan.ui.components.rememberHaptics
 import io.github.voidqubex.wifi_fan.ui.components.screenPadding
+import io.github.voidqubex.wifi_fan.ui.home.ScenePicker
+import io.github.voidqubex.wifi_fan.ui.home.loadScenes
 import io.github.voidqubex.wifi_fan.ui.theme.AppLook
 import io.github.voidqubex.wifi_fan.ui.theme.CornerScales
 import io.github.voidqubex.wifi_fan.ui.theme.activeFill
@@ -93,8 +97,8 @@ internal fun SettingsScreen(
     onCandleHueChange: (Int) -> Unit,
     keepScreenOn: Boolean,
     onKeepScreenOnChange: (Boolean) -> Unit,
-    updateToasts: Boolean,
-    onUpdateToastsChange: (Boolean) -> Unit,
+    updatePrompts: Boolean,
+    onUpdatePromptsChange: (Boolean) -> Unit,
     onColorChange: (AppColorScheme) -> Unit,
     onAccentChange: (Int) -> Unit,
     onBackgroundChange: (AppBackground) -> Unit,
@@ -102,7 +106,13 @@ internal fun SettingsScreen(
     boardVersion: String?,
     isConnected: Boolean,
     onBack: () -> Unit,
-    onWhatsNew: () -> Unit = {}
+    onWhatsNew: () -> Unit = {},
+    separateLeds: Boolean = false,
+    onSeparateLedsChange: (Boolean) -> Unit = {},
+    twoCandles: Boolean = false,
+    onTwoCandlesChange: (Boolean) -> Unit = {},
+    autoLight: Boolean = false,
+    onAutoLightChange: (Boolean) -> Unit = {}
 ) {
     val otaState by otaManager.state.collectAsState()
     val settingsContext = LocalContext.current
@@ -110,9 +120,11 @@ internal fun SettingsScreen(
     var boardOpen by remember { mutableStateOf(!store.categoryCollapsed("board")) }
     var uiOpen by remember { mutableStateOf(!store.categoryCollapsed("ui")) }
     var firmwareOpen by remember { mutableStateOf(!store.categoryCollapsed("firmware")) }
+    var autoOpen by remember { mutableStateOf(!store.categoryCollapsed("auto")) }
     var cornerStyle by remember { mutableIntStateOf(store.cornerStyle) }
     var customCorner by remember { mutableFloatStateOf(store.customCorner) }
     val onBg = MaterialTheme.colorScheme.onBackground
+    val haptics = rememberHaptics()
 
     Column(
         modifier = Modifier
@@ -125,20 +137,39 @@ internal fun SettingsScreen(
         // ── Header ──
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.entrance(0)) {
             CircleIconButton(R.drawable.arrow_back, "Back") { if (!otaState.busy) onBack() }
-            Spacer(Modifier.width(14.dp))
+            Spacer(Modifier.width(12.dp))
             Text(
                 "Settings",
-                style = MaterialTheme.typography.headlineMedium,
+                style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.SemiBold,
                 color = onBg
             )
         }
-        Spacer(Modifier.height(18.dp))
+        Spacer(Modifier.height(16.dp))
 
         // ── Board LED ──
         SettingsCard("Board LED", boardOpen, Modifier.entrance(1), {
             boardOpen = !boardOpen; store.setCategoryCollapsed("board", !boardOpen)
         }) {
+            // Two-LED boards (firmware 1.6.0+): one look on both, or each LED on its own.
+            val twoLedBoard = boardVersion?.let { GitHubReleases.compareVersions(it, "1.6.0") >= 0 } ?: false
+            SettingHeading(
+                "LEDs",
+                if (separateLeds && twoLedBoard) "Each LED has its own colour; effects run in two-LED versions"
+                else "Both LEDs show the same light"
+            )
+            if (twoLedBoard) {
+                SegmentedPill(listOf("Linked", "Separate"), if (separateLeds) 1 else 0) {
+                    onSeparateLedsChange(it == 1)
+                }
+            } else {
+                Text(
+                    "Needs board firmware 1.6.0",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = onBg.copy(alpha = 0.45f)
+                )
+            }
+            SettingGap()
             SettingSwitch(
                 "Smooth candle", "Slow, gentle flicker (easier on the eyes at night)",
                 smoothCandle, onSmoothCandleChange
@@ -148,6 +179,29 @@ internal fun SettingsScreen(
             SettingHeading("Candle colour", "Tint of the candle flame")
             SegmentedPill(listOf("Ember", "Warm", "Amber"), candleHues.indexOf(candleHue)) {
                 onCandleHueChange(candleHues[it])
+            }
+            SettingGap()
+            // Separate LEDs (firmware 1.6.1+): one flame across both LEDs, or two candles.
+            val candleStyles = boardVersion?.let { GitHubReleases.compareVersions(it, "1.6.1") >= 0 } ?: false
+            SettingHeading(
+                "Candle style",
+                if (twoCandles) "With Separate LEDs: each LED is a candle of its own"
+                else "With Separate LEDs: one flame, LED1 the bright core, LED2 the flickering tip"
+            )
+            when {
+                !candleStyles -> Text(
+                    "Needs board firmware 1.6.1",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = onBg.copy(alpha = 0.45f)
+                )
+                !separateLeds -> Text(
+                    "Set LEDs to Separate to choose",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = onBg.copy(alpha = 0.45f)
+                )
+                else -> SegmentedPill(listOf("One flame", "Two candles"), if (twoCandles) 1 else 0) {
+                    onTwoCandlesChange(it == 1)
+                }
             }
             SettingGap()
             val rainbowSpeeds = listOf(30, 15, 6)
@@ -161,18 +215,27 @@ internal fun SettingsScreen(
             SegmentedPill(listOf("Quick", "Normal", "Slow"), fades.indexOf(fadeMs)) {
                 onFadeMsChange(fades[it])
             }
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(16.dp))
             Text(
                 text = "Candle options, rainbow speed and fade need board firmware 1.3.0 or newer.",
                 style = MaterialTheme.typography.bodySmall,
-                color = onBg.copy(alpha = 0.5f)
+                color = onBg.copy(alpha = 0.45f)
             )
         }
 
         Spacer(Modifier.height(12.dp))
 
+        // ── Auto light ──
+        SettingsCard("Auto light", autoOpen, Modifier.entrance(2), {
+            autoOpen = !autoOpen; store.setCategoryCollapsed("auto", !autoOpen)
+        }) {
+            AutoLightSettings(store, candleHue, autoLight, onAutoLightChange)
+        }
+
+        Spacer(Modifier.height(12.dp))
+
         // ── App UI ──
-        SettingsCard("App UI", uiOpen, Modifier.entrance(2), {
+        SettingsCard("App UI", uiOpen, Modifier.entrance(3), {
             uiOpen = !uiOpen; store.setCategoryCollapsed("ui", !uiOpen)
         }) {
             SettingHeading("Background", "What appears behind the controls")
@@ -252,29 +315,70 @@ internal fun SettingsScreen(
                 "Round LED preview", "Keep the LED preview a perfect circle whatever the corners",
                 AppLook.roundLedPreview
             ) { AppLook.roundLedPreview = it; store.roundLedPreview = it }
-            Spacer(Modifier.height(10.dp))
+            SwitchGap()
             SettingSwitch(
                 "Pure black (OLED)", "Black background in dark mode",
                 AppLook.pureBlack
             ) { AppLook.pureBlack = it; store.pureBlack = it }
-            Spacer(Modifier.height(10.dp))
+            SwitchGap()
             SettingSwitch(
                 "Rainbow preview", "Animate the colour sliders while Rainbow runs",
                 rainbowSync, onRainbowSyncChange
             )
-            Spacer(Modifier.height(10.dp))
-            SettingSwitch("Keep screen on", null, keepScreenOn, onKeepScreenOnChange)
-            Spacer(Modifier.height(10.dp))
+            SwitchGap()
             SettingSwitch(
-                "Update notifications", "Toast at launch when an update is available",
-                updateToasts, onUpdateToastsChange
+                "Haptics", "Light ticks on sliders and taps on buttons",
+                AppLook.haptics
+            ) { AppLook.haptics = it; store.haptics = it }
+            androidx.compose.animation.AnimatedVisibility(
+                visible = AppLook.haptics,
+                enter = fadeIn(tween(200)) + androidx.compose.animation.expandVertically(tween(280)),
+                exit = fadeOut(tween(150)) + androidx.compose.animation.shrinkVertically(tween(240))
+            ) {
+                Column {
+                    Spacer(Modifier.height(14.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "Strength",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = onBg.copy(alpha = 0.6f),
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            "${(AppLook.hapticStrength * 100).roundToInt()} %",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = onBg
+                        )
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    GradientBar(
+                        fraction = AppLook.hapticStrength,
+                        stops = listOf(onBg.copy(alpha = 0.12f), onBg.copy(alpha = 0.55f)),
+                        thumbColor = MaterialTheme.colorScheme.primary,
+                        onFraction = { AppLook.hapticStrength = it.coerceAtLeast(0.1f) },
+                        onFinished = { store.hapticStrength = AppLook.hapticStrength; haptics.confirm() }
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "Ticks while you drag; a firm tap when you let go.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = onBg.copy(alpha = 0.5f)
+                    )
+                }
+            }
+            SwitchGap()
+            SettingSwitch("Keep screen on", null, keepScreenOn, onKeepScreenOnChange)
+            SwitchGap()
+            SettingSwitch(
+                "Update prompts", "Ask at launch when an update is available",
+                updatePrompts, onUpdatePromptsChange
             )
         }
 
         Spacer(Modifier.height(12.dp))
 
         // ── Firmware & updates ──
-        SettingsCard("Firmware & updates", firmwareOpen, Modifier.entrance(3), {
+        SettingsCard("Firmware & updates", firmwareOpen, Modifier.entrance(4), {
             firmwareOpen = !firmwareOpen; store.setCategoryCollapsed("firmware", !firmwareOpen)
         }) {
             FirmwareSection(
@@ -285,12 +389,71 @@ internal fun SettingsScreen(
             )
             Spacer(Modifier.height(12.dp))
             AppUpdateSection()
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(12.dp))
             PillButton("What's new", highlighted = false, onClick = onWhatsNew)
         }
 
-        Spacer(Modifier.height(32.dp))
+        Spacer(Modifier.height(24.dp))
     }
+}
+
+/** Settings > Auto light: the switch, the two scenes and the wait before Night. */
+@Composable
+private fun AutoLightSettings(
+    store: SettingsStore,
+    candleHue: Int,
+    on: Boolean,
+    onChange: (Boolean) -> Unit
+) {
+    val onBg = MaterialTheme.colorScheme.onBackground
+    val scenes = remember { store.loadScenes() }
+    var handScene by remember { mutableStateOf(store.autoHandScene) }
+    var nightScene by remember { mutableStateOf(store.autoNightScene) }
+    var wait by remember { mutableIntStateOf(store.autoWaitMinutes) }
+    var nightNoWait by remember { mutableStateOf(store.autoNightNoWait) }
+    SettingSwitch(
+        "Auto light",
+        "Reading light while the screen is on and unlocked, night light once it is locked or off",
+        on, onChange
+    )
+    SettingGap()
+    if (scenes.isEmpty()) {
+        Text(
+            "Save a scene on the home screen first.",
+            style = MaterialTheme.typography.bodySmall,
+            color = onBg.copy(alpha = 0.45f)
+        )
+    } else {
+        SettingHeading("In hand", "Screen on and unlocked, the moment you unlock")
+        ScenePicker(scenes, handScene, candleHue, onPick = {
+            handScene = it.id; store.autoHandScene = it.id
+        })
+        SettingGap()
+        SettingHeading("Phone down & locked", "Locked or screen off for the wait below")
+        ScenePicker(scenes, nightScene, candleHue, onPick = {
+            nightScene = it.id; store.autoNightScene = it.id
+        })
+        Spacer(Modifier.height(10.dp))
+        SettingSwitch(
+            "No wait", "Night light the moment the phone locks or the screen goes off",
+            nightNoWait
+        ) { nightNoWait = it; store.autoNightNoWait = it }
+    }
+    SettingGap()
+    val waits = listOf(1, 2, 5)
+    SettingHeading("Wait before Night", "How long the phone stays locked or off first")
+    Box(Modifier.alpha(if (nightNoWait) 0.4f else 1f)) {
+        SegmentedPill(listOf("1 min", "2 min", "5 min"), waits.indexOf(wait).coerceAtLeast(0)) {
+            wait = waits[it]; store.autoWaitMinutes = waits[it]
+        }
+    }
+    Spacer(Modifier.height(16.dp))
+    Text(
+        "Pauses while Music, Visualizer or Screen sync runs. Turning it off brings back the light " +
+            "you had before it first changed anything.",
+        style = MaterialTheme.typography.bodySmall,
+        color = onBg.copy(alpha = 0.45f)
+    )
 }
 
 @Composable
@@ -343,16 +506,7 @@ private fun AppUpdateSection() {
     LaunchedEffect(Unit) {
         if (AppUpdater.state.value == AppUpdateState.Idle) AppUpdater.checkForUpdate(context)
     }
-    // Android's "Update this app?" prompt; started here so it only opens while the app is visible.
-    LaunchedEffect(state) {
-        (state as? AppUpdateState.WaitingForUser)?.let {
-            context.startActivity(it.confirm)
-            AppUpdater.confirmShown()
-        }
-    }
-    val allowInstalls = rememberLauncherForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { AppUpdater.continueInstall(context) }
+    val allowInstalls = rememberAppInstallFlow(state)
 
     UpdateBlock(
         title = "Glow v$installedVersion",
@@ -368,18 +522,38 @@ private fun AppUpdateSection() {
                     AppUpdater.startUpdate(context, state.release)
                 }
             state == AppUpdateState.NeedsPermission ->
-                PillButton("Allow app updates", highlighted = true) {
-                    allowInstalls.launch(
-                        Intent(
-                            Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                            Uri.parse("package:${context.packageName}")
-                        )
-                    )
-                }
+                PillButton("Allow app updates", highlighted = true, onClick = allowInstalls)
             else -> PillButton("Check for updates", highlighted = false) {
                 AppUpdater.checkForUpdate(context)
             }
         }
+    }
+}
+
+/**
+ * What the app updater needs from a screen that is visible: Android's "Update this app?" prompt
+ * is started from here, and the returned function opens the "install unknown apps" setting for
+ * Glow, whose result carries the install on.
+ */
+@Composable
+internal fun rememberAppInstallFlow(state: AppUpdateState): () -> Unit {
+    val context = LocalContext.current
+    LaunchedEffect(state) {
+        (state as? AppUpdateState.WaitingForUser)?.let {
+            context.startActivity(it.confirm)
+            AppUpdater.confirmShown()
+        }
+    }
+    val allowInstalls = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { AppUpdater.continueInstall(context) }
+    return {
+        allowInstalls.launch(
+            Intent(
+                Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                Uri.parse("package:${context.packageName}")
+            )
+        )
     }
 }
 
@@ -418,7 +592,7 @@ private fun UpdateBlock(
 
 /** Progress bar: [fraction] 0..1, or null while the length isn't known. */
 @Composable
-private fun UpdateProgress(fraction: Float?) {
+internal fun UpdateProgress(fraction: Float?) {
     val track = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.1f)
     val mod = Modifier
         .fillMaxWidth()
@@ -444,6 +618,7 @@ internal fun PillButton(
     text: String,
     highlighted: Boolean,
     enabled: Boolean = true,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
     val onBg = MaterialTheme.colorScheme.onBackground
@@ -453,7 +628,7 @@ internal fun PillButton(
     )
     Box(
         contentAlignment = Alignment.Center,
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .height(46.dp)
             .clip(rounded(16.dp))
@@ -471,7 +646,7 @@ internal fun PillButton(
     }
 }
 
-private fun appUpdateStatusText(state: AppUpdateState): String = when (state) {
+internal fun appUpdateStatusText(state: AppUpdateState): String = when (state) {
     AppUpdateState.Idle               -> "New versions are published as GitHub releases."
     AppUpdateState.Checking           -> "Checking GitHub…"
     is AppUpdateState.UpToDate        -> "Up to date (latest release is v${state.latest})."
@@ -485,7 +660,7 @@ private fun appUpdateStatusText(state: AppUpdateState): String = when (state) {
     is AppUpdateState.Error           -> state.message
 }
 
-private fun otaStatusText(state: OtaState): String = when (state) {
+internal fun otaStatusText(state: OtaState): String = when (state) {
     OtaState.Idle               -> "New firmware is published as GitHub releases."
     OtaState.Checking           -> "Checking GitHub…"
     is OtaState.UpToDate        -> "Up to date (latest release is v${state.latest})."

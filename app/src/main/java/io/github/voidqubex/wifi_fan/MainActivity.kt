@@ -16,10 +16,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.lifecycleScope
+import io.github.voidqubex.wifi_fan.auto.AutoLight
 import io.github.voidqubex.wifi_fan.bluetooth.BleManager
 import io.github.voidqubex.wifi_fan.ota.OtaManager
 import io.github.voidqubex.wifi_fan.sync.SyncHub
 import io.github.voidqubex.wifi_fan.ui.home.BleControlScreen
+import io.github.voidqubex.wifi_fan.ui.settings.UpdatePrompt
 import io.github.voidqubex.wifi_fan.ui.theme.AppLook
 import io.github.voidqubex.wifi_fan.ui.theme.GlowTheme
 
@@ -36,12 +38,15 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         bleManager = (application as GlowApp).bleManager
         SyncHub.uiAlive = true
+        if (savedInstanceState == null) UpdatePrompt.newLaunch()
         otaManager = OtaManager(bleManager, lifecycleScope)
         val settingsStore = SettingsStore(this)
         AppLook.monoFont = settingsStore.monoFont
         AppLook.cornerScale = settingsStore.cornerScale
         AppLook.roundLedPreview = settingsStore.roundLedPreview
         AppLook.pureBlack = settingsStore.pureBlack
+        AppLook.haptics = settingsStore.haptics
+        AppLook.hapticStrength = settingsStore.hapticStrength
         WindowCompat.setDecorFitsSystemWindows(window, false)
         enableEdgeToEdge()
         setContent {
@@ -76,8 +81,8 @@ class MainActivity : ComponentActivity() {
         super.onDestroy()
         SyncHub.uiAlive = false
         // Leaving for good ends the Bluetooth link (a rotation doesn't), unless music, visualizer or
-        // screen sync is still driving the LED: the service lets go of the board when it stops.
-        if (isFinishing && !SyncHub.isActive()) bleManager.disconnect()
+        // screen sync or Auto light is still driving the LED: the service lets go of the board when it stops.
+        if (isFinishing && !SyncHub.isActive() && !AutoLight.running) bleManager.disconnect()
     }
 }
 

@@ -84,7 +84,12 @@ publish (not as a draft or pre-release).
 
 ## Updating on the phone
 
-**Settings → App** checks GitHub when it opens. To update, tap **Update to vX**.
+At launch, when a newer version is on GitHub, Glow asks with an **Update | Later** dialog.
+**Update** runs the steps below right there; **Later** asks again the next time the app
+opens. **Settings → Update prompts** turns the dialog off. New board firmware is offered
+the same way once the board is connected (see `FIRMWARE_UPDATES.md`).
+
+**Settings → App** also checks GitHub when it opens. To update from there, tap **Update to vX**.
 
 1. The APK downloads.
 2. The first time, Android asks to **allow Glow to install apps**. Turn the

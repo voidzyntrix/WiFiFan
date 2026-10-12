@@ -57,10 +57,38 @@ class SettingsStore(context: Context) {
         get() = prefs.getFloat(KEY_LED_KELVIN, 4000f)
         set(value) { prefs.edit().putFloat(KEY_LED_KELVIN, value).apply() }
 
+    /**
+     * Two-LED boards (firmware 1.6.0+): Separate gives each LED its own colour. The board itself
+     * forgets this at every power-up, so the app sends it on each connect.
+     */
+    var separateLeds: Boolean
+        get() = prefs.getBoolean("separate_leds", false)
+        set(value) { prefs.edit().putBoolean("separate_leds", value).apply() }
+    /** LED2's colour in Separate mode: hue/saturation, or a colour temperature. */
+    var led2Hue: Float
+        get() = prefs.getFloat("led2_hue", 210f)
+        set(value) { prefs.edit().putFloat("led2_hue", value).apply() }
+    var led2Sat: Float
+        get() = prefs.getFloat("led2_sat", 1f)
+        set(value) { prefs.edit().putFloat("led2_sat", value).apply() }
+    var led2KelvinMode: Boolean
+        get() = prefs.getBoolean("led2_kelvin_mode", false)
+        set(value) { prefs.edit().putBoolean("led2_kelvin_mode", value).apply() }
+    var led2Kelvin: Float
+        get() = prefs.getFloat("led2_kelvin", 4000f)
+        set(value) { prefs.edit().putFloat("led2_kelvin", value).apply() }
+
     /** Candle mode: smooth (slow, gentle) instead of the lively flicker. */
     var smoothCandle: Boolean
         get() = prefs.getBoolean(KEY_SMOOTH_CANDLE, false)
         set(value) { prefs.edit().putBoolean(KEY_SMOOTH_CANDLE, value).apply() }
+    /**
+     * Candle with Separate LEDs (firmware 1.6.1+): two independent candles instead of one
+     * flame (LED1 core, LED2 tip).
+     */
+    var twoCandles: Boolean
+        get() = prefs.getBoolean("candle_two_candles", false)
+        set(value) { prefs.edit().putBoolean("candle_two_candles", value).apply() }
     /** Seconds the rainbow takes for one trip round the colour wheel. */
     var rainbowSeconds: Int
         get() = prefs.getInt(KEY_RAINBOW_SECONDS, 15)
@@ -117,15 +145,67 @@ class SettingsStore(context: Context) {
     var keepScreenOn: Boolean
         get() = prefs.getBoolean(KEY_KEEP_SCREEN_ON, false)
         set(value) { prefs.edit().putBoolean(KEY_KEEP_SCREEN_ON, value).apply() }
-    /** Toast at launch when an app or firmware update is available. */
-    var updateToasts: Boolean
-        get() = prefs.getBoolean(KEY_UPDATE_TOASTS, true)
-        set(value) { prefs.edit().putBoolean(KEY_UPDATE_TOASTS, value).apply() }
+    /** Dialog at launch when an app or firmware update is available. */
+    var updatePrompts: Boolean
+        get() = prefs.getBoolean(KEY_UPDATE_PROMPTS, true)
+        set(value) { prefs.edit().putBoolean(KEY_UPDATE_PROMPTS, value).apply() }
+
+    /** Light haptic ticks on sliders and taps on toggles, pills and buttons. */
+    var haptics: Boolean
+        get() = prefs.getBoolean("haptics", true)
+        set(value) { prefs.edit().putBoolean("haptics", value).apply() }
+    /** How strong the haptics are, 0.1 (faint) to 1 (full). */
+    var hapticStrength: Float
+        get() = prefs.getFloat("haptic_strength", 0.7f).coerceIn(0.1f, 1f)
+        set(value) { prefs.edit().putFloat("haptic_strength", value).apply() }
+    /** Music and Visualizer: a short brightness spike on every beat. */
+    var beatFlash: Boolean
+        get() = prefs.getBoolean("beat_flash", true)
+        set(value) { prefs.edit().putBoolean("beat_flash", value).apply() }
+
+    /** App-side names for boards, keyed by Bluetooth MAC address (the board itself isn't renamed). */
+    var boardNames: Map<String, String>
+        get() = runCatching {
+            val o = org.json.JSONObject(prefs.getString("board_names", null) ?: "{}")
+            o.keys().asSequence().associateWith { o.getString(it) }
+        }.getOrDefault(emptyMap())
+        set(value) {
+            prefs.edit().putString("board_names", org.json.JSONObject(value).toString()).apply()
+        }
+
+    /** Saved scenes as JSON; null until the defaults were seeded. */
+    var scenesJson: String?
+        get() = prefs.getString("scenes", null)
+        set(value) { prefs.edit().putString("scenes", value).apply() }
+
+    /** Auto light: reading light while the phone is in a hand, night light when it is down and locked. */
+    var autoLight: Boolean
+        get() = prefs.getBoolean("auto_light", false)
+        set(value) { prefs.edit().putBoolean("auto_light", value).apply() }
+    /** Scene ids for In hand and for Phone down & locked (the default Read and Night scenes). */
+    var autoHandScene: Long
+        get() = prefs.getLong("auto_hand_scene", 2L)
+        set(value) { prefs.edit().putLong("auto_hand_scene", value).apply() }
+    var autoNightScene: Long
+        get() = prefs.getLong("auto_night_scene", 1L)
+        set(value) { prefs.edit().putLong("auto_night_scene", value).apply() }
+    /** Minutes the phone must stay locked (or its screen off) before Night: 1, 2 or 5. */
+    var autoWaitMinutes: Int
+        get() = prefs.getInt("auto_wait_minutes", 2)
+        set(value) { prefs.edit().putInt("auto_wait_minutes", value).apply() }
+    /** Night the moment the phone is locked or the screen goes off, with no wait. */
+    var autoNightNoWait: Boolean
+        get() = prefs.getBoolean("auto_night_no_wait", false)
+        set(value) { prefs.edit().putBoolean("auto_night_no_wait", value).apply() }
+    /** The light from before Auto light first changed it (a scene as JSON), brought back when it is turned off. */
+    var autoSnapshot: String?
+        get() = prefs.getString("auto_snapshot", null)
+        set(value) { prefs.edit().putString("auto_snapshot", value).apply() }
 
     private companion object {
         const val KEY_CANDLE_HUE = "candle_hue"
         const val KEY_KEEP_SCREEN_ON = "keep_screen_on"
-        const val KEY_UPDATE_TOASTS = "update_toasts"
+        const val KEY_UPDATE_PROMPTS = "update_toasts"   // the old name keeps the saved choice
         const val KEY_SMOOTH_CANDLE = "smooth_candle"
         const val KEY_RAINBOW_SECONDS = "rainbow_seconds"
         const val KEY_FADE_MS = "fade_ms"
