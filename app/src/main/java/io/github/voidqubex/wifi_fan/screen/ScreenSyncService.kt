@@ -180,9 +180,6 @@ class ScreenSyncService : Service() {
             if (ours) link?.setFade(SettingsStore(this).fadeMs)     // back to the user's fade time
         }
         link = null
-        // Stopped with the app already closed (notification Stop): let go of the board too,
-        // unless Auto light still uses it.
-        if (ours && !SyncHub.uiAlive && !AutoLight.running) ble.disconnect()
         super.onDestroy()
     }
 

@@ -208,12 +208,6 @@ class AutoLightService : Service() {
         if (started) runCatching { unregisterReceiver(screenReceiver) }
         wakeLock?.takeIf { it.isHeld }?.release()
         AutoLight.status.value = null
-        // Stopped with the app closed (notification Stop): let go of the board too, after the
-        // restored light had time to go out.
-        val ble = (application as GlowApp).bleManager
-        main.postDelayed({
-            if (!SyncHub.uiAlive && !SyncHub.isActive() && !AutoLight.running) ble.disconnect()
-        }, 1_500)
         super.onDestroy()
     }
 
