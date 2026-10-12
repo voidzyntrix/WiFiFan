@@ -96,8 +96,8 @@ internal fun SettingsScreen(
     onCandleHueChange: (Int) -> Unit,
     keepScreenOn: Boolean,
     onKeepScreenOnChange: (Boolean) -> Unit,
-    updateToasts: Boolean,
-    onUpdateToastsChange: (Boolean) -> Unit,
+    updatePrompts: Boolean,
+    onUpdatePromptsChange: (Boolean) -> Unit,
     onColorChange: (AppColorScheme) -> Unit,
     onAccentChange: (Int) -> Unit,
     onBackgroundChange: (AppBackground) -> Unit,
@@ -332,8 +332,8 @@ internal fun SettingsScreen(
             SettingSwitch("Keep screen on", null, keepScreenOn, onKeepScreenOnChange)
             SwitchGap()
             SettingSwitch(
-                "Update notifications", "Toast at launch when an update is available",
-                updateToasts, onUpdateToastsChange
+                "Update prompts", "Ask at launch when an update is available",
+                updatePrompts, onUpdatePromptsChange
             )
         }
 
@@ -474,16 +474,7 @@ private fun AppUpdateSection() {
     LaunchedEffect(Unit) {
         if (AppUpdater.state.value == AppUpdateState.Idle) AppUpdater.checkForUpdate(context)
     }
-    // Android's "Update this app?" prompt; started here so it only opens while the app is visible.
-    LaunchedEffect(state) {
-        (state as? AppUpdateState.WaitingForUser)?.let {
-            context.startActivity(it.confirm)
-            AppUpdater.confirmShown()
-        }
-    }
-    val allowInstalls = rememberLauncherForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { AppUpdater.continueInstall(context) }
+    val allowInstalls = rememberAppInstallFlow(state)
 
     UpdateBlock(
         title = "Glow v$installedVersion",
@@ -499,18 +490,38 @@ private fun AppUpdateSection() {
                     AppUpdater.startUpdate(context, state.release)
                 }
             state == AppUpdateState.NeedsPermission ->
-                PillButton("Allow app updates", highlighted = true) {
-                    allowInstalls.launch(
-                        Intent(
-                            Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                            Uri.parse("package:${context.packageName}")
-                        )
-                    )
-                }
+                PillButton("Allow app updates", highlighted = true, onClick = allowInstalls)
             else -> PillButton("Check for updates", highlighted = false) {
                 AppUpdater.checkForUpdate(context)
             }
         }
+    }
+}
+
+/**
+ * What the app updater needs from a screen that is visible: Android's "Update this app?" prompt
+ * is started from here, and the returned function opens the "install unknown apps" setting for
+ * Glow, whose result carries the install on.
+ */
+@Composable
+internal fun rememberAppInstallFlow(state: AppUpdateState): () -> Unit {
+    val context = LocalContext.current
+    LaunchedEffect(state) {
+        (state as? AppUpdateState.WaitingForUser)?.let {
+            context.startActivity(it.confirm)
+            AppUpdater.confirmShown()
+        }
+    }
+    val allowInstalls = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { AppUpdater.continueInstall(context) }
+    return {
+        allowInstalls.launch(
+            Intent(
+                Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                Uri.parse("package:${context.packageName}")
+            )
+        )
     }
 }
 
@@ -549,7 +560,7 @@ private fun UpdateBlock(
 
 /** Progress bar: [fraction] 0..1, or null while the length isn't known. */
 @Composable
-private fun UpdateProgress(fraction: Float?) {
+internal fun UpdateProgress(fraction: Float?) {
     val track = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.1f)
     val mod = Modifier
         .fillMaxWidth()
@@ -603,7 +614,7 @@ internal fun PillButton(
     }
 }
 
-private fun appUpdateStatusText(state: AppUpdateState): String = when (state) {
+internal fun appUpdateStatusText(state: AppUpdateState): String = when (state) {
     AppUpdateState.Idle               -> "New versions are published as GitHub releases."
     AppUpdateState.Checking           -> "Checking GitHub…"
     is AppUpdateState.UpToDate        -> "Up to date (latest release is v${state.latest})."
@@ -617,7 +628,7 @@ private fun appUpdateStatusText(state: AppUpdateState): String = when (state) {
     is AppUpdateState.Error           -> state.message
 }
 
-private fun otaStatusText(state: OtaState): String = when (state) {
+internal fun otaStatusText(state: OtaState): String = when (state) {
     OtaState.Idle               -> "New firmware is published as GitHub releases."
     OtaState.Checking           -> "Checking GitHub…"
     is OtaState.UpToDate        -> "Up to date (latest release is v${state.latest})."

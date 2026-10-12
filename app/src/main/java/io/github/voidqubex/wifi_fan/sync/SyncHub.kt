@@ -6,6 +6,13 @@ import kotlinx.coroutines.flow.MutableStateFlow
 enum class SyncKind { NONE, MUSIC, VISUALIZER, SCREEN }
 
 /**
+ * Music and Visualizer run in one service, which restarts when the other one is picked; Screen
+ * sync is a service of its own. A kind is always the same service as itself.
+ */
+fun SyncKind.sharesServiceWith(other: SyncKind): Boolean =
+    this == other || (this != SyncKind.SCREEN && other != SyncKind.SCREEN)
+
+/**
  * Process-wide state shared by the home screen and the sync services. The services keep
  * running (and driving the LED) after the activity is gone; the screen just observes this.
  */
@@ -29,6 +36,19 @@ object SyncHub {
     @Volatile var uiAlive = false
 
     fun isActive() = active.value != SyncKind.NONE
+
+    /**
+     * A service that is stopping lets go of the shared state, unless another sync took over in the
+     * meantime: when the mode changes, Android starts the new service before it stops the old one.
+     * Returns true when the state was its to clear, so it may also put the board's fade back.
+     */
+    fun release(vararg mine: SyncKind): Boolean {
+        val current = active.value
+        if (current != SyncKind.NONE && current !in mine) return false
+        active.value = SyncKind.NONE
+        level.value = 0f
+        return true
+    }
 
     /** Starts a service run with the picked colour showing and the meter at rest. */
     fun reset() {

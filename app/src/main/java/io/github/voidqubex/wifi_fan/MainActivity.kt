@@ -21,6 +21,7 @@ import io.github.voidqubex.wifi_fan.bluetooth.BleManager
 import io.github.voidqubex.wifi_fan.ota.OtaManager
 import io.github.voidqubex.wifi_fan.sync.SyncHub
 import io.github.voidqubex.wifi_fan.ui.home.BleControlScreen
+import io.github.voidqubex.wifi_fan.ui.settings.UpdatePrompt
 import io.github.voidqubex.wifi_fan.ui.theme.AppLook
 import io.github.voidqubex.wifi_fan.ui.theme.GlowTheme
 
@@ -37,6 +38,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         bleManager = (application as GlowApp).bleManager
         SyncHub.uiAlive = true
+        if (savedInstanceState == null) UpdatePrompt.newLaunch()
         otaManager = OtaManager(bleManager, lifecycleScope)
         val settingsStore = SettingsStore(this)
         AppLook.monoFont = settingsStore.monoFont

@@ -63,10 +63,13 @@ class LedLink(private val ble: BleManager) {
 
     /**
      * Shows a colour: HSV on firmware 1.1.0+, RGB on older. Skipped when the LED is off or when
-     * the last colour went out less than [minGapMs] ago, so the link isn't flooded.
+     * the last colour went out less than [minGapMs] ago, so the link isn't flooded. With
+     * [skipIfBacklogged] it is also skipped while an earlier command still waits to be written
+     * (for streams: the next colour is newer anyway, and a queue would only add delay).
      */
-    fun colour(h: Float, s: Float, v: Float, minGapMs: Long): Boolean {
+    fun colour(h: Float, s: Float, v: Float, minGapMs: Long, skipIfBacklogged: Boolean = false): Boolean {
         if (v < MIN_VISIBLE_BRIGHTNESS) return false
+        if (skipIfBacklogged && ble.backlogged) return false
         if (!due(minGapMs)) return false
         val sat = s.coerceIn(0f, 1f)
         val value = v.coerceIn(0f, 1f)
@@ -85,9 +88,13 @@ class LedLink(private val ble: BleManager) {
      * Two colours, one per LED, as a single `hh=` command (one throttled send, like [colour]).
      * Boards before 1.6.0 only get LED1's colour.
      */
-    fun colours(h1: Float, s1: Float, v1: Float, h2: Float, s2: Float, v2: Float, minGapMs: Long): Boolean {
-        if (!fwAtLeast("1.6.0")) return colour(h1, s1, v1, minGapMs)
+    fun colours(
+        h1: Float, s1: Float, v1: Float, h2: Float, s2: Float, v2: Float,
+        minGapMs: Long, skipIfBacklogged: Boolean = false
+    ): Boolean {
+        if (!fwAtLeast("1.6.0")) return colour(h1, s1, v1, minGapMs, skipIfBacklogged)
         if (max(v1, v2) < MIN_VISIBLE_BRIGHTNESS) return false
+        if (skipIfBacklogged && ble.backlogged) return false
         if (!due(minGapMs)) return false
         ble.sendData(LedCommands.pair(h1, s1, v1, h2, s2, v2))
         return true

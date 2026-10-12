@@ -229,12 +229,13 @@ class AudioSyncService : Service() {
     }
 
     override fun onDestroy() {
-        shutdown(restoreFade = true)
-        SyncHub.active.value = SyncKind.NONE
-        SyncHub.level.value = 0f
+        // Changing the mode starts the new service before this one stops: if Screen sync is up by
+        // now, the shared state and the board's fade are its, not ours to reset.
+        val ours = SyncHub.release(SyncKind.MUSIC, SyncKind.VISUALIZER)
+        shutdown(restoreFade = ours)
         // Stopped with the app already closed (notification Stop): let go of the board too,
         // unless Auto light still uses it.
-        if (!SyncHub.uiAlive && !AutoLight.running) (application as GlowApp).bleManager.disconnect()
+        if (ours && !SyncHub.uiAlive && !AutoLight.running) (application as GlowApp).bleManager.disconnect()
         super.onDestroy()
     }
 

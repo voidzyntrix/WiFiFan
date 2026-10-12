@@ -35,6 +35,7 @@ import io.github.voidqubex.wifi_fan.ui.connect.DeviceEntry
 import io.github.voidqubex.wifi_fan.ui.home.VisualizerPanel
 import io.github.voidqubex.wifi_fan.ui.home.BleControlScreen
 import io.github.voidqubex.wifi_fan.ui.settings.SettingsScreen
+import io.github.voidqubex.wifi_fan.ui.settings.UpdateDialogCard
 import io.github.voidqubex.wifi_fan.ui.theme.AppLook
 import io.github.voidqubex.wifi_fan.ui.theme.DefaultAccent
 import io.github.voidqubex.wifi_fan.ui.theme.GlowTheme
@@ -161,8 +162,8 @@ abstract class ScreenshotTests(private val size: String) {
             onCandleHueChange = {},
             keepScreenOn = false,
             onKeepScreenOnChange = {},
-            updateToasts = true,
-            onUpdateToastsChange = {},
+            updatePrompts = true,
+            onUpdatePromptsChange = {},
             onColorChange = {},
             onAccentChange = {},
             onBackgroundChange = {},
@@ -354,6 +355,44 @@ abstract class ScreenshotTests(private val size: String) {
             Modifier.fillMaxSize().background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.4f)).padding(24.dp),
             contentAlignment = Alignment.Center
         ) { content() }
+    }
+
+    @Test fun updateDialogDarkColoured() = shot("update-dialog", Look.DARK_COLOURED) {
+        DialogBox {
+            UpdateDialogCard(
+                title = "Update available",
+                subtitle = "Glow v1.14.0 → v1.15.0",
+                message = "Glow downloads the update, then Android asks you to confirm. " +
+                    "The app closes when it's done; open it again.",
+                actionLabel = "Update",
+                onDismiss = {}
+            )
+        }
+    }
+
+    @Test fun updateDialogFirmwareLight() = shot("update-dialog-board", Look.LIGHT_MONO) {
+        DialogBox {
+            UpdateDialogCard(
+                title = "Update available",
+                subtitle = "Board firmware v1.6.1 → v1.6.2",
+                message = "The app sends the new firmware over Bluetooth. Keep it open until it's done.",
+                actionLabel = "Update",
+                onDismiss = {}
+            )
+        }
+    }
+
+    @Test fun updateDialogProgressDarkMono() = shot("update-progress", Look.DARK_MONO) {
+        DialogBox {
+            UpdateDialogCard(
+                title = "Updating Glow",
+                subtitle = "Glow v1.14.0 → v1.15.0",
+                message = "Downloading… 42 %",
+                working = true,
+                progress = 0.42f,
+                onDismiss = {}
+            )
+        }
     }
 
     @Test fun whatsNewDarkColoured() = shot("whats-new", Look.DARK_COLOURED) {

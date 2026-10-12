@@ -229,6 +229,25 @@ class BleManager(private val context: Context) {
     }
 
     /**
+     * Streams of colours (Screen sync) want the shortest Bluetooth connection interval: Android's
+     * default ("balanced") spaces writes 30-50 ms apart, "high" 11-15 ms. Off goes back to balanced.
+     */
+    @SuppressLint("MissingPermission")
+    fun setLowLatency(on: Boolean) {
+        runCatching {
+            bluetoothGatt?.requestConnectionPriority(
+                if (on) BluetoothGatt.CONNECTION_PRIORITY_HIGH else BluetoothGatt.CONNECTION_PRIORITY_BALANCED
+            )
+        }
+    }
+
+    /**
+     * A command is already waiting behind the one being written. A stream of colours skips a frame
+     * then instead of queueing a stale one: the next frame carries the newest colour anyway.
+     */
+    val backlogged: Boolean get() = gattQueue.isNotEmpty()
+
+    /**
      * Send raw bytes (no delimiter) and suspend until every chunk was written.
      * When [baud] is given, chunks are spaced so the module's UART (at that
      * baud rate) keeps up and its small buffer can't overflow.

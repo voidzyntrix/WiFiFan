@@ -43,8 +43,8 @@ import kotlin.math.sqrt
 /**
  * Screen sync: mirrors the dominant colour on screen to the LED. Runs as a foreground
  * service (type mediaProjection) so it keeps going while other apps are open, and with the
- * app closed. It drives the board itself, about twelve colours a second, with a short fade
- * so the LED keeps up with the screen.
+ * app closed. It drives the board itself, up to twenty-five colours a second, with a short fade
+ * and the fastest Bluetooth link so the LED keeps up with the screen.
  */
 class ScreenSyncService : Service() {
     private var projection: MediaProjection? = null
@@ -99,6 +99,7 @@ class ScreenSyncService : Service() {
         val l = LedLink(ble)
         link = l
         l.setFade(FADE_MS)
+        ble.setLowLatency(true)
         SyncHub.reset()
         SyncHub.active.value = SyncKind.SCREEN
         val s = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -148,24 +149,18 @@ class ScreenSyncService : Service() {
                 SyncHub.hue2.value = next2[0]
                 SyncHub.sat2.value = next2[1]
                 val bri = SyncParams.bri
-                l.colours(next[0], next[1], bri, next2[0], next2[1], bri, PERIOD_MS - 15)
+                l.colours(next[0], next[1], bri, next2[0], next2[1], bri, SEND_GAP_MS, skipIfBacklogged = true)
                 return
             }
             val next = smooth(smoothed, dominantColour(px))
             smoothed = next
             SyncHub.hue.value = next[0]
             SyncHub.sat.value = next[1]
-            l.colour(next[0], next[1], SyncParams.bri, PERIOD_MS - 15)
+            l.colour(next[0], next[1], SyncParams.bri, SEND_GAP_MS, skipIfBacklogged = true)
         } finally {
             image.close()
         }
     }
-
-    private fun smooth(prev: FloatArray?, target: FloatArray): FloatArray =
-        if (prev == null) target else floatArrayOf(
-            lerpHue(prev[0], target[0], SMOOTHING),
-            prev[1] + (target[1] - prev[1]) * SMOOTHING
-        )
 
     override fun onDestroy() {
         scope?.cancel()
@@ -176,15 +171,18 @@ class ScreenSyncService : Service() {
         projection?.stop()
         thread?.quitSafely()
         projection = null
-        SyncHub.active.value = SyncKind.NONE
+        // Changing the mode starts the new service before this one stops: if Music or Visualizer
+        // is up by now, the shared state and the board's fade are theirs, not ours to reset.
+        val ours = SyncHub.release(SyncKind.SCREEN)
         val ble = (application as GlowApp).bleManager
         if (ble.connectionState.value == BluetoothProfile.STATE_CONNECTED) {
-            link?.setFade(SettingsStore(this).fadeMs)     // back to the user's fade time
+            ble.setLowLatency(false)
+            if (ours) link?.setFade(SettingsStore(this).fadeMs)     // back to the user's fade time
         }
         link = null
         // Stopped with the app already closed (notification Stop): let go of the board too,
         // unless Auto light still uses it.
-        if (!SyncHub.uiAlive && !AutoLight.running) ble.disconnect()
+        if (ours && !SyncHub.uiAlive && !AutoLight.running) ble.disconnect()
         super.onDestroy()
     }
 
@@ -217,10 +215,16 @@ class ScreenSyncService : Service() {
         private const val CHANNEL = "screen_sync"
         private const val NOTIFICATION_ID = 7
         private const val WIDTH = 64
-        private const val PERIOD_MS = 80L
-        private const val SMOOTHING = 0.6f
+        /** How often the screen is looked at (about 25 times a second). */
+        private const val PERIOD_MS = 40L
+        /** Least time between two colours sent to the board. */
+        private const val SEND_GAP_MS = 25L
+        /** Share of a small colour change shown per look; bigger changes follow faster (see [smooth]). */
+        private const val SMOOTHING = 0.4f
+        /** A colour change this big (distance on the hue/saturation disc, 0..2) is followed at once. */
+        private const val JUMP = 0.45f
         /** Short, so the LED follows the screen instead of lagging behind it. */
-        private const val FADE_MS = 120
+        private const val FADE_MS = 80
 
         /** Starts capturing with the result of the screen-capture consent screen. */
         fun start(context: Context, resultCode: Int, data: Intent) {
@@ -233,6 +237,26 @@ class ScreenSyncService : Service() {
 
         fun stop(context: Context) {
             context.stopService(Intent(context, ScreenSyncService::class.java))
+        }
+
+        /**
+         * The colour to show after a look: [target] eased in from [prev] (hue, saturation). Small
+         * changes are eased so the LED doesn't flicker with the picture; the bigger the change the
+         * more of it is taken, and a clear jump (a scene cut, a new colour filling the screen) is
+         * followed at once instead of lagging for several looks.
+         */
+        fun smooth(prev: FloatArray?, target: FloatArray): FloatArray {
+            if (prev == null) return target
+            val a = Math.toRadians(prev[0].toDouble())
+            val b = Math.toRadians(target[0].toDouble())
+            val dx = target[1] * cos(b) - prev[1] * cos(a)
+            val dy = target[1] * sin(b) - prev[1] * sin(a)
+            val distance = sqrt(dx * dx + dy * dy).toFloat()
+            val follow = (SMOOTHING + (1f - SMOOTHING) * distance / JUMP).coerceAtMost(1f)
+            return floatArrayOf(
+                lerpHue(prev[0], target[0], follow),
+                prev[1] + (target[1] - prev[1]) * follow
+            )
         }
 
         /**

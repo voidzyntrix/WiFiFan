@@ -145,10 +145,10 @@ class SettingsStore(context: Context) {
     var keepScreenOn: Boolean
         get() = prefs.getBoolean(KEY_KEEP_SCREEN_ON, false)
         set(value) { prefs.edit().putBoolean(KEY_KEEP_SCREEN_ON, value).apply() }
-    /** Toast at launch when an app or firmware update is available. */
-    var updateToasts: Boolean
-        get() = prefs.getBoolean(KEY_UPDATE_TOASTS, true)
-        set(value) { prefs.edit().putBoolean(KEY_UPDATE_TOASTS, value).apply() }
+    /** Dialog at launch when an app or firmware update is available. */
+    var updatePrompts: Boolean
+        get() = prefs.getBoolean(KEY_UPDATE_PROMPTS, true)
+        set(value) { prefs.edit().putBoolean(KEY_UPDATE_PROMPTS, value).apply() }
 
     /** Light haptic ticks on sliders and taps on toggles, pills and buttons. */
     var haptics: Boolean
@@ -205,7 +205,7 @@ class SettingsStore(context: Context) {
     private companion object {
         const val KEY_CANDLE_HUE = "candle_hue"
         const val KEY_KEEP_SCREEN_ON = "keep_screen_on"
-        const val KEY_UPDATE_TOASTS = "update_toasts"
+        const val KEY_UPDATE_PROMPTS = "update_toasts"   // the old name keeps the saved choice
         const val KEY_SMOOTH_CANDLE = "smooth_candle"
         const val KEY_RAINBOW_SECONDS = "rainbow_seconds"
         const val KEY_FADE_MS = "fade_ms"

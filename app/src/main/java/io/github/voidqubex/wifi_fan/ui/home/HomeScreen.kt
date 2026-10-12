@@ -98,6 +98,7 @@ import io.github.voidqubex.wifi_fan.screen.ScreenSyncService
 import io.github.voidqubex.wifi_fan.sync.SyncHub
 import io.github.voidqubex.wifi_fan.sync.SyncKind
 import io.github.voidqubex.wifi_fan.sync.SyncParams
+import io.github.voidqubex.wifi_fan.sync.sharesServiceWith
 import io.github.voidqubex.wifi_fan.ui.whatsnew.WhatsNewDialog
 import kotlinx.coroutines.CancellationException
 import androidx.compose.ui.window.Popup
@@ -138,6 +139,8 @@ import io.github.voidqubex.wifi_fan.ui.connect.ConnectScreen
 import io.github.voidqubex.wifi_fan.ui.connect.DeviceEntry
 import io.github.voidqubex.wifi_fan.ui.connect.toEntries
 import io.github.voidqubex.wifi_fan.ui.settings.SettingsScreen
+import io.github.voidqubex.wifi_fan.ui.settings.UpdatePrompt
+import io.github.voidqubex.wifi_fan.ui.settings.UpdatePromptDialog
 import io.github.voidqubex.wifi_fan.ui.theme.activeFill
 import io.github.voidqubex.wifi_fan.ui.theme.circle
 import io.github.voidqubex.wifi_fan.ui.theme.onActiveFill
@@ -248,7 +251,7 @@ fun BleControlScreen(
     var candleHue by remember { mutableIntStateOf(ledStore.candleHue) }
     var twoCandles by remember { mutableStateOf(ledStore.twoCandles) }
     var keepScreenOn by remember { mutableStateOf(ledStore.keepScreenOn) }
-    var updateToasts by remember { mutableStateOf(ledStore.updateToasts) }
+    var updatePrompts by remember { mutableStateOf(ledStore.updatePrompts) }
     val rootView = LocalView.current
     DisposableEffect(keepScreenOn) {
         rootView.keepScreenOn = keepScreenOn
@@ -281,7 +284,7 @@ fun BleControlScreen(
         }
     }
 
-    // Both update checks run at launch; a toast says when something is available.
+    // Both update checks run at launch; a dialog offers whatever is available.
     LaunchedEffect(Unit) {
         if (AppUpdater.state.value == AppUpdateState.Idle) AppUpdater.checkForUpdate(context)
     }
@@ -293,16 +296,6 @@ fun BleControlScreen(
             (st == OtaState.Idle || st is OtaState.Error || st is OtaState.Done || st is OtaState.UpToDate)
         ) otaManager.checkForUpdate(boardVersion)
     }
-    LaunchedEffect(appUpdateState is AppUpdateState.UpdateAvailable) {
-        if (updateToasts) (appUpdateState as? AppUpdateState.UpdateAvailable)?.let {
-            Toast.makeText(context, "App update v${it.release.version} available in Settings", Toast.LENGTH_LONG).show()
-        }
-    }
-    LaunchedEffect(fwUpdateState is OtaState.UpdateAvailable) {
-        if (updateToasts) (fwUpdateState as? OtaState.UpdateAvailable)?.let {
-            Toast.makeText(context, "Board firmware v${it.release.version} available in Settings", Toast.LENGTH_LONG).show()
-        }
-    }
 
     // "What's new" once after an update (a fresh install only remembers its version).
     var whatsNewOpen by remember { mutableStateOf(false) }
@@ -313,6 +306,14 @@ fun BleControlScreen(
         if (seen == null || GitHubReleases.compareVersions(installed, seen) > 0) ledStore.lastSeenVersion = installed
     }
     if (whatsNewOpen) WhatsNewDialog(onDismiss = { whatsNewOpen = false })
+
+    // The update dialog waits for Settings (which has the same buttons) and "What's new" to be closed.
+    val appOffer = (appUpdateState as? AppUpdateState.UpdateAvailable)?.release?.version
+    val boardOffer = (fwUpdateState as? OtaState.UpdateAvailable)?.release?.version
+    LaunchedEffect(appOffer, boardOffer, updatePrompts, showSettings, whatsNewOpen, UpdatePrompt.showing) {
+        if (updatePrompts && !showSettings && !whatsNewOpen) UpdatePrompt.offer(appOffer, boardOffer)
+    }
+    UpdatePromptDialog(otaManager, boardVersion, isConnected)
 
     val permissionsToRequest = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
         arrayOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT)
@@ -754,8 +755,7 @@ fun BleControlScreen(
             LED_MODE_SCREEN -> SyncKind.SCREEN
             else -> SyncKind.NONE
         }
-        fun sameService(a: SyncKind, b: SyncKind) = a != SyncKind.SCREEN && b != SyncKind.SCREEN
-        if (syncActive != SyncKind.NONE && (wanted == SyncKind.NONE || !sameService(syncActive, wanted))) {
+        if (syncActive != SyncKind.NONE && (wanted == SyncKind.NONE || !syncActive.sharesServiceWith(wanted))) {
             stopSync(syncActive)
         }
     }
@@ -942,8 +942,8 @@ fun BleControlScreen(
                         onTwoCandlesChange = { twoCandles = it; ledStore.twoCandles = it },
                         keepScreenOn = keepScreenOn,
                         onKeepScreenOnChange = { keepScreenOn = it; ledStore.keepScreenOn = it },
-                        updateToasts = updateToasts,
-                        onUpdateToastsChange = { updateToasts = it; ledStore.updateToasts = it },
+                        updatePrompts = updatePrompts,
+                        onUpdatePromptsChange = { updatePrompts = it; ledStore.updatePrompts = it },
                         onColorChange = onColorChange,
                         onAccentChange = onAccentChange,
                         onBackgroundChange = onBackgroundChange,
