@@ -19,10 +19,12 @@ enum class AutoState {
  * and a settle time, so a passing shadow or a lamp flickering changes nothing.
  */
 class RoomLight(
-    private val darkLux: Float = DARK_LUX,
-    private val brightLux: Float = BRIGHT_LUX,
+    /** At or below: dark. Bright starts at twice this (at least 15 lux more). */
+    var darkLux: Float = DARK_LUX,
     private val settleMs: Long = SETTLE_MS
 ) {
+    val brightLux: Float get() = maxOf(darkLux * 2f, darkLux + 15f)
+
     /** The room as last decided (true = dark), null before the first decision. */
     var dark: Boolean? = null
         private set
@@ -65,8 +67,7 @@ class RoomLight(
     }
 
     companion object {
-        const val DARK_LUX = 10f
-        const val BRIGHT_LUX = 40f
+        const val DARK_LUX = 30f
         const val SETTLE_MS = 3_000L
     }
 }

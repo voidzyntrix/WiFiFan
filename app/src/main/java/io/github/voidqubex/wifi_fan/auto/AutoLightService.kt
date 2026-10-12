@@ -81,6 +81,9 @@ class AutoLightService : Service(), SensorEventListener {
                 Intent.ACTION_SCREEN_OFF -> userPresent = false
             }
             screenChanged()
+            // Room light: with the screen off Android lets the CPU (and the light readings) sleep.
+            // Stay awake a little so a phone put down in a dark room still sees the dark.
+            if (roomMode && intent.action == Intent.ACTION_SCREEN_OFF) holdAwake(ROOM_AWAKE_MS)
         }
     }
 
@@ -169,6 +172,8 @@ class AutoLightService : Service(), SensorEventListener {
     override fun onSensorChanged(event: SensorEvent) {
         if (!roomMode || event.sensor.type != Sensor.TYPE_LIGHT) return
         val t = now()
+        AutoLight.lux.value = event.values[0]
+        room.darkLux = store.autoDarkLux
         main.removeCallbacks(roomCheck)
         room.sample(event.values[0], t)?.let { actRoom(it) }
         if (room.settling) main.postDelayed(roomCheck, RoomLight.SETTLE_MS + 100)
@@ -199,7 +204,6 @@ class AutoLightService : Service(), SensorEventListener {
         if (roomMode) {
             // The lock and screen don't decide anything now; no Night countdown either.
             main.removeCallbacks(check)
-            wakeLock?.takeIf { it.isHeld }?.release()
             publish(t)
             return
         }
@@ -263,15 +267,19 @@ class AutoLightService : Service(), SensorEventListener {
      * Keeps the CPU awake while counting down to Night, so the timer runs with the screen off.
      * Once per lock, and never longer than the wait plus a minute.
      */
+    private fun holdAwake(ms: Long) {
+        val wl = wakeLock ?: getSystemService(PowerManager::class.java)
+            .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Glow:AutoLight")
+            .also { it.setReferenceCounted(false); wakeLock = it }
+        wl.acquire(ms)
+    }
+
     private fun updateWakeLock(t: Long) {
         val counting = machine.msUntilNight(t) != null
         val since = machine.downSinceMs
         if (counting && since != null && since != wakeForDownSince) {
             wakeForDownSince = since
-            val wl = wakeLock ?: getSystemService(PowerManager::class.java)
-                .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Glow:AutoLight")
-                .also { it.setReferenceCounted(false); wakeLock = it }
-            wl.acquire(machine.nightDelayMs + 60_000L)
+            holdAwake(machine.nightDelayMs + 60_000L)
         } else if (!counting) {
             wakeLock?.takeIf { it.isHeld }?.release()
         }
@@ -282,6 +290,7 @@ class AutoLightService : Service(), SensorEventListener {
         main.removeCallbacks(roomCheck)
         if (listening) sensorManager?.unregisterListener(this)
         listening = false
+        AutoLight.lux.value = null
         scope?.cancel()
         scope = null
         if (started) runCatching { unregisterReceiver(screenReceiver) }
@@ -317,6 +326,8 @@ class AutoLightService : Service(), SensorEventListener {
         private const val ACTION_STOP = "io.github.voidqubex.wifi_fan.auto.STOP"
         private const val CHANNEL = "auto_light"
         private const val NOTIFICATION_ID = 10
+        /** Room light: how long the light readings keep coming after the screen goes off. */
+        private const val ROOM_AWAKE_MS = 10_000L
         private val SYNC_MODES = listOf(LED_MODE_MUSIC, LED_MODE_VISUALIZER, LED_MODE_SCREEN)
 
         /** Starts watching. The app must be visible, and a board connected. */

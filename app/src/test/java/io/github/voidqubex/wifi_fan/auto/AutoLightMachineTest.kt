@@ -29,10 +29,10 @@ class RoomLightTest {
     @Test fun inBetweenKeepsTheRoomAsItWas() {
         val r = RoomLight()
         r.sample(1f, 0); r.check(3_000)
-        assertNull(r.sample(25f, 5_000))
+        assertNull(r.sample(45f, 5_000))     // between 30 (dark) and 60 (bright)
         assertNull(r.check(60_000))
         assertEquals(true, r.dark)
-        assertNull(r.sample(60f, 61_000))
+        assertNull(r.sample(70f, 61_000))
         assertEquals(false, r.check(64_000))
     }
 }

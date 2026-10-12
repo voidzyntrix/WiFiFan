@@ -236,6 +236,10 @@ class SettingsStore(context: Context) {
     var autoRoomLight: Boolean
         get() = prefs.getBoolean("auto_room_light", false)
         set(value) { prefs.edit().putBoolean("auto_room_light", value).apply() }
+    /** Room light: below this many lux the room counts as dark (bright from twice that, at least +15). */
+    var autoDarkLux: Float
+        get() = prefs.getFloat("auto_dark_lux", 30f).coerceIn(2f, 150f)
+        set(value) { prefs.edit().putFloat("auto_dark_lux", value).apply() }
     /** Scene ids for a dark and a bright room (the default Night and Read scenes). */
     var autoDarkScene: Long
         get() = prefs.getLong("auto_dark_scene", 1L)

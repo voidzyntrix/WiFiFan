@@ -445,9 +445,36 @@ private fun AutoLightSettings(
                 brightScene = it.id; store.autoBrightScene = it.id
             })
         }
+        SettingGap()
+        var darkLux by remember { mutableFloatStateOf(store.autoDarkLux) }
+        val lux by io.github.voidqubex.wifi_fan.auto.AutoLight.lux.collectAsState()
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "Dark below",
+                style = MaterialTheme.typography.labelMedium,
+                color = onBg.copy(alpha = 0.6f),
+                modifier = Modifier.weight(1f)
+            )
+            Text("${darkLux.roundToInt()} lux", style = MaterialTheme.typography.labelLarge, color = onBg)
+        }
+        Spacer(Modifier.height(4.dp))
+        GradientBar(
+            fraction = (darkLux - 2f) / 148f,
+            stops = listOf(onBg.copy(alpha = 0.55f), onBg.copy(alpha = 0.12f)),
+            thumbColor = MaterialTheme.colorScheme.primary,
+            onFraction = { darkLux = 2f + it * 148f },
+            onFinished = { store.autoDarkLux = darkLux }
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            "Light now: " + (lux?.let { "${it.roundToInt()} lux" } ?: "turn Auto light on to see it") +
+                ". Set the dark level a bit above what the sensor reads with the lights off.",
+            style = MaterialTheme.typography.bodySmall,
+            color = onBg.copy(alpha = 0.6f)
+        )
         Spacer(Modifier.height(16.dp))
         Text(
-            "Switches after 3 s of steady light: dark below 10 lux, bright above 40. A phone lying " +
+            "Bright starts at twice the dark level. Switches after 3 s of steady light; a phone lying " +
                 "face down reads as dark. Pauses while Music, Visualizer or Screen sync runs.",
             style = MaterialTheme.typography.bodySmall,
             color = onBg.copy(alpha = 0.45f)

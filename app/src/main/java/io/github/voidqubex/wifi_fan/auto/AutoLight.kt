@@ -34,6 +34,9 @@ object AutoLight {
     /** Follow the room's light instead of the lock and screen (the service switches live). */
     val roomLight = MutableStateFlow(false)
 
+    /** The light sensor's last reading in lux while Room light runs (shown in Settings). */
+    val lux = MutableStateFlow<Float?>(null)
+
     /** Non-null while the service runs. */
     val status = MutableStateFlow<AutoStatus?>(null)
 
