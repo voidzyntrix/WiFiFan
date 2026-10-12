@@ -16,6 +16,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.MutableTransitionState
@@ -186,7 +187,6 @@ fun BleControlScreen(
 
     var showSettings by remember { mutableStateOf(false) }
     // Back gesture closes Settings instead of leaving the app.
-    BackHandler(enabled = showSettings) { showSettings = false }
     var pickingDevice by remember { mutableStateOf(false) }
 
     // LED state survives closing the app (the board keeps it too).
@@ -279,7 +279,31 @@ fun BleControlScreen(
         rootView.keepScreenOn = keepScreenOn
         onDispose { rootView.keepScreenOn = false }
     }
-    fun fwAtLeast(v: String) = boardVersion?.let { GitHubReleases.compareVersions(it, v) >= 0 } ?: false
+    // Until the board answers "ver" again, go by what it reported last time, so the layout it has
+    // (one LED or two) shows from the first frame instead of popping in.
+    var knownVersions by remember { mutableStateOf(ledStore.boardVersions) }
+    LaunchedEffect(boardVersion, deviceAddress) {
+        val address = deviceAddress ?: return@LaunchedEffect
+        val version = boardVersion ?: return@LaunchedEffect
+        if (knownVersions[address] != version) {
+            knownVersions = knownVersions + (address to version)
+            ledStore.boardVersions = knownVersions
+        }
+    }
+    val fwVersion = boardVersion ?: deviceAddress?.let { knownVersions[it] }
+    fun fwAtLeast(v: String) = fwVersion?.let { GitHubReleases.compareVersions(it, v) >= 0 } ?: false
+
+    // Back goes back a page: Settings, the board search, an open board (to the grid). Only the
+    // grid (or the plain connect screen) lets Back close the app.
+    BackHandler(
+        enabled = showSettings || pickingDevice || connectionState != BluetoothProfile.STATE_DISCONNECTED
+    ) {
+        when {
+            showSettings -> showSettings = false
+            pickingDevice -> { bleManager.stopScanning(); pickingDevice = false }
+            else -> bleManager.disconnect()
+        }
+    }
     val fwOptions = fwAtLeast("1.3.0")
     // Hue picked in the colour controls while Candle runs (null = the Settings candle colour).
     var candleHueOverride by remember { mutableStateOf<Int?>(null) }
@@ -1102,19 +1126,21 @@ fun BleControlScreen(
                                     val previewModifier = Modifier
                                         .fillMaxWidth()
                                         .height(if (isCompact()) 160.dp else 200.dp)
-                                    if (twoLeds) {
-                                        // Both LEDs side by side; tapping one edits its colour.
-                                        LedPreviewPair(
-                                            hue1 = previewHue, sat1 = previewSat, value1 = previewVal,
-                                            hue2 = previewHue2, sat2 = previewSat2, value2 = previewVal2,
-                                            modifier = previewModifier,
-                                            onTap = { haptics.tap(); editLed = it }
-                                        )
-                                    } else {
-                                        LedPreview(
-                                            hue = previewHue, sat = previewSat, value = previewVal,
-                                            modifier = previewModifier
-                                        )
+                                    Crossfade(targetState = twoLeds, animationSpec = tween(300), label = "ledCount") { pair ->
+                                        if (pair) {
+                                            // Both LEDs side by side; tapping one edits its colour.
+                                            LedPreviewPair(
+                                                hue1 = previewHue, sat1 = previewSat, value1 = previewVal,
+                                                hue2 = previewHue2, sat2 = previewSat2, value2 = previewVal2,
+                                                modifier = previewModifier,
+                                                onTap = { haptics.tap(); editLed = it }
+                                            )
+                                        } else {
+                                            LedPreview(
+                                                hue = previewHue, sat = previewSat, value = previewVal,
+                                                modifier = previewModifier
+                                            )
+                                        }
                                     }
                                     AnimatedContent(
                                         targetState = if (ledOn) modeName else "Off",

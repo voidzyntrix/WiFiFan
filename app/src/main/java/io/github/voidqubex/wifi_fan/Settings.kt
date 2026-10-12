@@ -166,6 +166,16 @@ class SettingsStore(context: Context) {
         get() = prefs.getBoolean("beat_flash", true)
         set(value) { prefs.edit().putBoolean("beat_flash", value).apply() }
 
+    /** The firmware version each board last reported, by MAC address (known before it answers again). */
+    var boardVersions: Map<String, String>
+        get() = runCatching {
+            val o = org.json.JSONObject(prefs.getString("board_versions", null) ?: "{}")
+            o.keys().asSequence().associateWith { o.getString(it) }
+        }.getOrDefault(emptyMap())
+        set(value) {
+            prefs.edit().putString("board_versions", org.json.JSONObject(value).toString()).apply()
+        }
+
     /** App-side names for boards, keyed by Bluetooth MAC address (the board itself isn't renamed). */
     var boardNames: Map<String, String>
         get() = runCatching {
