@@ -31,6 +31,9 @@ object AutoLight {
     /** The setting (the home screen loads it from [SettingsStore] when it opens). */
     val enabled = MutableStateFlow(false)
 
+    /** Follow the room's light instead of the lock and screen (the service switches live). */
+    val roomLight = MutableStateFlow(false)
+
     /** Non-null while the service runs. */
     val status = MutableStateFlow<AutoStatus?>(null)
 

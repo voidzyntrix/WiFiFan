@@ -7,7 +7,68 @@ enum class AutoState {
     /** Screen on and unlocked: the phone is being used. */
     IN_HAND,
     /** Locked (or screen off) for the wait time: the phone is down. */
-    NIGHT
+    NIGHT,
+    /** Room light: the light sensor sees a dark room. */
+    ROOM_DARK,
+    /** Room light: the light sensor sees a lit room. */
+    ROOM_BRIGHT
+}
+
+/**
+ * Room light: dark or bright from the light sensor (lux), with a gap between the two thresholds
+ * and a settle time, so a passing shadow or a lamp flickering changes nothing.
+ */
+class RoomLight(
+    private val darkLux: Float = DARK_LUX,
+    private val brightLux: Float = BRIGHT_LUX,
+    private val settleMs: Long = SETTLE_MS
+) {
+    /** The room as last decided (true = dark), null before the first decision. */
+    var dark: Boolean? = null
+        private set
+    private var pending: Boolean? = null
+    private var pendingSince = 0L
+
+    /** A different room is being seen and waits out [settleMs] (call [check] then). */
+    val settling: Boolean get() = pending != null
+
+    /** A reading; the new room state once it has held for the settle time, else null. */
+    fun sample(lux: Float, now: Long): Boolean? {
+        val seen = when {
+            lux <= darkLux -> true
+            lux >= brightLux -> false
+            else -> null            // in between keeps whatever the room was
+        }
+        if (seen == null || seen == dark) {
+            pending = null
+            return null
+        }
+        if (seen != pending) {
+            pending = seen
+            pendingSince = now
+        }
+        return check(now)
+    }
+
+    /** The new room state if the reading being settled has held long enough, else null. */
+    fun check(now: Long): Boolean? {
+        val p = pending ?: return null
+        if (now - pendingSince < settleMs) return null
+        dark = p
+        pending = null
+        return p
+    }
+
+    fun reset() {
+        dark = null
+        pending = null
+    }
+
+    companion object {
+        const val DARK_LUX = 10f
+        const val BRIGHT_LUX = 40f
+        const val SETTLE_MS = 3_000L
+    }
 }
 
 /**

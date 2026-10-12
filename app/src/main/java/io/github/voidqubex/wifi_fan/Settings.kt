@@ -232,6 +232,17 @@ class SettingsStore(context: Context) {
     var autoNightNoWait: Boolean
         get() = prefs.getBoolean("auto_night_no_wait", false)
         set(value) { prefs.edit().putBoolean("auto_night_no_wait", value).apply() }
+    /** Auto light follows the room's light (the light sensor) instead of the lock and screen. */
+    var autoRoomLight: Boolean
+        get() = prefs.getBoolean("auto_room_light", false)
+        set(value) { prefs.edit().putBoolean("auto_room_light", value).apply() }
+    /** Scene ids for a dark and a bright room (the default Night and Read scenes). */
+    var autoDarkScene: Long
+        get() = prefs.getLong("auto_dark_scene", 1L)
+        set(value) { prefs.edit().putLong("auto_dark_scene", value).apply() }
+    var autoBrightScene: Long
+        get() = prefs.getLong("auto_bright_scene", 2L)
+        set(value) { prefs.edit().putLong("auto_bright_scene", value).apply() }
     /** The light from before Auto light first changed it (a scene as JSON), brought back when it is turned off. */
     var autoSnapshot: String?
         get() = prefs.getString("auto_snapshot", null)

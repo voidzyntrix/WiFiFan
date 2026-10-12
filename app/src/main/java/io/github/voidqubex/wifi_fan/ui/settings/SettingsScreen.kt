@@ -411,12 +411,49 @@ private fun AutoLightSettings(
     var nightScene by remember { mutableStateOf(store.autoNightScene) }
     var wait by remember { mutableIntStateOf(store.autoWaitMinutes) }
     var nightNoWait by remember { mutableStateOf(store.autoNightNoWait) }
+    var roomLight by remember { mutableStateOf(store.autoRoomLight) }
+    var darkScene by remember { mutableStateOf(store.autoDarkScene) }
+    var brightScene by remember { mutableStateOf(store.autoBrightScene) }
     SettingSwitch(
         "Auto light",
         "Reading light while the screen is on and unlocked, night light once it is locked or off",
         on, onChange
     )
     SettingGap()
+    SettingHeading("Follows", "The lock and screen, or how bright the room is (light sensor)")
+    SegmentedPill(listOf("Lock & screen", "Room light"), if (roomLight) 1 else 0) {
+        roomLight = it == 1
+        store.autoRoomLight = roomLight
+        io.github.voidqubex.wifi_fan.auto.AutoLight.roomLight.value = roomLight
+    }
+    SettingGap()
+    if (roomLight) {
+        if (scenes.isEmpty()) {
+            Text(
+                "Save a scene on the home screen first.",
+                style = MaterialTheme.typography.bodySmall,
+                color = onBg.copy(alpha = 0.45f)
+            )
+        } else {
+            SettingHeading("Dark room", "Lights off or dim around the phone")
+            ScenePicker(scenes, darkScene, candleHue, onPick = {
+                darkScene = it.id; store.autoDarkScene = it.id
+            })
+            SettingGap()
+            SettingHeading("Bright room", "Lights on or daylight")
+            ScenePicker(scenes, brightScene, candleHue, onPick = {
+                brightScene = it.id; store.autoBrightScene = it.id
+            })
+        }
+        Spacer(Modifier.height(16.dp))
+        Text(
+            "Switches after 3 s of steady light: dark below 10 lux, bright above 40. A phone lying " +
+                "face down reads as dark. Pauses while Music, Visualizer or Screen sync runs.",
+            style = MaterialTheme.typography.bodySmall,
+            color = onBg.copy(alpha = 0.45f)
+        )
+        return
+    }
     if (scenes.isEmpty()) {
         Text(
             "Save a scene on the home screen first.",

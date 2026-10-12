@@ -12,6 +12,10 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.ServiceInfo
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
@@ -42,7 +46,7 @@ import kotlinx.coroutines.launch
  * Battery: it just waits for screen on/off and unlock broadcasts, and holds a partial wake lock
  * only while counting down to Night (at most the wait time plus a minute per lock).
  */
-class AutoLightService : Service() {
+class AutoLightService : Service(), SensorEventListener {
     private val main = Handler(Looper.getMainLooper())
     private var scope: CoroutineScope? = null
     private var started = false
@@ -53,6 +57,16 @@ class AutoLightService : Service() {
     private var shownText: String? = null
 
     private val check = Runnable { evaluate() }
+
+    // Room light: the light sensor decides instead of the lock and screen.
+    private val room = RoomLight()
+    private var roomMode = false
+    private var sensorManager: SensorManager? = null
+    private var listening = false
+    private val roomCheck = Runnable {
+        room.check(now())?.let { actRoom(it) }
+        publish(now())
+    }
 
     /**
      * Unlocked since the screen last went off. The unlock broadcast is the reliable sign: on some
@@ -122,6 +136,8 @@ class AutoLightService : Service() {
         s.launch {
             ble.connectionState.collect { if (it != BluetoothProfile.STATE_CONNECTED) stopSelf() }
         }
+        AutoLight.roomLight.value = store.autoRoomLight
+        s.launch { AutoLight.roomLight.collect { setRoomMode(it) } }
         // Music, Visualizer and Screen sync have the LED; Auto light waits for them.
         s.launch {
             SyncHub.active.collect {
@@ -134,6 +150,34 @@ class AutoLightService : Service() {
     }
 
     private fun now() = SystemClock.elapsedRealtime()
+
+    private fun setRoomMode(on: Boolean) {
+        roomMode = on
+        room.reset()
+        main.removeCallbacks(roomCheck)
+        val sm = sensorManager ?: getSystemService(SensorManager::class.java).also { sensorManager = it }
+        val light = sm?.getDefaultSensor(Sensor.TYPE_LIGHT)
+        if (on && light != null && !listening) {
+            listening = sm.registerListener(this, light, SensorManager.SENSOR_DELAY_NORMAL, main)
+        } else if (!on && listening) {
+            sm?.unregisterListener(this)
+            listening = false
+        }
+        evaluate()
+    }
+
+    override fun onSensorChanged(event: SensorEvent) {
+        if (!roomMode || event.sensor.type != Sensor.TYPE_LIGHT) return
+        val t = now()
+        main.removeCallbacks(roomCheck)
+        room.sample(event.values[0], t)?.let { actRoom(it) }
+        if (room.settling) main.postDelayed(roomCheck, RoomLight.SETTLE_MS + 100)
+        publish(t)
+    }
+
+    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
+
+    private fun actRoom(dark: Boolean) = applyScene(if (dark) store.autoDarkScene else store.autoBrightScene)
 
     private fun applySettings() {
         machine.nightDelayMs = if (store.autoNightNoWait) 0L else store.autoWaitMinutes * 60_000L
@@ -152,6 +196,13 @@ class AutoLightService : Service() {
     private fun evaluate() {
         if (!started) return
         val t = now()
+        if (roomMode) {
+            // The lock and screen don't decide anything now; no Night countdown either.
+            main.removeCallbacks(check)
+            wakeLock?.takeIf { it.isHeld }?.release()
+            publish(t)
+            return
+        }
         applySettings()
         machine.evaluate(t)?.let { act(it) }
         main.removeCallbacks(check)
@@ -162,16 +213,22 @@ class AutoLightService : Service() {
 
     /** Shows the scene for a new state. */
     private fun act(state: AutoState) {
+        if (roomMode) return
+        val id = when (state) {
+            AutoState.IN_HAND -> store.autoHandScene
+            AutoState.NIGHT -> store.autoNightScene
+            else -> return
+        }
+        applyScene(id)
+    }
+
+    /** Shows a scene, unless another sync has the LED or the board is gone. */
+    private fun applyScene(id: Long) {
         val ble = (application as GlowApp).bleManager
         if (ble.connectionState.value != BluetoothProfile.STATE_CONNECTED || SyncHub.isActive()) return
         // Music, Visualizer or Screen sync was just picked in the open app and its service is still
         // starting: that choice stays.
         if (SyncHub.uiAlive && store.ledMode in SYNC_MODES) return
-        val id = when (state) {
-            AutoState.IN_HAND -> store.autoHandScene
-            AutoState.NIGHT -> store.autoNightScene
-            AutoState.WAITING -> return
-        }
         val scene = AutoLight.scene(store, id) ?: return
         AutoLight.snapshotIfNeeded(store)
         val (applied, _) = SceneApplier.apply(scene, ble, store)
@@ -179,10 +236,18 @@ class AutoLightService : Service() {
     }
 
     private fun publish(t: Long) {
-        val shown = machine.shown(t)
+        val shown = if (roomMode) {
+            when (room.dark) {
+                true -> AutoState.ROOM_DARK
+                false -> AutoState.ROOM_BRIGHT
+                null -> AutoState.WAITING
+            }
+        } else machine.shown(t)
         val sceneName = when (shown) {
             AutoState.IN_HAND -> AutoLight.scene(store, store.autoHandScene)?.name
             AutoState.NIGHT -> AutoLight.scene(store, store.autoNightScene)?.name
+            AutoState.ROOM_DARK -> AutoLight.scene(store, store.autoDarkScene)?.name
+            AutoState.ROOM_BRIGHT -> AutoLight.scene(store, store.autoBrightScene)?.name
             AutoState.WAITING -> null
         }
         val status = AutoStatus(shown, machine.paused, sceneName)
@@ -214,6 +279,9 @@ class AutoLightService : Service() {
 
     override fun onDestroy() {
         main.removeCallbacks(check)
+        main.removeCallbacks(roomCheck)
+        if (listening) sensorManager?.unregisterListener(this)
+        listening = false
         scope?.cancel()
         scope = null
         if (started) runCatching { unregisterReceiver(screenReceiver) }
@@ -270,6 +338,8 @@ class AutoLightService : Service() {
             s.paused -> "Paused while another sync drives the LED"
             s.state == AutoState.IN_HAND -> "In hand" + (s.sceneName?.let { " · $it" } ?: "")
             s.state == AutoState.NIGHT -> "Night" + (s.sceneName?.let { " · $it" } ?: "")
+            s.state == AutoState.ROOM_DARK -> "Dark room" + (s.sceneName?.let { " · $it" } ?: "")
+            s.state == AutoState.ROOM_BRIGHT -> "Bright room" + (s.sceneName?.let { " · $it" } ?: "")
             else -> "Waiting"
         }
     }

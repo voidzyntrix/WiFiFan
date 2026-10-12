@@ -6,6 +6,37 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+class RoomLightTest {
+    @Test fun darkAfterTheSettleTime() {
+        val r = RoomLight()
+        assertNull(r.sample(2f, 0))
+        assertTrue(r.settling)
+        assertNull(r.check(2_999))
+        assertEquals(true, r.check(3_000))
+        assertEquals(true, r.dark)
+    }
+
+    @Test fun aPassingShadowChangesNothing() {
+        val r = RoomLight()
+        r.sample(200f, 0); r.check(3_000)
+        assertEquals(false, r.dark)
+        assertNull(r.sample(1f, 10_000))
+        assertNull(r.sample(150f, 11_000))     // back to bright within the settle time
+        assertNull(r.check(20_000))
+        assertEquals(false, r.dark)
+    }
+
+    @Test fun inBetweenKeepsTheRoomAsItWas() {
+        val r = RoomLight()
+        r.sample(1f, 0); r.check(3_000)
+        assertNull(r.sample(25f, 5_000))
+        assertNull(r.check(60_000))
+        assertEquals(true, r.dark)
+        assertNull(r.sample(60f, 61_000))
+        assertEquals(false, r.check(64_000))
+    }
+}
+
 class AutoLightMachineTest {
     private val min = 60_000L
 
