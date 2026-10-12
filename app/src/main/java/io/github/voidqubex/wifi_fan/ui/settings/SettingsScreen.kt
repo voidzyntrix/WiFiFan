@@ -64,6 +64,7 @@ import io.github.voidqubex.wifi_fan.ui.components.GradientBar
 import io.github.voidqubex.wifi_fan.ui.components.SegmentedPill
 import io.github.voidqubex.wifi_fan.ui.components.bounceClickable
 import io.github.voidqubex.wifi_fan.ui.components.entrance
+import io.github.voidqubex.wifi_fan.ui.components.rememberHaptics
 import io.github.voidqubex.wifi_fan.ui.components.screenPadding
 import io.github.voidqubex.wifi_fan.ui.home.ScenePicker
 import io.github.voidqubex.wifi_fan.ui.home.loadScenes
@@ -123,6 +124,7 @@ internal fun SettingsScreen(
     var cornerStyle by remember { mutableIntStateOf(store.cornerStyle) }
     var customCorner by remember { mutableFloatStateOf(store.customCorner) }
     val onBg = MaterialTheme.colorScheme.onBackground
+    val haptics = rememberHaptics()
 
     Column(
         modifier = Modifier
@@ -328,6 +330,42 @@ internal fun SettingsScreen(
                 "Haptics", "Light ticks on sliders and taps on buttons",
                 AppLook.haptics
             ) { AppLook.haptics = it; store.haptics = it }
+            androidx.compose.animation.AnimatedVisibility(
+                visible = AppLook.haptics,
+                enter = fadeIn(tween(200)) + androidx.compose.animation.expandVertically(tween(280)),
+                exit = fadeOut(tween(150)) + androidx.compose.animation.shrinkVertically(tween(240))
+            ) {
+                Column {
+                    Spacer(Modifier.height(14.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "Strength",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = onBg.copy(alpha = 0.6f),
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            "${(AppLook.hapticStrength * 100).roundToInt()} %",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = onBg
+                        )
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    GradientBar(
+                        fraction = AppLook.hapticStrength,
+                        stops = listOf(onBg.copy(alpha = 0.12f), onBg.copy(alpha = 0.55f)),
+                        thumbColor = MaterialTheme.colorScheme.primary,
+                        onFraction = { AppLook.hapticStrength = it.coerceAtLeast(0.1f) },
+                        onFinished = { store.hapticStrength = AppLook.hapticStrength; haptics.confirm() }
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "Ticks while you drag; a firm tap when you let go.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = onBg.copy(alpha = 0.5f)
+                    )
+                }
+            }
             SwitchGap()
             SettingSwitch("Keep screen on", null, keepScreenOn, onKeepScreenOnChange)
             SwitchGap()

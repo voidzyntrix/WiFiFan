@@ -46,6 +46,7 @@ class MainActivity : ComponentActivity() {
         AppLook.roundLedPreview = settingsStore.roundLedPreview
         AppLook.pureBlack = settingsStore.pureBlack
         AppLook.haptics = settingsStore.haptics
+        AppLook.hapticStrength = settingsStore.hapticStrength
         WindowCompat.setDecorFitsSystemWindows(window, false)
         enableEdgeToEdge()
         setContent {

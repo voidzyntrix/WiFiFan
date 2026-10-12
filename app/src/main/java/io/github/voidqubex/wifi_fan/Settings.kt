@@ -154,6 +154,10 @@ class SettingsStore(context: Context) {
     var haptics: Boolean
         get() = prefs.getBoolean("haptics", true)
         set(value) { prefs.edit().putBoolean("haptics", value).apply() }
+    /** How strong the haptics are, 0.1 (faint) to 1 (full). */
+    var hapticStrength: Float
+        get() = prefs.getFloat("haptic_strength", 0.7f).coerceIn(0.1f, 1f)
+        set(value) { prefs.edit().putFloat("haptic_strength", value).apply() }
     /** Music and Visualizer: a short brightness spike on every beat. */
     var beatFlash: Boolean
         get() = prefs.getBoolean("beat_flash", true)

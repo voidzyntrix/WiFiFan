@@ -39,6 +39,8 @@ object AppLook {
     var pureBlack by mutableStateOf(false)
     /** Haptic ticks and taps on controls. */
     var haptics by mutableStateOf(true)
+    /** How strong the haptics are, 0.1 (faint) to 1 (full). */
+    var hapticStrength by mutableFloatStateOf(0.7f)
 }
 
 /** True in the pure Monochrome scheme. */
