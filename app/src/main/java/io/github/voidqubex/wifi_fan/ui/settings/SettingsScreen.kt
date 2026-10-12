@@ -372,6 +372,8 @@ private fun AutoLightSettings(
     var handScene by remember { mutableStateOf(store.autoHandScene) }
     var nightScene by remember { mutableStateOf(store.autoNightScene) }
     var wait by remember { mutableIntStateOf(store.autoWaitMinutes) }
+    var handNoWait by remember { mutableStateOf(store.autoHandNoWait) }
+    var nightNoWait by remember { mutableStateOf(store.autoNightNoWait) }
     SettingSwitch(
         "Auto light",
         "Reading light while the phone is in your hand, night light once it lies still and locked",
@@ -389,17 +391,29 @@ private fun AutoLightSettings(
         ScenePicker(scenes, handScene, candleHue, onPick = {
             handScene = it.id; store.autoHandScene = it.id
         })
+        Spacer(Modifier.height(10.dp))
+        SettingSwitch(
+            "No wait", "Reading light the moment you unlock, no movement needed",
+            handNoWait
+        ) { handNoWait = it; store.autoHandNoWait = it }
         SettingGap()
         SettingHeading("Phone down & locked", "Locked or screen off, and still for the wait below")
         ScenePicker(scenes, nightScene, candleHue, onPick = {
             nightScene = it.id; store.autoNightScene = it.id
         })
+        Spacer(Modifier.height(10.dp))
+        SettingSwitch(
+            "No wait", "Night light the moment the phone locks or the screen goes off",
+            nightNoWait
+        ) { nightNoWait = it; store.autoNightNoWait = it }
     }
     SettingGap()
     val waits = listOf(1, 2, 5)
     SettingHeading("Wait before Night", "How long the phone lies still and locked first")
-    SegmentedPill(listOf("1 min", "2 min", "5 min"), waits.indexOf(wait).coerceAtLeast(0)) {
-        wait = waits[it]; store.autoWaitMinutes = waits[it]
+    Box(Modifier.alpha(if (nightNoWait) 0.4f else 1f)) {
+        SegmentedPill(listOf("1 min", "2 min", "5 min"), waits.indexOf(wait).coerceAtLeast(0)) {
+            wait = waits[it]; store.autoWaitMinutes = waits[it]
+        }
     }
     Spacer(Modifier.height(16.dp))
     Text(

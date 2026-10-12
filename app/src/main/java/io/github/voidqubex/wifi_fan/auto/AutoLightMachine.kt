@@ -37,6 +37,8 @@ class AutoLightMachine(
         private set
     var paused = false
         private set
+    /** In hand as soon as the phone is up (screen on, unlocked), without waiting for motion. */
+    var handInstant = false
     private var lastMotionMs = Long.MIN_VALUE / 2
     /** When the phone went locked / screen off; null while it is up. */
     var downSinceMs: Long? = null
@@ -77,7 +79,7 @@ class AutoLightMachine(
 
     /** The state the phone is in right now, or null when it is in between (keep the current one). */
     private fun desired(now: Long): AutoState? = when {
-        !down && now - lastMotionMs <= handWindowMs -> AutoState.IN_HAND
+        !down && (handInstant || now - lastMotionMs <= handWindowMs) -> AutoState.IN_HAND
         down && now - stillSince() >= nightDelayMs -> AutoState.NIGHT
         else -> null
     }

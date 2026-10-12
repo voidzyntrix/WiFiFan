@@ -105,7 +105,7 @@ class AutoLightService : Service(), SensorEventListener {
         }
         started = true
 
-        machine.nightDelayMs = store.autoWaitMinutes * 60_000L
+        applySettings()
         machine.start(now(), isScreenOn(), isLocked())
         machine.setPaused(SyncHub.isActive(), now())
 
@@ -141,6 +141,11 @@ class AutoLightService : Service(), SensorEventListener {
 
     private fun now() = SystemClock.elapsedRealtime()
 
+    private fun applySettings() {
+        machine.nightDelayMs = if (store.autoNightNoWait) 0L else store.autoWaitMinutes * 60_000L
+        machine.handInstant = store.autoHandNoWait
+    }
+
     private fun isScreenOn() = getSystemService(PowerManager::class.java).isInteractive
 
     private fun isLocked() = getSystemService(KeyguardManager::class.java).isKeyguardLocked
@@ -164,7 +169,7 @@ class AutoLightService : Service(), SensorEventListener {
     private fun evaluate() {
         if (!started) return
         val t = now()
-        machine.nightDelayMs = store.autoWaitMinutes * 60_000L
+        applySettings()
         machine.evaluate(t)?.let { act(it) }
         main.removeCallbacks(check)
         machine.msUntilNight(t)?.let { main.postDelayed(check, it + 500) }

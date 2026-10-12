@@ -189,6 +189,14 @@ class SettingsStore(context: Context) {
     var autoWaitMinutes: Int
         get() = prefs.getInt("auto_wait_minutes", 2)
         set(value) { prefs.edit().putInt("auto_wait_minutes", value).apply() }
+    /** In hand the moment the phone is unlocked, with no motion needed. */
+    var autoHandNoWait: Boolean
+        get() = prefs.getBoolean("auto_hand_no_wait", false)
+        set(value) { prefs.edit().putBoolean("auto_hand_no_wait", value).apply() }
+    /** Night the moment the phone is locked or the screen goes off, with no wait. */
+    var autoNightNoWait: Boolean
+        get() = prefs.getBoolean("auto_night_no_wait", false)
+        set(value) { prefs.edit().putBoolean("auto_night_no_wait", value).apply() }
     /** The light from before Auto light first changed it (a scene as JSON), brought back when it is turned off. */
     var autoSnapshot: String?
         get() = prefs.getString("auto_snapshot", null)

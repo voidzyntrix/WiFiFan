@@ -24,6 +24,20 @@ class AutoLightMachineTest {
         assertEquals(AutoState.IN_HAND, m.state)
     }
 
+    @Test fun handInstantUnlockOnAStillPhone() {
+        val m = machine().apply { handInstant = true }
+        m.evaluate(0)
+        m.screen(30_000, screenOn = true, locked = true)
+        assertEquals(AutoState.NIGHT, m.evaluate(30_000 + 2 * min))
+        assertEquals(AutoState.IN_HAND, m.screen(10 * min, screenOn = true, locked = false))
+    }
+
+    @Test fun nightWithNoWaitOnLock() {
+        val m = machine().apply { nightDelayMs = 0 }
+        m.evaluate(0)
+        assertEquals(AutoState.NIGHT, m.screen(5_000, screenOn = false, locked = true))
+    }
+
     @Test fun stillUnlockedPhoneChangesNothing() {
         val m = machine()
         m.evaluate(0)
