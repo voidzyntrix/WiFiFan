@@ -95,6 +95,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import io.github.voidqubex.wifi_fan.PairedBoard
 import io.github.voidqubex.wifi_fan.audio.AudioSyncService
+import io.github.voidqubex.wifi_fan.bluetooth.LinkService
 import io.github.voidqubex.wifi_fan.auto.AutoLight
 import io.github.voidqubex.wifi_fan.auto.AutoLightService
 import io.github.voidqubex.wifi_fan.screen.ScreenSyncService
@@ -188,6 +189,8 @@ fun BleControlScreen(
     var showSettings by remember { mutableStateOf(false) }
     // Back gesture closes Settings instead of leaving the app.
     var pickingDevice by remember { mutableStateOf(false) }
+    // A connected board can be left for the grid without disconnecting; this says which is shown.
+    var boardOpen by remember { mutableStateOf(true) }
 
     // LED state survives closing the app (the board keeps it too).
     val ledStore = remember { SettingsStore(context) }
@@ -295,13 +298,23 @@ fun BleControlScreen(
 
     // Back goes back a page: Settings, the board search, an open board (to the grid). Only the
     // grid (or the plain connect screen) lets Back close the app.
+    // Leaving a board keeps it connected; Back while connecting cancels.
     BackHandler(
-        enabled = showSettings || pickingDevice || connectionState != BluetoothProfile.STATE_DISCONNECTED
+        enabled = showSettings || pickingDevice || (isConnected && boardOpen) ||
+            connectionState == BluetoothProfile.STATE_CONNECTING
     ) {
         when {
             showSettings -> showSettings = false
             pickingDevice -> { bleManager.stopScanning(); pickingDevice = false }
+            isConnected -> boardOpen = false
             else -> bleManager.disconnect()
+        }
+    }
+    // A board that connects opens, and stays connected with the app closed (LinkService).
+    LaunchedEffect(isConnected) {
+        if (isConnected) {
+            boardOpen = true
+            LinkService.start(context)
         }
     }
     val fwOptions = fwAtLeast("1.3.0")
@@ -384,7 +397,8 @@ fun BleControlScreen(
     // starts per 30 s) hears which paired boards are advertising, i.e. powered and in range.
     val lastSeen by bleManager.lastSeen.collectAsState()
     var clock by remember { mutableLongStateOf(SystemClock.elapsedRealtime()) }
-    val showGrid = connectionState == BluetoothProfile.STATE_DISCONNECTED && !pickingDevice &&
+    val showGrid = (connectionState == BluetoothProfile.STATE_DISCONNECTED || (isConnected && !boardOpen)) &&
+        !pickingDevice &&
         pairedBoards.isNotEmpty() && !showSettings
     LaunchedEffect(showGrid) {
         var tick = 0
@@ -397,7 +411,8 @@ fun BleControlScreen(
             tick++
         }
     }
-    val onlineBoards = pairedBoards.mapNotNull { b ->
+    // The connected board doesn't advertise; it counts as online.
+    val onlineBoards = setOfNotNull(deviceAddress.takeIf { isConnected }) + pairedBoards.mapNotNull { b ->
         b.address.takeIf { lastSeen[it]?.let { seen -> clock - seen < 25_000 } == true }
     }.toSet()
 
@@ -1026,7 +1041,7 @@ fun BleControlScreen(
                         onAutoLightChange = ::setAutoLight)
                 } else {
                     AnimatedContent(
-                        targetState = isConnected,
+                        targetState = isConnected && boardOpen,
                         transitionSpec = { fadeIn(tween(450)).togetherWith(fadeOut(tween(450))) },
                         label = "connectionTransition",
                         modifier = Modifier.fillMaxSize()
@@ -1502,7 +1517,13 @@ fun BleControlScreen(
                                 onPick          = { device ->
                                     bleManager.stopScanning()
                                     pickingDevice = false
-                                    bleManager.connect(device.address)
+                                    if (isConnected && device.address == deviceAddress) {
+                                        boardOpen = true
+                                    } else {
+                                        // Another board: let go of the connected one first.
+                                        if (connectionState != BluetoothProfile.STATE_DISCONNECTED) bleManager.disconnect()
+                                        bleManager.connect(device.address)
+                                    }
                                 },
                                 onCancel        = { bleManager.stopScanning(); pickingDevice = false },
                                 onSettings      = { showSettings = true },
