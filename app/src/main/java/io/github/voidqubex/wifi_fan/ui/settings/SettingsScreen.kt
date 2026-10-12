@@ -71,6 +71,7 @@ import io.github.voidqubex.wifi_fan.ui.theme.activeFill
 import io.github.voidqubex.wifi_fan.ui.theme.circle
 import io.github.voidqubex.wifi_fan.ui.theme.onActiveFill
 import io.github.voidqubex.wifi_fan.ui.theme.rounded
+import io.github.voidqubex.wifi_fan.ui.home.Scenes
 import kotlin.math.roundToInt
 
 // ---------------------------------------------------------------------------
@@ -300,8 +301,72 @@ internal fun SettingsScreen(
 
         Spacer(Modifier.height(12.dp))
 
+        // ── Auto light ──
+        var autoLightOpen by remember { mutableStateOf(!store.categoryCollapsed("auto_light")) }
+        SettingsCard("Auto light", autoLightOpen, Modifier.entrance(3), {
+            autoLightOpen = !autoLightOpen; store.setCategoryCollapsed("auto_light", !autoLightOpen)
+        }) {
+            SettingSwitch(
+                "Auto light", "Detect when the phone is in hand or down, and apply scenes automatically",
+                store.autoLightEnabled
+            ) { store.autoLightEnabled = it }
+            SwitchGap()
+            val scenes = remember { Scenes.load(store) }
+            if (scenes.isNotEmpty()) {
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = store.autoLightEnabled,
+                    enter = fadeIn(tween(200)) + androidx.compose.animation.expandVertically(tween(280)),
+                    exit = fadeOut(tween(150)) + androidx.compose.animation.shrinkVertically(tween(240))
+                ) {
+                    Column {
+                        SettingHeading("In hand (screen on, unlocked)", "Apply this scene when using the phone")
+                        SegmentedPill(
+                            listOf("None") + scenes.map { it.name },
+                            (store.inHandSceneId?.let { id -> scenes.indexOfFirst { it.id == id.toLong() } + 1 } ?: 0).coerceAtLeast(0),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            store.inHandSceneId = if (it == 0) null else scenes.getOrNull(it - 1)?.id?.toInt()
+                        }
+                        Spacer(Modifier.height(12.dp))
+                        SettingSwitch(
+                            "No wait", "Apply instantly on unlock, no motion required",
+                            store.inHandNoWait
+                        ) { store.inHandNoWait = it }
+                        SettingGap()
+                        SettingHeading("Phone down (screen off, locked)", "Apply this scene when phone is idle")
+                        SegmentedPill(
+                            listOf("None") + scenes.map { it.name },
+                            (store.phoneDownSceneId?.let { id -> scenes.indexOfFirst { it.id == id.toLong() } + 1 } ?: 0).coerceAtLeast(0),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            store.phoneDownSceneId = if (it == 0) null else scenes.getOrNull(it - 1)?.id?.toInt()
+                        }
+                        Spacer(Modifier.height(12.dp))
+                        SettingSwitch(
+                            "No wait", "Apply instantly on lock, no timer required",
+                            store.phoneDownNoWait
+                        ) { store.phoneDownNoWait = it }
+                        SettingGap()
+                        val waitOptions = listOf(60, 120, 300)
+                        SettingHeading("Wait time", "How long to wait for stillness (only if \"No wait\" is off)")
+                        SegmentedPill(listOf("1 min", "2 min", "5 min"), waitOptions.indexOf(store.autoLightWaitSeconds)) {
+                            store.autoLightWaitSeconds = waitOptions[it]
+                        }
+                    }
+                }
+            } else {
+                Text(
+                    "Create a scene in the home screen first",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = onBg.copy(alpha = 0.45f)
+                )
+            }
+        }
+
+        Spacer(Modifier.height(12.dp))
+
         // ── Firmware & updates ──
-        SettingsCard("Firmware & updates", firmwareOpen, Modifier.entrance(3), {
+        SettingsCard("Firmware & updates", firmwareOpen, Modifier.entrance(4), {
             firmwareOpen = !firmwareOpen; store.setCategoryCollapsed("firmware", !firmwareOpen)
         }) {
             FirmwareSection(

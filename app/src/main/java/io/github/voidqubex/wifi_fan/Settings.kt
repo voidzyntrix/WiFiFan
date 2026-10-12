@@ -167,6 +167,31 @@ class SettingsStore(context: Context) {
         get() = prefs.getString("scenes", null)
         set(value) { prefs.edit().putString("scenes", value).apply() }
 
+    /** Auto light: detect phone state (lock/motion) and apply scenes automatically. */
+    var autoLightEnabled: Boolean
+        get() = prefs.getBoolean("auto_light_enabled", false)
+        set(value) { prefs.edit().putBoolean("auto_light_enabled", value).apply() }
+    /** Scene ID to apply when phone is unlocked or in hand (with recent motion). */
+    var inHandSceneId: Int?
+        get() = prefs.getInt("in_hand_scene_id", -1).let { if (it == -1) null else it }
+        set(value) { prefs.edit().putInt("in_hand_scene_id", value ?: -1).apply() }
+    /** Scene ID to apply when phone is locked or screen is off. */
+    var phoneDownSceneId: Int?
+        get() = prefs.getInt("phone_down_scene_id", -1).let { if (it == -1) null else it }
+        set(value) { prefs.edit().putInt("phone_down_scene_id", value ?: -1).apply() }
+    /** In hand mode: apply scene instantly on unlock, without waiting for motion. */
+    var inHandNoWait: Boolean
+        get() = prefs.getBoolean("in_hand_no_wait", false)
+        set(value) { prefs.edit().putBoolean("in_hand_no_wait", value).apply() }
+    /** Phone down mode: apply scene instantly on lock, without waiting. */
+    var phoneDownNoWait: Boolean
+        get() = prefs.getBoolean("phone_down_no_wait", false)
+        set(value) { prefs.edit().putBoolean("phone_down_no_wait", value).apply() }
+    /** Seconds to wait before applying the "Phone down" scene (60, 120, or 300). */
+    var autoLightWaitSeconds: Int
+        get() = prefs.getInt("auto_light_wait_seconds", 120)
+        set(value) { prefs.edit().putInt("auto_light_wait_seconds", value).apply() }
+
     private companion object {
         const val KEY_CANDLE_HUE = "candle_hue"
         const val KEY_KEEP_SCREEN_ON = "keep_screen_on"

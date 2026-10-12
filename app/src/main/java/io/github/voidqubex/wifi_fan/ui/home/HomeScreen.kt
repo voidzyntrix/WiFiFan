@@ -763,6 +763,35 @@ fun BleControlScreen(
         if (needsCapture && (!isConnected || SyncHub.active.value == SyncKind.NONE)) ledMode = LED_MODE_SOLID
     }
 
+    // Auto light: start/stop the motion detection service
+    val autoLightEnabled = ledStore.autoLightEnabled
+    LaunchedEffect(autoLightEnabled) {
+        if (autoLightEnabled) {
+            io.github.voidqubex.wifi_fan.motion.AutoLightService.start(context)
+        } else {
+            io.github.voidqubex.wifi_fan.motion.AutoLightService.stop(context)
+        }
+    }
+    // Apply scenes when Auto light triggers
+    val inHandApply by io.github.voidqubex.wifi_fan.motion.AutoLightHub.shouldApplyInHand.collectAsState()
+    LaunchedEffect(inHandApply) {
+        if (inHandApply && autoLightEnabled) {
+            ledStore.inHandSceneId?.let { sceneId ->
+                scenes.find { it.id == sceneId.toLong() }?.let { applyScene(it) }
+            }
+            io.github.voidqubex.wifi_fan.motion.AutoLightHub.shouldApplyInHand.value = false
+        }
+    }
+    val phoneDownApply by io.github.voidqubex.wifi_fan.motion.AutoLightHub.shouldApplyPhoneDown.collectAsState()
+    LaunchedEffect(phoneDownApply) {
+        if (phoneDownApply && autoLightEnabled) {
+            ledStore.phoneDownSceneId?.let { sceneId ->
+                scenes.find { it.id == sceneId.toLong() }?.let { applyScene(it) }
+            }
+            io.github.voidqubex.wifi_fan.motion.AutoLightHub.shouldApplyPhoneDown.value = false
+        }
+    }
+
     // What the preview shows: the board's mode, approximated.
     val previewHue = when (ledMode) {
         LED_MODE_RAINBOW, LED_MODE_PARTY -> rainbowHue
