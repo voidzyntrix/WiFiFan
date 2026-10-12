@@ -145,7 +145,17 @@ internal fun ConnectScreen(
                 tint = onBg.copy(alpha = 0.35f)
             )
         }
-        if (paired.isNotEmpty() && !picking) {
+        // The grid and the search slide into each other.
+        AnimatedContent(
+            targetState = paired.isNotEmpty() && !picking,
+            transitionSpec = {
+                (fadeIn(tween(350)) + slideInVertically(tween(350)) { it / 12 })
+                    .togetherWith(fadeOut(tween(250)))
+            },
+            label = "gridOrSearch",
+            modifier = Modifier.fillMaxSize()
+        ) { showGrid ->
+        if (showGrid) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -218,7 +228,7 @@ internal fun ConnectScreen(
             ) { showList ->
                 if (showList) {
                     DeviceList(
-                        devices = devices,
+                        devices = devices.filter { d -> paired.none { it.address == d.address } },
                         names = names,
                         isScanning = isScanning,
                         mono = mono,
@@ -252,6 +262,7 @@ internal fun ConnectScreen(
                     }
                 }
             }
+        }
         }
     }
 }
