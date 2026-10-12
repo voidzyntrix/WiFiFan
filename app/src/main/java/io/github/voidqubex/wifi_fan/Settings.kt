@@ -11,6 +11,9 @@ enum class AppColorScheme { MONOCHROME, TINTED, COLORED }
 /** What sits behind the UI. */
 enum class AppBackground { SIMPLE, IMAGE }
 
+/** A board the app has connected to: its Bluetooth MAC address and the name it advertises. */
+data class PairedBoard(val address: String, val bleName: String?)
+
 /**
  * Thin SharedPreferences wrapper for the handful of user preferences.
  * No extra dependencies — values are read once at startup and written on change.
@@ -171,6 +174,28 @@ class SettingsStore(context: Context) {
         }.getOrDefault(emptyMap())
         set(value) {
             prefs.edit().putString("board_names", org.json.JSONObject(value).toString()).apply()
+        }
+
+    /**
+     * Boards connected to before, in the order they were paired. Before pairing existed, the
+     * boards that were given a name count as paired.
+     */
+    var pairedBoards: List<PairedBoard>
+        get() {
+            val json = prefs.getString("paired_boards", null)
+                ?: return boardNames.keys.map { PairedBoard(it, null) }
+            return runCatching {
+                val a = org.json.JSONArray(json)
+                (0 until a.length()).map { i ->
+                    val o = a.getJSONObject(i)
+                    PairedBoard(o.getString("address"), o.optString("name").ifEmpty { null })
+                }
+            }.getOrDefault(emptyList())
+        }
+        set(value) {
+            val a = org.json.JSONArray()
+            value.forEach { a.put(org.json.JSONObject().put("address", it.address).put("name", it.bleName ?: "")) }
+            prefs.edit().putString("paired_boards", a.toString()).apply()
         }
 
     /** Saved scenes as JSON; null until the defaults were seeded. */

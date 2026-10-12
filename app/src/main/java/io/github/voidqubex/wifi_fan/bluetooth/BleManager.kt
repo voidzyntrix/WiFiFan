@@ -17,6 +17,7 @@ import android.content.Context
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
 import android.widget.Toast
 import kotlinx.coroutines.CancellationException
@@ -53,6 +54,19 @@ class BleManager(private val context: Context) {
 
     private val _foundDevices = MutableStateFlow<Set<BluetoothDevice>>(emptySet())
     val foundDevices: StateFlow<Set<BluetoothDevice>> = _foundDevices
+
+    /** When each nearby device was last heard advertising (SystemClock.elapsedRealtime ms), by MAC address. */
+    private val _lastSeen = MutableStateFlow<Map<String, Long>>(emptyMap())
+    val lastSeen: StateFlow<Map<String, Long>> = _lastSeen
+
+    /** Updates [lastSeen], at most every 2 s per device so a busy scan doesn't redraw the screen constantly. */
+    private fun heard(address: String) {
+        val now = SystemClock.elapsedRealtime()
+        val before = _lastSeen.value[address]
+        if (before == null || now - before > 2_000) _lastSeen.value = _lastSeen.value + (address to now)
+    }
+
+    val bluetoothOn: Boolean get() = bluetoothAdapter?.isEnabled == true
 
     private val _isScanning = MutableStateFlow(false)
     val isScanning: StateFlow<Boolean> = _isScanning
@@ -169,6 +183,7 @@ class BleManager(private val context: Context) {
         override fun onScanResult(callbackType: Int, result: ScanResult) {
             val device = result.device
             if (device != null) {
+                heard(device.address)
                 val currentDevices = _foundDevices.value.toMutableSet()
                 if (currentDevices.add(device)) {
                     _foundDevices.value = currentDevices
@@ -180,6 +195,7 @@ class BleManager(private val context: Context) {
             val currentDevices = _foundDevices.value.toMutableSet()
             var added = false
             results.forEach { result ->
+                result.device?.let { heard(it.address) }
                 if (result.device != null && currentDevices.add(result.device)) {
                     added = true
                 }

@@ -10,6 +10,7 @@ import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -91,6 +92,7 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import io.github.voidqubex.wifi_fan.PairedBoard
 import io.github.voidqubex.wifi_fan.audio.AudioSyncService
 import io.github.voidqubex.wifi_fan.auto.AutoLight
 import io.github.voidqubex.wifi_fan.auto.AutoLightService
@@ -101,6 +103,7 @@ import io.github.voidqubex.wifi_fan.sync.SyncParams
 import io.github.voidqubex.wifi_fan.sync.sharesServiceWith
 import io.github.voidqubex.wifi_fan.ui.whatsnew.WhatsNewDialog
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import androidx.core.content.ContextCompat
@@ -235,6 +238,25 @@ fun BleControlScreen(
         ledStore.boardNames = boardNames
     }
     var renaming by remember { mutableStateOf<DeviceEntry?>(null) }
+    // Paired boards: every board connected to is remembered, for the board grid.
+    var pairedBoards by remember { mutableStateOf(ledStore.pairedBoards) }
+    LaunchedEffect(isConnected, deviceAddress, deviceName) {
+        val address = deviceAddress ?: return@LaunchedEffect
+        if (!isConnected) return@LaunchedEffect
+        val known = pairedBoards.firstOrNull { it.address == address }
+        if (known == null || (known.bleName == null && deviceName != null)) {
+            val board = PairedBoard(address, deviceName ?: known?.bleName)
+            pairedBoards = if (known == null) pairedBoards + board
+            else pairedBoards.map { if (it.address == address) board else it }
+            ledStore.pairedBoards = pairedBoards
+        }
+    }
+    fun forgetBoard(address: String) {
+        pairedBoards = pairedBoards.filterNot { it.address == address }
+        ledStore.pairedBoards = pairedBoards
+        setBoardName(address, "")
+    }
+    var boardMenu by remember { mutableStateOf<DeviceEntry?>(null) }
     val boardTitle = deviceAddress?.let { boardNames[it] } ?: deviceName ?: "Connected"
 
     // Scenes: one-tap favourites, saved as JSON.
@@ -327,11 +349,33 @@ fun BleControlScreen(
             Toast.makeText(context, "Permissions required for Bluetooth", Toast.LENGTH_SHORT).show()
         }
     }
-    fun checkPermissionsAndDo(action: () -> Unit) {
-        if (permissionsToRequest.all {
-                ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
-            }) action() else launcher.launch(permissionsToRequest)
+    fun bluetoothAllowed() = permissionsToRequest.all {
+        ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
     }
+    fun checkPermissionsAndDo(action: () -> Unit) {
+        if (bluetoothAllowed()) action() else launcher.launch(permissionsToRequest)
+    }
+
+    // The board grid's online pills: while it shows, a scan every 20 s (Android allows five scan
+    // starts per 30 s) hears which paired boards are advertising, i.e. powered and in range.
+    val lastSeen by bleManager.lastSeen.collectAsState()
+    var clock by remember { mutableLongStateOf(SystemClock.elapsedRealtime()) }
+    val showGrid = connectionState == BluetoothProfile.STATE_DISCONNECTED && !pickingDevice &&
+        pairedBoards.isNotEmpty() && !showSettings
+    LaunchedEffect(showGrid) {
+        var tick = 0
+        while (showGrid) {
+            if (tick % 4 == 0 && bleManager.bluetoothOn && bluetoothAllowed() && !bleManager.isScanning.value) {
+                bleManager.startScanning()
+            }
+            clock = SystemClock.elapsedRealtime()
+            delay(5_000)
+            tick++
+        }
+    }
+    val onlineBoards = pairedBoards.mapNotNull { b ->
+        b.address.takeIf { lastSeen[it]?.let { seen -> clock - seen < 25_000 } == true }
+    }.toSet()
 
     // -----------------------------------------------------------------------
     // LED controls state
@@ -1437,7 +1481,13 @@ fun BleControlScreen(
                                 onCancel        = { bleManager.stopScanning(); pickingDevice = false },
                                 onSettings      = { showSettings = true },
                                 names           = boardNames,
-                                onRename        = { renaming = it }
+                                onRename        = { renaming = it },
+                                paired          = pairedBoards.map { DeviceEntry(it.address, it.bleName) },
+                                online          = onlineBoards,
+                                connectingAddress = deviceAddress.takeIf {
+                                    connectionState == BluetoothProfile.STATE_CONNECTING
+                                },
+                                onBoardMenu     = { boardMenu = it }
                             )
                         }
                     }
@@ -1447,7 +1497,18 @@ fun BleControlScreen(
         }
     }
 
-    // ── Dialogs: board name, new scene, scene options ──
+    // ── Dialogs: board name, board options, new scene, scene options ──
+    boardMenu?.let { board ->
+        ActionsDialog(
+            title = boardNames[board.address] ?: board.bleName ?: "LED board",
+            subtitle = board.address,
+            actions = listOf(
+                "Rename" to { boardMenu = null; renaming = board },
+                "Forget" to { boardMenu = null; forgetBoard(board.address) }
+            ),
+            onDismiss = { boardMenu = null }
+        )
+    }
     renaming?.let { board ->
         NameDialog(
             title = "Name this board",

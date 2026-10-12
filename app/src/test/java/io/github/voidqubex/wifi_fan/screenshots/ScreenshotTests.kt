@@ -222,6 +222,24 @@ abstract class ScreenshotTests(private val size: String) {
         Home(Look.LIGHT_MONO)
     }
 
+    @Test fun boardGridDarkColoured() = shot("board-grid", Look.DARK_COLOURED) {
+        ConnectScreen(
+            connectionState = BluetoothProfile.STATE_DISCONNECTED,
+            isScanning = true,
+            devices = emptyList(),
+            picking = false,
+            mono = false,
+            onScan = {}, onPick = {}, onCancel = {}, onSettings = {},
+            names = mapOf(BOARD_ADDRESS to "Desk lamp", "C8:47:8C:00:12:34" to "Bed"),
+            paired = listOf(
+                DeviceEntry(BOARD_ADDRESS, "JDY-23"),
+                DeviceEntry("C8:47:8C:00:12:34", "JDY-23"),
+                DeviceEntry("C8:47:8C:00:56:78", "JDY-23")
+            ),
+            online = setOf(BOARD_ADDRESS, "C8:47:8C:00:12:34")
+        )
+    }
+
     @Test fun connectListDarkMono() = shot("connect-list", Look.DARK_MONO) { Connect(Look.DARK_MONO, picking = true) }
 
     @Test fun renameDialogDarkMono() = shot("rename-dialog", Look.DARK_MONO) {

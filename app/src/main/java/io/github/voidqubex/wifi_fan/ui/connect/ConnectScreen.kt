@@ -35,6 +35,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -94,7 +97,11 @@ internal fun ConnectScreen(
     onCancel: () -> Unit,
     onSettings: () -> Unit,
     names: Map<String, String> = emptyMap(),
-    onRename: (DeviceEntry) -> Unit = {}
+    onRename: (DeviceEntry) -> Unit = {},
+    paired: List<DeviceEntry> = emptyList(),
+    online: Set<String> = emptySet(),
+    connectingAddress: String? = null,
+    onBoardMenu: (DeviceEntry) -> Unit = {}
 ) {
     val onBg = MaterialTheme.colorScheme.onBackground
     val connecting = connectionState == BluetoothProfile.STATE_CONNECTING
@@ -138,7 +145,48 @@ internal fun ConnectScreen(
                 tint = onBg.copy(alpha = 0.35f)
             )
         }
-        Column(
+        if (paired.isNotEmpty() && !picking) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding()
+                    .navigationBarsPadding()
+                    .padding(horizontal = 20.dp)
+            ) {
+                Spacer(Modifier.height(64.dp))
+                Text(
+                    text = "Your boards",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = onBg
+                )
+                Spacer(Modifier.height(4.dp))
+                val count = paired.count { it.address in online }
+                Text(
+                    text = if (connecting) "Connecting…" else if (count == 0) "None nearby" else "$count online",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = onBg.copy(alpha = 0.55f)
+                )
+                Spacer(Modifier.height(20.dp))
+                BoardGrid(
+                    boards = paired,
+                    names = names,
+                    online = online,
+                    connectingAddress = connectingAddress,
+                    mono = mono,
+                    onPick = onPick,
+                    onMenu = onBoardMenu,
+                    onAdd = onScan,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    text = "Tap a board to control it. Hold it to rename or forget it.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = onBg.copy(alpha = 0.4f),
+                    modifier = Modifier.padding(vertical = 16.dp)
+                )
+            }
+        } else Column(
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
@@ -205,6 +253,157 @@ internal fun ConnectScreen(
                 }
             }
         }
+    }
+}
+
+/** Paired boards as tiles, each with an online pill, and a last tile that adds a board. */
+@Composable
+private fun BoardGrid(
+    boards: List<DeviceEntry>,
+    names: Map<String, String>,
+    online: Set<String>,
+    connectingAddress: String?,
+    mono: Boolean,
+    onPick: (DeviceEntry) -> Unit,
+    onMenu: (DeviceEntry) -> Unit,
+    onAdd: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val haptics = rememberHaptics()
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(minSize = 150.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = modifier
+    ) {
+        gridItems(boards, key = { it.address }) { board ->
+            BoardTile(
+                board = board,
+                name = names[board.address],
+                online = board.address in online,
+                connecting = board.address == connectingAddress,
+                mono = mono,
+                onClick = { haptics.tap(); onPick(board) },
+                onLongClick = { haptics.longPress(); onMenu(board) }
+            )
+        }
+        item(key = "add") { AddBoardTile(onClick = { haptics.tap(); onAdd() }) }
+    }
+}
+
+@Composable
+private fun BoardTile(
+    board: DeviceEntry,
+    name: String?,
+    online: Boolean,
+    connecting: Boolean,
+    mono: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit
+) {
+    val cs = MaterialTheme.colorScheme
+    val shape = rounded(24.dp)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(150.dp)
+            .clip(shape)
+            .background(cs.surface.copy(alpha = 0.85f))
+            .border(1.dp, cs.onBackground.copy(alpha = 0.08f), shape)
+            .bounceCombinedClickable(pressedScale = 0.97f, onLongClick = onLongClick, onClick = onClick)
+            .padding(16.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(circle())
+                .background(if (mono) monoFill() else cs.primary.copy(alpha = 0.15f))
+                .alpha(if (online || connecting) 1f else 0.5f),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.led),
+                contentDescription = null,
+                modifier = Modifier.size(22.dp),
+                tint = cs.primary
+            )
+        }
+        Spacer(Modifier.weight(1f))
+        Text(
+            text = name ?: board.bleName ?: "LED board",
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = cs.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Spacer(Modifier.height(8.dp))
+        OnlinePill(online = online, connecting = connecting)
+    }
+}
+
+/** Online / Offline (or Connecting…) with a dot, for a board tile. */
+@Composable
+private fun OnlinePill(online: Boolean, connecting: Boolean) {
+    val cs = MaterialTheme.colorScheme
+    val blink by rememberInfiniteTransition(label = "pillBlink").animateFloat(
+        initialValue = 0.35f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(700), RepeatMode.Reverse),
+        label = "pillDot"
+    )
+    val lit = online || connecting
+    Row(
+        modifier = Modifier
+            .clip(circle())
+            .background(if (lit) cs.primary.copy(alpha = 0.14f) else cs.onSurface.copy(alpha = 0.07f))
+            .padding(horizontal = 10.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(6.dp)
+                .clip(circle())
+                .background(
+                    when {
+                        connecting -> cs.primary.copy(alpha = blink)
+                        online -> cs.primary
+                        else -> cs.onSurface.copy(alpha = 0.3f)
+                    }
+                )
+        )
+        Spacer(Modifier.width(6.dp))
+        Text(
+            text = when {
+                connecting -> "Connecting…"
+                online -> "Online"
+                else -> "Offline"
+            },
+            style = MaterialTheme.typography.labelSmall,
+            color = if (lit) cs.onSurface else cs.onSurface.copy(alpha = 0.55f),
+            maxLines = 1
+        )
+    }
+}
+
+/** The grid's last tile: pair another board. */
+@Composable
+private fun AddBoardTile(onClick: () -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    val shape = rounded(24.dp)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(150.dp)
+            .clip(shape)
+            .border(1.dp, cs.onBackground.copy(alpha = 0.15f), shape)
+            .bounceClickable(pressedScale = 0.97f, onClick = onClick)
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text("+", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Light, color = cs.onSurface.copy(alpha = 0.7f))
+        Spacer(Modifier.height(4.dp))
+        Text("Add a board", style = MaterialTheme.typography.labelLarge, color = cs.onSurface.copy(alpha = 0.7f))
     }
 }
 
