@@ -54,8 +54,18 @@ class AutoLightService : Service() {
 
     private val check = Runnable { evaluate() }
 
+    /**
+     * Unlocked since the screen last went off. The unlock broadcast is the reliable sign: on some
+     * phones the keyguard still reads as locked at that moment, which kept Night on after unlocking.
+     */
+    private var userPresent = false
+
     private val screenReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
+            when (intent.action) {
+                Intent.ACTION_USER_PRESENT -> userPresent = true
+                Intent.ACTION_SCREEN_OFF -> userPresent = false
+            }
             screenChanged()
         }
     }
@@ -92,6 +102,7 @@ class AutoLightService : Service() {
         started = true
 
         applySettings()
+        userPresent = isScreenOn() && !getSystemService(KeyguardManager::class.java).isKeyguardLocked
         machine.start(now(), isScreenOn(), isLocked())
         machine.setPaused(SyncHub.isActive(), now())
 
@@ -130,7 +141,7 @@ class AutoLightService : Service() {
 
     private fun isScreenOn() = getSystemService(PowerManager::class.java).isInteractive
 
-    private fun isLocked() = getSystemService(KeyguardManager::class.java).isKeyguardLocked
+    private fun isLocked() = !userPresent && getSystemService(KeyguardManager::class.java).isKeyguardLocked
 
     private fun screenChanged() {
         machine.screen(now(), isScreenOn(), isLocked())?.let { act(it) }
