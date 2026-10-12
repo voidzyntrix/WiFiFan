@@ -7,7 +7,7 @@
  *   send  split=0  ->  Linked (default at boot): both LEDs always show the same
  *                      thing, so apps written for one LED light both
  *   send  split=1  ->  Separate: the effects get two-LED variants (rainbow with
- *                      LED2 180 deg apart, independent candle flicker and party
+ *                      LED2 180 deg apart, a two-LED candle flame, own party
  *                      colours, breathe in opposite phase, ocean/aurora offset)
  *   send  h1=H/S/V, h2=H/S/V, l1=R/G/B, l2=R/G/B -> colour of one LED only
  *                      (works in both modes); ends any effect, the other LED
@@ -28,6 +28,10 @@
  *   send  candle=V ->  ... at brightness V 0-100; any colour command ends it
  *   send  candle=V/M -> M=1: smooth candle (slow, gentle), M=0: lively flicker
  *   send  candle=V/M/H -> ... with flame hue H in degrees (0-60, default 19)
+ *   send  candle=V/M/H/S -> S = what Separate mode shows (1.6.1): 0 = one
+ *                      flame (default; LED1 = bright yellower core, LED2 =
+ *                      dimmer redder tip, swaying between them), 1 = two
+ *                      independent candles. Linked mode ignores S.
  *   send  rain=S/V/T -> rainbow taking T seconds (2-120) per trip round the wheel
  *   send  fade=MS  ->  colour change duration 0-5000 ms (default 1500)
  *   send  breathe=V / ocean=V / party=V / aurora=V -> animated effects at
@@ -76,7 +80,7 @@
 
 #define WS_USE_DMA   0               /* 1 = timer + DMA, 0 = polled SysTick */
 
-#define FW_VERSION   "1.6.0"      /* reported by "ver"; bump for each release */
+#define FW_VERSION   "1.6.1"     /* reported by "ver"; bump for each release */
 
 #define START_BAUD   115200          /* used until a baud rate has been detected */
 
@@ -516,8 +520,20 @@ static uint32_t rb_start, rb_last, rb_ticks, rb_ramp_ticks;
 #define CANDLE_HUE   80              /* ~19 deg: deep orange (hue units 0..1535) */
 #define CANDLE_SAT   240
 static uint8_t  candle, cd_smooth, cd_v = 255;
+static uint8_t  cd_style;                    /* Separate: 0 = one flame, 1 = two candles */
 static int16_t  cd_hue = CANDLE_HUE;         /* flame hue, 0..1535 units */
 static uint32_t cd_ms, cd_last;              /* candle clock in ms, last tick */
+
+/* One flame over two LEDs (Separate, cd_style 0): LED1 is the core, LED2 the
+ * tip. They share the breathing and the gusts (L[0].cd_flick); the tip sees
+ * each gust a few frames late (delay line), adds its own fast flicker
+ * (L[1].cd_flick) and a sway moves light between core and tip. */
+#define FL_DELAY     8                       /* delay line length, frames (10 ms) */
+#define FL_HUE_OFS   21                      /* ~5 deg: core yellower, tip redder */
+static float    fl_gust[FL_DELAY];           /* past gust levels, for the tip */
+static uint8_t  fl_pos;                      /* next slot in fl_gust */
+static float    fl_sway, fl_sway_to;         /* +: leans to the core, -: to the tip */
+static float    fl_mix;                      /* 0..1: eases in the core/tip look */
 
 /* sin(2*pi*x): parabolic approximation (error < 0.1 %), so no libm is needed */
 static float sin_turns(float x)
@@ -664,8 +680,18 @@ static void led_rainbow(uint8_t s, uint8_t v)
     dirty    = 1;
 }
 
+/* Restart the one-flame model from the current shared flicker: no lean, the
+ * core/tip difference eases in again (so nothing jumps). */
+static void flame_reset(void)
+{
+    for (uint8_t k = 0; k < FL_DELAY; k++) fl_gust[k] = L[0].cd_flick;
+    fl_sway = fl_sway_to = 0.0f;
+    fl_mix  = 0.0f;
+}
+
 /* Candle mode at brightness [v]: fades to the flame colour, then flickers
- * (Separate: each LED with its own random flicker and breathing phase). */
+ * (Separate: one flame over both LEDs, or with cd_style 1 each LED with its
+ * own random flicker and breathing phase). */
 static void led_candle(uint8_t v, uint8_t smooth)
 {
     hsv_t   c = { cd_hue, CANDLE_SAT, v };
@@ -678,6 +704,7 @@ static void led_candle(uint8_t v, uint8_t smooth)
     cd_smooth = smooth;
     cd_v = v;
     cd_last = now();
+    flame_reset();
     candle = 1;
 }
 
@@ -760,6 +787,7 @@ static void set_split(uint8_t s)
     } else if (candle) {
         L[1].cd_flick  = L[0].cd_flick;
         L[1].cd_target = L[0].cd_target;
+        flame_reset();
     } else if (!rainbow && !split) {
         fade_led(1, L[0].fade_to, L[0].target_rgb);
     }
@@ -795,21 +823,93 @@ static void fx_frame(uint8_t i, float tt)
     d->shown.v = fx_v;
 }
 
+/* Candle breathing at time [tt] s (two incommensurate sines) and the dip
+ * parameters for the current style (smooth / lively). */
+static float cd_breathe(float tt, float *depth, float *chance, float *glide)
+{
+    if (cd_smooth) {            /* smooth: slow breathing, rare shallow dips that glide */
+        *depth = 0.30f; *chance = 0.025f; *glide = 0.06f;
+        return 0.10f * sin_turns(tt / 4.0f) + 0.05f * sin_turns(tt / 1.5f);
+    }
+    /* lively: faster breathing, frequent quick flickers */
+    *depth = 0.30f; *chance = 0.12f; *glide = 0.35f;
+    return 0.10f * sin_turns(tt / 2.3f) + 0.06f * sin_turns(tt / 0.77f);
+}
+
+static float clampf(float x, float lo, float hi)
+{
+    return x < lo ? lo : x > hi ? hi : x;
+}
+
+/* Flame hue: base + [ofs] units, never wrapping below red into magenta. */
+static int16_t flame_hue(int ofs)
+{
+    int h = cd_hue + ofs;
+    return hue_wrap(h < 0 ? 0 : h);
+}
+
+/* One frame of the one-flame model (Separate, cd_style 0): LED1 = core,
+ * LED2 = tip. Shared breathing and gusts; the tip gets each gust 50 ms
+ * (lively) / 80 ms (smooth) late, ~70 % brightness, ~5 deg redder, more
+ * saturated and its own small fast flicker; the core is ~5 deg yellower and
+ * a little paler. The sway (+-0.25, a slowly gliding random lean that gusts
+ * nudge) shifts brightness between the two. */
+static void flame_frame(float tt)
+{
+    led_t *c = &L[0], *p = &L[1];
+    float depth, chance, glide;
+    float breathe = cd_breathe(tt, &depth, &chance, &glide);
+
+    /* shared gusts: a random dip the core glides to (as in candle_frame) */
+    if (frand(c) < chance) {
+        c->cd_target = -depth * frand(c) * frand(c);
+        fl_sway_to += (frand(c) - 0.5f) * 0.20f;          /* a gust nudges the lean */
+    }
+    c->cd_flick += (c->cd_target - c->cd_flick) * glide;
+
+    /* the tip sees the gust [lag] frames later */
+    uint8_t lag = cd_smooth ? FL_DELAY : 5;
+    float   tip_gust = fl_gust[(fl_pos + FL_DELAY - lag) % FL_DELAY];
+    fl_gust[fl_pos] = c->cd_flick;
+    fl_pos = (uint8_t)((fl_pos + 1) % FL_DELAY);
+
+    /* sway: now and then a new lean, glided to slowly (smooth: slower) */
+    if (frand(c) < (cd_smooth ? 0.006f : 0.02f)) fl_sway_to = (frand(c) - 0.5f) * 0.5f;
+    fl_sway_to = clampf(fl_sway_to, -0.25f, 0.25f);
+    fl_sway += (fl_sway_to - fl_sway) * (cd_smooth ? 0.015f : 0.04f);
+
+    /* tip's own fast flicker: mostly small dips, now and then a lift */
+    float tc = cd_smooth ? 0.05f : 0.25f, td = cd_smooth ? 0.08f : 0.18f;
+    float tg = cd_smooth ? 0.12f : 0.50f;
+    if (frand(p) < tc) p->cd_target = (frand(p) - 0.7f) * td;
+    p->cd_flick += (p->cd_target - p->cd_flick) * tg;
+
+    if (fl_mix < 1.0f) fl_mix += 0.01f;                 /* ~1 s ease-in */
+    float m = fl_mix > 1.0f ? 1.0f : fl_mix;
+    float s = fl_sway * m;
+    float tf = p->cd_flick * m;
+
+    float fc = (0.82f + 0.05f * m + breathe + c->cd_flick) * (1.0f + 0.6f * s);
+    float ft = (0.82f + breathe + tip_gust + tf) * (1.0f - 0.30f * m) * (1.0f - 0.6f * s);
+    fc = clampf(fc, 0.25f, 1.0f);
+    ft = clampf(ft, 0.20f, 1.0f);
+
+    c->shown.h = flame_hue((int)(FL_HUE_OFS * m) + (int)(c->cd_flick * 40.0f));
+    c->shown.s = (uint8_t)(CANDLE_SAT - 20.0f * m);
+    c->shown.v = (uint8_t)(cd_v * fc);
+    p->shown.h = flame_hue(-(int)(FL_HUE_OFS * m) + (int)((tip_gust + tf) * 40.0f));
+    p->shown.s = (uint8_t)(CANDLE_SAT + 12.0f * m);
+    p->shown.v = (uint8_t)(cd_v * ft);
+}
+
 /* One candle frame for LED [i]: own flicker and (LED2) own breathing phase. */
 static void candle_frame(uint8_t i, float tt)
 {
     led_t *d = &L[i];
 
     if (i) tt += 1.37f;
-    /* slow breathing: two incommensurate sines */
-    float breathe, depth, chance, glide;
-    if (cd_smooth) {            /* smooth: slow breathing, rare shallow dips that glide */
-        breathe = 0.10f * sin_turns(tt / 4.0f) + 0.05f * sin_turns(tt / 1.5f);
-        depth = 0.30f; chance = 0.025f; glide = 0.06f;
-    } else {                    /* lively: faster breathing, frequent quick flickers */
-        breathe = 0.10f * sin_turns(tt / 2.3f) + 0.06f * sin_turns(tt / 0.77f);
-        depth = 0.30f; chance = 0.12f; glide = 0.35f;
-    }
+    float depth, chance, glide;
+    float breathe = cd_breathe(tt, &depth, &chance, &glide);
     /* flicker: every few frames pick a new random dip, glide towards it */
     if (frand(d) < chance) d->cd_target = -depth * frand(d) * frand(d);
     d->cd_flick += (d->cd_target - d->cd_flick) * glide;
@@ -904,7 +1004,8 @@ static void led_poll(void)
         cd_ms  += (t - cd_last) / TICKS_PER_MS;
         cd_last = t - (t - cd_last) % TICKS_PER_MS;
         float tt = cd_ms * 0.001f;
-        for (uint8_t i = 0; i < n; i++) candle_frame(i, tt);
+        if (split && !cd_style) flame_frame(tt);
+        else for (uint8_t i = 0; i < n; i++) candle_frame(i, tt);
         if (!split) L[1].shown = L[0].shown;
         dirty = 1;
     }
@@ -1086,7 +1187,7 @@ static void line_end(void)
     char        t[LINE_MAX];
     const char *p, *w;
     uint8_t     rgb[3];
-    uint16_t    n[3];
+    uint16_t    n[4];
     hsv_t       hv[2];
     int         br;
 
@@ -1121,15 +1222,23 @@ static void line_end(void)
     else if (strstr(w, "off")) {
         led_colour(0, 0, 0);
     }
+    else if (strncmp(w, "candle=", 7) == 0 && parse_nums(w + 7, n, 4, 100) && n[2] <= 60 && n[3] <= 1) {
+        cd_hue   = (int16_t)(n[2] * HUE_MAX / 360);         /* V/M/H/S */
+        cd_style = (uint8_t)n[3];
+        led_candle(pct(n[0]), n[1] != 0);
+    }
     else if (strncmp(w, "candle=", 7) == 0 && parse_nums(w + 7, n, 3, 100) && n[2] <= 60) {
-        cd_hue = (int16_t)(n[2] * HUE_MAX / 360);
+        cd_hue   = (int16_t)(n[2] * HUE_MAX / 360);
+        cd_style = 0;
         led_candle(pct(n[0]), n[1] != 0);
     }
     else if (strncmp(w, "candle=", 7) == 0 && parse_nums(w + 7, n, 2, 100)) {
-        cd_hue = CANDLE_HUE;
+        cd_hue   = CANDLE_HUE;
+        cd_style = 0;
         led_candle(pct(n[0]), n[1] != 0);
     }
     else if (strncmp(w, "candle=", 7) == 0 && parse_nums(w + 7, n, 1, 100)) {
+        cd_style = 0;
         led_candle(pct(n[0]), 0);
     }
     else if (strncmp(w, "breathe", 7) == 0 || strncmp(w, "ocean", 5) == 0 ||
@@ -1143,6 +1252,7 @@ static void line_end(void)
         else                                     led_flash(BRIGHT, BRIGHT, BRIGHT, 60);
     }
     else if (strcmp(w, "candle") == 0) {
+        cd_style = 0;
         led_candle(last_v, 0);
     }
     else if (strncmp(w, "fade=", 5) == 0 && parse_nums(w + 5, n, 1, 5000)) {
