@@ -372,11 +372,10 @@ private fun AutoLightSettings(
     var handScene by remember { mutableStateOf(store.autoHandScene) }
     var nightScene by remember { mutableStateOf(store.autoNightScene) }
     var wait by remember { mutableIntStateOf(store.autoWaitMinutes) }
-    var handNoWait by remember { mutableStateOf(store.autoHandNoWait) }
     var nightNoWait by remember { mutableStateOf(store.autoNightNoWait) }
     SettingSwitch(
         "Auto light",
-        "Reading light while the phone is in your hand, night light once it lies still and locked",
+        "Reading light while the screen is on and unlocked, night light once it is locked or off",
         on, onChange
     )
     SettingGap()
@@ -387,17 +386,12 @@ private fun AutoLightSettings(
             color = onBg.copy(alpha = 0.45f)
         )
     } else {
-        SettingHeading("In hand", "Screen on, unlocked and moving")
+        SettingHeading("In hand", "Screen on and unlocked, the moment you unlock")
         ScenePicker(scenes, handScene, candleHue, onPick = {
             handScene = it.id; store.autoHandScene = it.id
         })
-        Spacer(Modifier.height(10.dp))
-        SettingSwitch(
-            "No wait", "Reading light the moment you unlock, no movement needed",
-            handNoWait
-        ) { handNoWait = it; store.autoHandNoWait = it }
         SettingGap()
-        SettingHeading("Phone down & locked", "Locked or screen off, and still for the wait below")
+        SettingHeading("Phone down & locked", "Locked or screen off for the wait below")
         ScenePicker(scenes, nightScene, candleHue, onPick = {
             nightScene = it.id; store.autoNightScene = it.id
         })
@@ -409,7 +403,7 @@ private fun AutoLightSettings(
     }
     SettingGap()
     val waits = listOf(1, 2, 5)
-    SettingHeading("Wait before Night", "How long the phone lies still and locked first")
+    SettingHeading("Wait before Night", "How long the phone stays locked or off first")
     Box(Modifier.alpha(if (nightNoWait) 0.4f else 1f)) {
         SegmentedPill(listOf("1 min", "2 min", "5 min"), waits.indexOf(wait).coerceAtLeast(0)) {
             wait = waits[it]; store.autoWaitMinutes = waits[it]

@@ -24,7 +24,7 @@
     <!-- Music mode keeps listening with the app closed -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <!-- Auto light: keeps the board link and watches the accelerometer with the app closed -->
+    <!-- Auto light: keeps the board link and watches the screen and lock state with the app closed -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
     <!-- Auto light: keeps the CPU awake only while counting down to Night -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />

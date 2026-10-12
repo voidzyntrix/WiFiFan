@@ -40,6 +40,7 @@ import kotlinx.coroutines.launch
 class AudioSyncService : Service() {
     private var scope: CoroutineScope? = null
     private var projection: MediaProjection? = null
+    private var projectionCallback: MediaProjection.Callback? = null
     private var link: LedLink? = null
     private val main = Handler(Looper.getMainLooper())
 
@@ -72,10 +73,12 @@ class AudioSyncService : Service() {
                 val code = intent?.getIntExtra(EXTRA_CODE, 0) ?: 0
                 val mp = getSystemService(MediaProjectionManager::class.java).getMediaProjection(code, data)
                     ?: return fail("No permission to capture the speakers")
-                mp.registerCallback(object : MediaProjection.Callback() {
+                val callback = object : MediaProjection.Callback() {
                     override fun onStop() { main.post { stopSelf() } }
-                }, main)
+                }
+                mp.registerCallback(callback, main)
                 projection = mp
+                projectionCallback = callback
                 AudioCapture.playback(mp)
             } else {
                 AudioCapture.mic()
@@ -217,8 +220,14 @@ class AudioSyncService : Service() {
     private fun shutdown(restoreFade: Boolean) {
         scope?.cancel()
         scope = null
-        projection?.stop()
+        // The callback goes first: stopping a projection reports onStop, which would end the new
+        // session this service may be restarting into (Visualizer -> Music).
+        projection?.let { mp ->
+            projectionCallback?.let { mp.unregisterCallback(it) }
+            mp.stop()
+        }
         projection = null
+        projectionCallback = null
         if (restoreFade) {
             val ble = (application as GlowApp).bleManager
             if (ble.connectionState.value == BluetoothProfile.STATE_CONNECTED) {

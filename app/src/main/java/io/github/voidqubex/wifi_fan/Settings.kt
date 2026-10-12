@@ -185,14 +185,10 @@ class SettingsStore(context: Context) {
     var autoNightScene: Long
         get() = prefs.getLong("auto_night_scene", 1L)
         set(value) { prefs.edit().putLong("auto_night_scene", value).apply() }
-    /** Minutes the phone must lie still and locked before Night: 1, 2 or 5. */
+    /** Minutes the phone must stay locked (or its screen off) before Night: 1, 2 or 5. */
     var autoWaitMinutes: Int
         get() = prefs.getInt("auto_wait_minutes", 2)
         set(value) { prefs.edit().putInt("auto_wait_minutes", value).apply() }
-    /** In hand the moment the phone is unlocked, with no motion needed. */
-    var autoHandNoWait: Boolean
-        get() = prefs.getBoolean("auto_hand_no_wait", false)
-        set(value) { prefs.edit().putBoolean("auto_hand_no_wait", value).apply() }
     /** Night the moment the phone is locked or the screen goes off, with no wait. */
     var autoNightNoWait: Boolean
         get() = prefs.getBoolean("auto_night_no_wait", false)

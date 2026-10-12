@@ -12,10 +12,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.ServiceInfo
-import android.hardware.Sensor
-import android.hardware.SensorEvent
-import android.hardware.SensorEventListener
-import android.hardware.SensorManager
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
@@ -28,6 +24,9 @@ import io.github.voidqubex.wifi_fan.R
 import io.github.voidqubex.wifi_fan.SettingsStore
 import io.github.voidqubex.wifi_fan.sync.SyncHub
 import io.github.voidqubex.wifi_fan.sync.SyncKind
+import io.github.voidqubex.wifi_fan.ui.home.LED_MODE_MUSIC
+import io.github.voidqubex.wifi_fan.ui.home.LED_MODE_SCREEN
+import io.github.voidqubex.wifi_fan.ui.home.LED_MODE_VISUALIZER
 import io.github.voidqubex.wifi_fan.ui.home.SceneApplier
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -36,24 +35,19 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
 /**
- * Auto light: watches the accelerometer and the screen/lock state and switches between the
+ * Auto light: watches the screen and lock state (nothing else) and switches between the
  * "In hand" and "Phone down & locked" scenes, also with the app closed. Decisions come from
  * [AutoLightMachine]; this service only feeds it events and applies what it decides.
  *
- * Battery: the accelerometer runs at the normal (~5 Hz) rate with batching, is switched off
- * while Night shows with the screen off, and a partial wake lock is held only while counting
- * down to Night (at most the wait time plus a minute per lock).
+ * Battery: it just waits for screen on/off and unlock broadcasts, and holds a partial wake lock
+ * only while counting down to Night (at most the wait time plus a minute per lock).
  */
-class AutoLightService : Service(), SensorEventListener {
+class AutoLightService : Service() {
     private val main = Handler(Looper.getMainLooper())
     private var scope: CoroutineScope? = null
     private var started = false
     private lateinit var store: SettingsStore
     private val machine = AutoLightMachine(nightDelayMs = 2 * 60_000L)
-    private val detector = MotionDetector()
-    private var sensorManager: SensorManager? = null
-    private var accel: Sensor? = null
-    private var listening = false
     private var wakeLock: PowerManager.WakeLock? = null
     private var wakeForDownSince: Long? = null
     private var shownText: String? = null
@@ -62,14 +56,6 @@ class AutoLightService : Service(), SensorEventListener {
 
     private val screenReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
-            if (intent.action == Intent.ACTION_SCREEN_ON) {
-                updateSensor(forceOn = true)
-                sensorManager?.flush(this@AutoLightService)
-            }
-            // Without an accelerometer, unlocking is the only sign of a hand.
-            if (intent.action == Intent.ACTION_USER_PRESENT && accel == null) {
-                machine.motion(now())?.let { act(it) }
-            }
             screenChanged()
         }
     }
@@ -109,9 +95,6 @@ class AutoLightService : Service(), SensorEventListener {
         machine.start(now(), isScreenOn(), isLocked())
         machine.setPaused(SyncHub.isActive(), now())
 
-        sensorManager = getSystemService(SensorManager::class.java)
-        accel = sensorManager?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
-        updateSensor()
         ContextCompat.registerReceiver(
             this, screenReceiver,
             IntentFilter().apply {
@@ -143,7 +126,6 @@ class AutoLightService : Service(), SensorEventListener {
 
     private fun applySettings() {
         machine.nightDelayMs = if (store.autoNightNoWait) 0L else store.autoWaitMinutes * 60_000L
-        machine.handInstant = store.autoHandNoWait
     }
 
     private fun isScreenOn() = getSystemService(PowerManager::class.java).isInteractive
@@ -155,16 +137,6 @@ class AutoLightService : Service(), SensorEventListener {
         evaluate()
     }
 
-    override fun onSensorChanged(event: SensorEvent) {
-        val v = event.values
-        if (detector.sample(v[0], v[1], v[2], now())) {
-            machine.motion(now())?.let { act(it) }
-            evaluate()
-        }
-    }
-
-    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
-
     /** Re-checks the machine (the Night countdown, a changed wait time) and refreshes everything shown. */
     private fun evaluate() {
         if (!started) return
@@ -174,7 +146,6 @@ class AutoLightService : Service(), SensorEventListener {
         main.removeCallbacks(check)
         machine.msUntilNight(t)?.let { main.postDelayed(check, it + 500) }
         updateWakeLock(t)
-        updateSensor()
         publish(t)
     }
 
@@ -182,6 +153,9 @@ class AutoLightService : Service(), SensorEventListener {
     private fun act(state: AutoState) {
         val ble = (application as GlowApp).bleManager
         if (ble.connectionState.value != BluetoothProfile.STATE_CONNECTED || SyncHub.isActive()) return
+        // Music, Visualizer or Screen sync was just picked in the open app and its service is still
+        // starting: that choice stays.
+        if (SyncHub.uiAlive && store.ledMode in SYNC_MODES) return
         val id = when (state) {
             AutoState.IN_HAND -> store.autoHandScene
             AutoState.NIGHT -> store.autoNightScene
@@ -209,23 +183,9 @@ class AutoLightService : Service(), SensorEventListener {
         }
     }
 
-    /** The accelerometer is off while Night shows with the screen off (nothing to watch until it comes on). */
-    private fun updateSensor(forceOn: Boolean = false) {
-        val sm = sensorManager ?: return
-        val sensor = accel ?: return
-        val want = forceOn || !(machine.state == AutoState.NIGHT && !machine.screenOn)
-        if (want && !listening) {
-            detector.reset()
-            listening = sm.registerListener(this, sensor, SensorManager.SENSOR_DELAY_NORMAL, BATCH_US, main)
-        } else if (!want && listening) {
-            sm.unregisterListener(this)
-            listening = false
-        }
-    }
-
     /**
-     * Keeps the CPU awake while counting down to Night, so the timer and the motion check run
-     * with the screen off. Once per lock, and never longer than the wait plus a minute.
+     * Keeps the CPU awake while counting down to Night, so the timer runs with the screen off.
+     * Once per lock, and never longer than the wait plus a minute.
      */
     private fun updateWakeLock(t: Long) {
         val counting = machine.msUntilNight(t) != null
@@ -245,11 +205,7 @@ class AutoLightService : Service(), SensorEventListener {
         main.removeCallbacks(check)
         scope?.cancel()
         scope = null
-        if (started) {
-            runCatching { unregisterReceiver(screenReceiver) }
-            sensorManager?.unregisterListener(this)
-        }
-        listening = false
+        if (started) runCatching { unregisterReceiver(screenReceiver) }
         wakeLock?.takeIf { it.isHeld }?.release()
         AutoLight.status.value = null
         // Stopped with the app closed (notification Stop): let go of the board too, after the
@@ -288,8 +244,7 @@ class AutoLightService : Service(), SensorEventListener {
         private const val ACTION_STOP = "io.github.voidqubex.wifi_fan.auto.STOP"
         private const val CHANNEL = "auto_light"
         private const val NOTIFICATION_ID = 10
-        /** Sensor events may be batched for up to 2 s (the CPU sleeps in between). */
-        private const val BATCH_US = 2_000_000
+        private val SYNC_MODES = listOf(LED_MODE_MUSIC, LED_MODE_VISUALIZER, LED_MODE_SCREEN)
 
         /** Starts watching. The app must be visible, and a board connected. */
         fun start(context: Context) {
