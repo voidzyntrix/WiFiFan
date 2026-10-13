@@ -2,6 +2,7 @@ package io.github.voidqubex.wifi_fan.ui.settings
 
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
@@ -153,6 +154,7 @@ internal fun SettingsScreen(
         }) {
             // Two-LED boards (firmware 1.6.0+): one look on both, or each LED on its own.
             val twoLedBoard = boardVersion?.let { GitHubReleases.compareVersions(it, "1.6.0") >= 0 } ?: false
+            SettingSection("Layout", first = true)
             SettingHeading(
                 "LEDs",
                 if (separateLeds && twoLedBoard) "Each LED has its own colour; effects run in two-LED versions"
@@ -169,7 +171,7 @@ internal fun SettingsScreen(
                     color = onBg.copy(alpha = 0.45f)
                 )
             }
-            SettingGap()
+            SettingSection("Candle")
             SettingSwitch(
                 "Smooth candle", "Slow, gentle flicker (easier on the eyes at night)",
                 smoothCandle, onSmoothCandleChange
@@ -203,7 +205,7 @@ internal fun SettingsScreen(
                     onTwoCandlesChange(it == 1)
                 }
             }
-            SettingGap()
+            SettingSection("Effects")
             val rainbowSpeeds = listOf(30, 15, 6)
             SettingHeading("Rainbow speed", "One trip round the colour wheel: 30, 15 or 6 s")
             SegmentedPill(listOf("Slow", "Normal", "Fast"), rainbowSpeeds.indexOf(rainbowSeconds)) {
@@ -238,6 +240,7 @@ internal fun SettingsScreen(
         SettingsCard("App UI", uiOpen, Modifier.entrance(3), {
             uiOpen = !uiOpen; store.setCategoryCollapsed("ui", !uiOpen)
         }) {
+            SettingSection("Theme", first = true)
             SettingHeading("Background", "What appears behind the controls")
             SegmentedPill(
                 listOf("Particles", "Image"),
@@ -264,7 +267,12 @@ internal fun SettingsScreen(
                 AppLook.monoFont = it == 1
                 store.monoFont = it == 1
             }
-            SettingGap()
+            SwitchGap()
+            SettingSwitch(
+                "Pure black (OLED)", "Black background in dark mode",
+                AppLook.pureBlack
+            ) { AppLook.pureBlack = it; store.pureBlack = it }
+            SettingSection("Shape & surface")
             SettingHeading("Corners", "Roundness of everything: cards, buttons, pills, dots, thumbs")
             SegmentedPill(listOf("Square", "Small", "Medium", "Large", "Custom"), cornerStyle) {
                 cornerStyle = it
@@ -316,11 +324,20 @@ internal fun SettingsScreen(
                 AppLook.roundLedPreview
             ) { AppLook.roundLedPreview = it; store.roundLedPreview = it }
             SwitchGap()
-            SettingSwitch(
-                "Pure black (OLED)", "Black background in dark mode",
-                AppLook.pureBlack
-            ) { AppLook.pureBlack = it; store.pureBlack = it }
-            SwitchGap()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                SettingSwitch(
+                    "Refractive glass", "Clear cards that bend the background at their edges, no blur",
+                    AppLook.refractiveGlass
+                ) { AppLook.refractiveGlass = it; store.refractiveGlass = it }
+            } else {
+                SettingHeading("Refractive glass", "Clear cards that bend the background at their edges")
+                Text(
+                    "Needs Android 13",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = onBg.copy(alpha = 0.45f)
+                )
+            }
+            SettingSection("Behaviour")
             SettingSwitch(
                 "Rainbow preview", "Animate the colour sliders while Rainbow runs",
                 rainbowSync, onRainbowSyncChange
@@ -381,13 +398,14 @@ internal fun SettingsScreen(
         SettingsCard("Firmware & updates", firmwareOpen, Modifier.entrance(4), {
             firmwareOpen = !firmwareOpen; store.setCategoryCollapsed("firmware", !firmwareOpen)
         }) {
+            SettingSection("Board", first = true)
             FirmwareSection(
                 otaManager   = otaManager,
                 state        = otaState,
                 boardVersion = boardVersion,
                 isConnected  = isConnected
             )
-            Spacer(Modifier.height(12.dp))
+            SettingSection("App")
             AppUpdateSection()
             Spacer(Modifier.height(12.dp))
             PillButton("What's new", highlighted = false, onClick = onWhatsNew)
@@ -414,6 +432,7 @@ private fun AutoLightSettings(
     var roomLight by remember { mutableStateOf(store.autoRoomLight) }
     var darkScene by remember { mutableStateOf(store.autoDarkScene) }
     var brightScene by remember { mutableStateOf(store.autoBrightScene) }
+    SettingSection("Mode", first = true)
     SettingSwitch(
         "Auto light",
         "Reading light while the screen is on and unlocked, night light once it is locked or off",
@@ -426,7 +445,7 @@ private fun AutoLightSettings(
         store.autoRoomLight = roomLight
         io.github.voidqubex.wifi_fan.auto.AutoLight.roomLight.value = roomLight
     }
-    SettingGap()
+    SettingSection("Scenes")
     if (roomLight) {
         if (scenes.isEmpty()) {
             Text(
@@ -445,7 +464,7 @@ private fun AutoLightSettings(
                 brightScene = it.id; store.autoBrightScene = it.id
             })
         }
-        SettingGap()
+        SettingSection("Sensor")
         var darkLux by remember { mutableFloatStateOf(store.autoDarkLux) }
         val lux by io.github.voidqubex.wifi_fan.auto.AutoLight.lux.collectAsState()
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -503,7 +522,7 @@ private fun AutoLightSettings(
             nightNoWait
         ) { nightNoWait = it; store.autoNightNoWait = it }
     }
-    SettingGap()
+    SettingSection("Timing")
     val waits = listOf(1, 2, 5)
     SettingHeading("Wait before Night", "How long the phone stays locked or off first")
     Box(Modifier.alpha(if (nightNoWait) 0.4f else 1f)) {

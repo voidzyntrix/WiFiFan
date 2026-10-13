@@ -45,6 +45,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import io.github.voidqubex.wifi_fan.R
 import io.github.voidqubex.wifi_fan.ui.components.AppSwitch
 import io.github.voidqubex.wifi_fan.ui.components.PanelCard
@@ -52,6 +53,7 @@ import io.github.voidqubex.wifi_fan.ui.components.bounceClickable
 import io.github.voidqubex.wifi_fan.ui.components.drawDot
 import io.github.voidqubex.wifi_fan.ui.components.isCompact
 import io.github.voidqubex.wifi_fan.ui.theme.AccentPresets
+import io.github.voidqubex.wifi_fan.ui.theme.LocalPureMono
 import io.github.voidqubex.wifi_fan.ui.theme.circle
 import io.github.voidqubex.wifi_fan.ui.theme.rounded
 
@@ -193,6 +195,34 @@ internal fun SettingGap() = Spacer(Modifier.height(24.dp))
 /** Between two switches in a list. */
 @Composable
 internal fun SwitchGap() = Spacer(Modifier.height(16.dp))
+
+/**
+ * A sub-category inside a settings card: a small caps label and a hairline. Only visual; it
+ * brings its own space above, so it replaces a [SettingGap] ([first] for the top of a card).
+ */
+@Composable
+internal fun SettingSection(title: String, first: Boolean = false) {
+    val color = if (LocalPureMono.current) MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+    else MaterialTheme.colorScheme.primary
+    if (!first) Spacer(Modifier.height(32.dp))
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            text = title.uppercase(),
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = 1.2.sp,
+            color = color
+        )
+        Spacer(Modifier.width(10.dp))
+        Box(
+            Modifier
+                .weight(1f)
+                .height(1.dp)
+                .background(MaterialTheme.colorScheme.onBackground.copy(alpha = 0.08f))
+        )
+    }
+    Spacer(Modifier.height(14.dp))
+}
 
 @Composable
 internal fun SettingHeading(title: String, subtitle: String) {

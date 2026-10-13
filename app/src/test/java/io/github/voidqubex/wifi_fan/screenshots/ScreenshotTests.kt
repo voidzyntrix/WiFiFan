@@ -90,6 +90,7 @@ abstract class ScreenshotTests(private val size: String) {
         AppLook.cornerScale = 1f
         AppLook.roundLedPreview = true
         AppLook.pureBlack = oled
+        AppLook.refractiveGlass = false
         compose.mainClock.autoAdvance = false   // infinite animations: step the clock by hand
         compose.setContent {
             GlowTheme(

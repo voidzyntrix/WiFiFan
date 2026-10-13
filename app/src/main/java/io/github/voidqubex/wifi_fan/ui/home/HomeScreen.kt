@@ -128,6 +128,7 @@ import io.github.voidqubex.wifi_fan.ota.OtaState
 import io.github.voidqubex.wifi_fan.ui.components.AmbientParticleBackground
 import io.github.voidqubex.wifi_fan.ui.components.CircleIconButton
 import io.github.voidqubex.wifi_fan.ui.components.GradientBar
+import io.github.voidqubex.wifi_fan.ui.components.LocalBackdropLayer
 import io.github.voidqubex.wifi_fan.ui.components.LocalBlurLayer
 import io.github.voidqubex.wifi_fan.ui.components.PanelCard
 import io.github.voidqubex.wifi_fan.ui.components.PresetDot
@@ -964,7 +965,7 @@ fun BleControlScreen(
     SideEffect { blurLayer.renderEffect = BlurEffect(60f, 60f, TileMode.Clamp) }
 
     Scaffold { _ ->
-        CompositionLocalProvider(LocalBlurLayer provides blurLayer) {
+        CompositionLocalProvider(LocalBlurLayer provides blurLayer, LocalBackdropLayer provides backdropLayer) {
         Box(modifier = modifier.fillMaxSize()) {
 
             // ── Backdrop ────────────────────────────────────────────────

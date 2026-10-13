@@ -28,6 +28,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.translate
@@ -38,6 +39,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import io.github.voidqubex.wifi_fan.ui.theme.AppLook
 import io.github.voidqubex.wifi_fan.ui.theme.circle
 import io.github.voidqubex.wifi_fan.ui.theme.dotCorner
 import io.github.voidqubex.wifi_fan.ui.theme.rounded
@@ -54,16 +56,28 @@ internal fun DrawScope.drawDot(color: Color, radius: Float, center: Offset) = dr
     cornerRadius = CornerRadius(dotCorner(radius))
 )
 
+/** The sharp (unblurred) screen backdrop, for the Refractive glass look. */
+internal val LocalBackdropLayer = staticCompositionLocalOf<GraphicsLayer?> { null }
+
 /** Rounded translucent panel that groups a block of controls. */
 @Composable
 internal fun PanelCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
     val blurLayer = LocalBlurLayer.current
     var pos by remember { mutableStateOf(Offset.Zero) }
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .onGloballyPositioned { pos = it.positionInRoot() }
-            .clip(rounded(24.dp))
+    val surface = if (AppLook.refractiveGlass) {
+        // refractive glass: clear in the middle, bent at the rim, a touch darker
+        Modifier
+            .refractiveBackdrop(LocalBackdropLayer.current, { pos }, 24.dp * AppLook.cornerScale)
+            .background(Color.Black.copy(alpha = 0.22f))
+            .border(
+                1.dp,
+                Brush.linearGradient(
+                    listOf(Color.White.copy(alpha = 0.28f), Color.White.copy(alpha = 0.04f), Color.White.copy(alpha = 0.14f))
+                ),
+                rounded(24.dp)
+            )
+    } else {
+        Modifier
             // frosted glass: the blurred backdrop, shifted so it lines up with the screen
             .drawBehind {
                 if (blurLayer != null) translate(-pos.x, -pos.y) { drawLayer(blurLayer) }
@@ -74,6 +88,13 @@ internal fun PanelCard(modifier: Modifier = Modifier, content: @Composable Colum
                 MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f),
                 rounded(24.dp)
             )
+    }
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .onGloballyPositioned { pos = it.positionInRoot() }
+            .clip(rounded(24.dp))
+            .then(surface)
             .padding(16.dp),
         content = content
     )

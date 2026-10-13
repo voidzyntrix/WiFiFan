@@ -37,6 +37,8 @@ object AppLook {
     var roundLedPreview by mutableStateOf(true)
     /** Dark theme on pure black (OLED): black background, near-black surfaces. */
     var pureBlack by mutableStateOf(false)
+    /** Cards as clear glass that bends the background at its edges, instead of frosted blur. */
+    var refractiveGlass by mutableStateOf(false)
     /** Haptic ticks and taps on controls. */
     var haptics by mutableStateOf(true)
     /** How strong the haptics are, 0.1 (faint) to 1 (full). */

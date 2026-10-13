@@ -133,6 +133,10 @@ class SettingsStore(context: Context) {
     var pureBlack: Boolean
         get() = prefs.getBoolean("pure_black", false)
         set(value) { prefs.edit().putBoolean("pure_black", value).apply() }
+    /** Refractive glass cards (clear, bent at the edges) instead of frosted ones. */
+    var refractiveGlass: Boolean
+        get() = prefs.getBoolean("refractive_glass", false)
+        set(value) { prefs.edit().putBoolean("refractive_glass", value).apply() }
     /** Music mode: microphone sensitivity 0..1. */
     var musicSensitivity: Float
         get() = prefs.getFloat("music_sensitivity", 0.5f)

@@ -45,6 +45,7 @@ class MainActivity : ComponentActivity() {
         AppLook.cornerScale = settingsStore.cornerScale
         AppLook.roundLedPreview = settingsStore.roundLedPreview
         AppLook.pureBlack = settingsStore.pureBlack
+        AppLook.refractiveGlass = settingsStore.refractiveGlass
         AppLook.haptics = settingsStore.haptics
         AppLook.hapticStrength = settingsStore.hapticStrength
         WindowCompat.setDecorFitsSystemWindows(window, false)
