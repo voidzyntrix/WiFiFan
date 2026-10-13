@@ -271,12 +271,12 @@ private class PhoneMotion(context: Context) : SensorEventListener {
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
 
     private companion object {
-        /** Share of each accelerometer reading taken (50 a second): ~0.12 s to follow a tilt. */
-        const val SMOOTHING = 0.15f
-        /** Tilts below this (in g, about 9 degrees) don't move the liquid. */
-        const val TILT_DEAD = 0.16f
+        /** Share of each accelerometer reading taken (50 a second): ~0.05 s to follow a tilt. */
+        const val SMOOTHING = 0.35f
+        /** Tilts below this (in g, about 4 degrees) do not move the liquid. */
+        const val TILT_DEAD = 0.07f
         /** Gravity felt by the liquid, relative to the real thing. */
-        const val TILT_GAIN = 0.6f
+        const val TILT_GAIN = 0.8f
         /** Shakes are capped at this many g. */
         const val MAX_G = 0.6f
     }
