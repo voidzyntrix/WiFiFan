@@ -12,6 +12,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.layout.positionOnScreen
 import io.github.voidqubex.wifi_fan.ui.theme.AppLook
 import io.github.voidqubex.wifi_fan.ui.theme.rounded
 import androidx.compose.ui.draw.clip
@@ -65,25 +67,31 @@ internal fun rememberWindowBlur(popup: Boolean = false, radius: Dp = 60.dp): Boo
     return enabled
 }
 
+/** Corner radius that makes [glass] refract a fully round element (it is capped at half the size). */
+internal val ROUND = 999.dp
+
 /**
- * Frosted glass inside the app's window: the live background behind this element, blurred
- * (re-drawn every frame, so moving backgrounds move behind it too), under a translucent [tint].
- * Cards sit straight on the background, so that is exactly what is behind them.
+ * Glass for any element: the live background behind it, blurred (or, with Refractive glass on,
+ * sharp and bent at the rim), under a translucent [tint]. Works in the main screen, in dialogs
+ * and in the mode menu alike: it lines the background up by the element's position on screen.
+ * [corner] is the element's corner radius for the refraction ([ROUND] for pills and circles).
  */
 @Composable
-internal fun Modifier.frosted(corner: Dp, tint: Color): Modifier {
+internal fun Modifier.glass(shape: Shape, tint: Color, corner: Dp = ROUND): Modifier {
     val blurLayer = LocalBlurLayer.current
     val backdrop = LocalBackdropLayer.current
     var pos by remember { mutableStateOf(Offset.Zero) }
     val base = this
-        .onGloballyPositioned { pos = it.positionInRoot() }
-        .clip(rounded(corner))
-    // Refractive glass replaces the blur: the sharp background, bent at the rim (as PanelCard).
+        .onGloballyPositioned { pos = it.positionOnScreen() }
+        .clip(shape)
     return if (AppLook.refractiveGlass) {
-        base.refractiveBackdrop(backdrop, { pos }, corner * AppLook.cornerScale)
-            .background(Color.Black.copy(alpha = 0.22f))
+        base.refractiveBackdrop(backdrop, { pos }, corner * AppLook.cornerScale).background(tint)
     } else {
         base.drawBehind { if (blurLayer != null) translate(-pos.x, -pos.y) { drawLayer(blurLayer) } }
             .background(tint)
     }
 }
+
+/** [glass] for a card with rounded corners of [corner]. */
+@Composable
+internal fun Modifier.frosted(corner: Dp, tint: Color): Modifier = glass(rounded(corner), tint, corner)

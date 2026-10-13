@@ -1,5 +1,6 @@
 package io.github.voidqubex.wifi_fan.ui.home
 
+import io.github.voidqubex.wifi_fan.ui.components.glass
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -121,8 +122,7 @@ private fun AutoChip(on: Boolean, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .height(36.dp)
-            .clip(circle())
-            .background(bg)
+            .glass(circle(), bg)
             .bounceClickable(pressedScale = 0.94f, onClick = onClick)
             .padding(start = 10.dp, end = 14.dp)
     ) {
@@ -162,8 +162,7 @@ private fun SceneChip(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .height(36.dp)
-            .clip(circle())
-            .background(bg)
+            .glass(circle(), bg)
             .bounceCombinedClickable(pressedScale = 0.94f, onLongClick = onLongClick, onClick = onClick)
             .padding(start = 10.dp, end = 14.dp)
     ) {

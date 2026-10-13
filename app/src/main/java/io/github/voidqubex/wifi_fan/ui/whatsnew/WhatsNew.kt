@@ -1,5 +1,6 @@
 package io.github.voidqubex.wifi_fan.ui.whatsnew
 
+import io.github.voidqubex.wifi_fan.ui.components.glass
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Column
@@ -61,8 +62,7 @@ internal fun WhatsNewCard(version: String, notes: WhatsNewNotes, onDismiss: () -
     Column(
         Modifier
             .fillMaxWidth()
-            .clip(shape)
-            .background(MaterialTheme.colorScheme.surface.copy(alpha = if (blurred) 0.82f else 1f))
+            .glass(shape, MaterialTheme.colorScheme.surface.copy(alpha = if (blurred) 0.5f else 0.85f), 28.dp)
             .border(1.dp, onBg.copy(alpha = 0.1f), shape)
             .padding(20.dp)
     ) {

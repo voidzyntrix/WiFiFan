@@ -1,5 +1,6 @@
 package io.github.voidqubex.wifi_fan.ui.home
 
+import io.github.voidqubex.wifi_fan.ui.components.glass
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Activity
@@ -1147,8 +1148,7 @@ fun BleControlScreen(
                                         contentAlignment = Alignment.Center,
                                         modifier = Modifier
                                             .size(44.dp)
-                                            .clip(circle())
-                                            .background(powerBg)
+                                            .glass(circle(), powerBg)
                                             .bounceClickable { haptics.confirm(); togglePower() }
                                     ) {
                                         Icon(
@@ -1247,8 +1247,7 @@ fun BleControlScreen(
                                             modifier = Modifier
                                                 .fillMaxWidth()
                                                 .onSizeChanged { anchorW = it.width; anchorH = it.height }
-                                                .clip(rounded(14.dp))
-                                                .background(onBg.copy(alpha = 0.06f))
+                                                .glass(rounded(14.dp), onBg.copy(alpha = 0.06f), 14.dp)
                                                 .bounceClickable(pressedScale = 0.98f) { modeMenu = !modeMenu }
                                                 .padding(horizontal = 16.dp, vertical = 12.dp)
                                         ) {
@@ -1308,8 +1307,7 @@ fun BleControlScreen(
                                                     Column(
                                                         Modifier
                                                             .width(with(density) { anchorW.toDp() })
-                                                            .clip(menuShape)
-                                                            .background(MaterialTheme.colorScheme.surface.copy(alpha = if (menuBlurred) 0.82f else 0.97f))
+                                                            .glass(menuShape, MaterialTheme.colorScheme.surface.copy(alpha = if (menuBlurred) 0.5f else 0.85f), 20.dp)
                                                             .border(1.dp, onBg.copy(alpha = 0.08f), menuShape)
                                                             .padding(6.dp)
                                                     ) {
@@ -1336,8 +1334,7 @@ fun BleControlScreen(
                                                                             contentAlignment = Alignment.Center,
                                                                             modifier = Modifier
                                                                                 .weight(1f)
-                                                                                .clip(rounded(12.dp))
-                                                                                .background(if (sel) activeFill() else onBg.copy(alpha = 0.06f))
+                                                                                .glass(rounded(12.dp), if (sel) activeFill() else onBg.copy(alpha = 0.06f), 12.dp)
                                                                                 .alpha(if (enabled) 1f else 0.35f)
                                                                                 .bounceClickable(enabled = enabled, pressedScale = 0.95f) {
                                                                                     haptics.tap()

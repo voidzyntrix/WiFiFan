@@ -69,8 +69,7 @@ internal fun SegmentedPill(
         modifier
             .fillMaxWidth()
             .height(40.dp)
-            .clip(rounded(20.dp))
-            .background(onBg.copy(alpha = 0.08f))
+            .glass(rounded(20.dp), onBg.copy(alpha = 0.08f), 20.dp)
     ) {
         val seg = maxWidth / options.size
         if (selected >= 0) {
@@ -80,8 +79,7 @@ internal fun SegmentedPill(
                     .width(seg)
                     .fillMaxHeight()
                     .padding(3.dp)
-                    .clip(rounded(17.dp))
-                    .background(activeFill())
+                    .glass(rounded(17.dp), activeFill(), 17.dp)
             )
         }
         Row(Modifier.fillMaxSize()) {
@@ -133,8 +131,7 @@ internal fun AppSwitch(checked: Boolean, onChange: (Boolean) -> Unit) {
     Box(
         Modifier
             .size(width = 50.dp, height = 30.dp)
-            .clip(circle())
-            .background(track)
+            .glass(circle(), track)
             .bounceClickable(pressedScale = 0.92f) { haptics.tap(); onChange(!checked) }
             .padding(4.dp)
     ) {
@@ -142,8 +139,7 @@ internal fun AppSwitch(checked: Boolean, onChange: (Boolean) -> Unit) {
             Modifier
                 .offset(x = 20.dp * pos)
                 .size(22.dp)
-                .clip(circle())
-                .background(knob)
+                .glass(circle(), knob)
         )
     }
 }

@@ -1,5 +1,6 @@
 package io.github.voidqubex.wifi_fan.ui.connect
 
+import io.github.voidqubex.wifi_fan.ui.components.glass
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothProfile
@@ -365,8 +366,7 @@ private fun OnlinePill(online: Boolean, connecting: Boolean) {
     val lit = online || connecting
     Row(
         modifier = Modifier
-            .clip(circle())
-            .background(if (lit) cs.primary.copy(alpha = 0.14f) else cs.onSurface.copy(alpha = 0.07f))
+            .glass(circle(), if (lit) cs.primary.copy(alpha = 0.14f) else cs.onSurface.copy(alpha = 0.07f))
             .padding(horizontal = 10.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -452,8 +452,7 @@ internal fun StatusPill(text: String, active: Boolean) {
     )
     Row(
         modifier = Modifier
-            .clip(circle())
-            .background(MaterialTheme.colorScheme.background.copy(alpha = 0.55f))
+            .glass(circle(), MaterialTheme.colorScheme.background.copy(alpha = 0.4f))
             .padding(horizontal = 14.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

@@ -1,5 +1,6 @@
 package io.github.voidqubex.wifi_fan.ui.settings
 
+import io.github.voidqubex.wifi_fan.ui.components.glass
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -665,8 +666,7 @@ private fun UpdateBlock(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(rounded(18.dp))
-            .background(onBg.copy(alpha = 0.05f))
+            .glass(rounded(18.dp), onBg.copy(alpha = 0.05f), 18.dp)
             .padding(16.dp)
     ) {
         Text(
@@ -727,8 +727,7 @@ internal fun PillButton(
         modifier = modifier
             .fillMaxWidth()
             .height(46.dp)
-            .clip(rounded(16.dp))
-            .background(bg)
+            .glass(rounded(16.dp), bg, 16.dp)
             .alpha(if (enabled) 1f else 0.4f)
             .bounceClickable(enabled = enabled, pressedScale = 0.97f, onClick = onClick)
     ) {

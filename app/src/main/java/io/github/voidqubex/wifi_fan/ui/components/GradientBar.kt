@@ -19,6 +19,17 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionOnScreen
+import io.github.voidqubex.wifi_fan.ui.theme.dotCorner
 import androidx.compose.ui.unit.dp
 import io.github.voidqubex.wifi_fan.ui.theme.AppLook
 import kotlin.math.roundToInt
@@ -38,11 +49,15 @@ internal fun GradientBar(
     val currentOnFraction by rememberUpdatedState(onFraction)
     val currentOnFinished by rememberUpdatedState(onFinished)
     val haptics = rememberHaptics()
+    val blurLayer = LocalBlurLayer.current
+    val backdrop = LocalBackdropLayer.current
+    var barPos by remember { mutableStateOf(Offset.Zero) }
 
     Canvas(
         modifier = Modifier
             .fillMaxWidth()
             .height(28.dp)
+            .onGloballyPositioned { barPos = it.positionOnScreen() }
             .pointerInput(Unit) {
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
@@ -70,9 +85,16 @@ internal fun GradientBar(
             cornerRadius = CornerRadius(barH / 2f * AppLook.cornerScale.coerceAtMost(1f))
         )
         val tc = Offset(fraction * size.width, size.height / 2f)
-        drawDot(Color.Black.copy(alpha = 0.3f), radius = 13.dp.toPx(), center = tc)
-        drawDot(Color.White, radius = 11.dp.toPx(), center = tc)
-        drawDot(thumbColor, radius = 8.dp.toPx(), center = tc)
+        val tr = 11.dp.toPx()
+        drawDot(Color.Black.copy(alpha = 0.25f), radius = 13.dp.toPx(), center = tc)
+        // a glass bead: the background seen through it (blurred, or sharp with Refractive glass)
+        val seen = if (AppLook.refractiveGlass) backdrop else blurLayer
+        if (seen != null) {
+            val bead = Path().apply { addRoundRect(RoundRect(Rect(tc, tr), CornerRadius(dotCorner(tr)))) }
+            clipPath(bead) { translate(-barPos.x, -barPos.y) { drawLayer(seen) } }
+        }
+        drawDot(Color.White.copy(alpha = 0.4f), radius = tr, center = tc)
+        drawDot(thumbColor, radius = 7.dp.toPx(), center = tc)
     }
 }
 

@@ -1,5 +1,6 @@
 package io.github.voidqubex.wifi_fan.ui.home
 
+import io.github.voidqubex.wifi_fan.ui.components.glass
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -98,8 +99,7 @@ private fun LevelMeter(level: Float) {
         Modifier
             .fillMaxWidth()
             .height(10.dp)
-            .clip(rounded(5.dp))
-            .background(onBg.copy(alpha = 0.08f))
+            .glass(rounded(5.dp), onBg.copy(alpha = 0.08f), 5.dp)
     ) {
         Box(
             Modifier

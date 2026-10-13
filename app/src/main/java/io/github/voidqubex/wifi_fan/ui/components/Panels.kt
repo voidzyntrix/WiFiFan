@@ -142,8 +142,7 @@ internal fun CircleIconButton(icon: Int, description: String, onClick: () -> Uni
         contentAlignment = Alignment.Center,
         modifier = Modifier
             .size(44.dp)
-            .clip(circle())
-            .background(MaterialTheme.colorScheme.onBackground.copy(alpha = 0.07f))
+            .glass(circle(), MaterialTheme.colorScheme.onBackground.copy(alpha = 0.07f))
             .bounceClickable(onClick = onClick)
     ) {
         Icon(

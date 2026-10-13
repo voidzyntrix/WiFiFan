@@ -50,8 +50,7 @@ internal fun DialogCard(
     Column(
         Modifier
             .fillMaxWidth()
-            .clip(shape)
-            .background(MaterialTheme.colorScheme.surface.copy(alpha = if (blurred) 0.82f else 1f))
+            .glass(shape, MaterialTheme.colorScheme.surface.copy(alpha = if (blurred) 0.5f else 0.85f), 28.dp)
             .border(1.dp, onBg.copy(alpha = 0.08f), shape)
             .padding(24.dp)
     ) {
@@ -144,8 +143,7 @@ internal fun NameDialogCard(
                 Box(
                     Modifier
                         .fillMaxWidth()
-                        .clip(rounded(16.dp))
-                        .background(onBg.copy(alpha = 0.07f))
+                        .glass(rounded(16.dp), onBg.copy(alpha = 0.07f), 16.dp)
                         .padding(horizontal = 16.dp, vertical = 14.dp)
                 ) {
                     if (value.text.isEmpty()) {
