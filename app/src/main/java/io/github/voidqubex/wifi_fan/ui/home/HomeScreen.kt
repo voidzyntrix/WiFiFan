@@ -1304,11 +1304,12 @@ fun BleControlScreen(
                                                     )
                                                 ) {
                                                     val menuShape = rounded(20.dp)
+                                                    val menuBlurred = io.github.voidqubex.wifi_fan.ui.components.rememberWindowBlur(popup = true, radius = 20.dp)
                                                     Column(
                                                         Modifier
                                                             .width(with(density) { anchorW.toDp() })
                                                             .clip(menuShape)
-                                                            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.97f))
+                                                            .background(MaterialTheme.colorScheme.surface.copy(alpha = if (menuBlurred) 0.6f else 0.97f))
                                                             .border(1.dp, onBg.copy(alpha = 0.08f), menuShape)
                                                             .padding(6.dp)
                                                     ) {

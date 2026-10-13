@@ -46,11 +46,12 @@ internal fun DialogCard(
 ) {
     val onBg = MaterialTheme.colorScheme.onBackground
     val shape = rounded(28.dp)
+    val blurred = rememberWindowBlur()
     Column(
         Modifier
             .fillMaxWidth()
             .clip(shape)
-            .background(MaterialTheme.colorScheme.surface)
+            .background(MaterialTheme.colorScheme.surface.copy(alpha = if (blurred) 0.6f else 1f))
             .border(1.dp, onBg.copy(alpha = 0.08f), shape)
             .padding(24.dp)
     ) {

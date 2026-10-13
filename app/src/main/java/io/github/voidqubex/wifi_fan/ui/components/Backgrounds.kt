@@ -139,7 +139,7 @@ fun FluidBackground(modifier: Modifier = Modifier, tint: Color) {
             withContext(Dispatchers.Default) {
                 val (gx, gy) = motion.screenGravity()
                 // gyroscope z: anticlockwise on screen is positive; the sim's spin is clockwise
-                val spin = -motion.spinRate / STEP_RATE
+                val spin = -motion.calmSpin() / STEP_RATE
                 repeat(steps) { sim.step(gx * ONE_G, gy * ONE_G, spin) }
             }
             for (i in 0 until sim.count) { shown[2 * i] = sim.x[i]; shown[2 * i + 1] = sim.y[i] }
@@ -243,19 +243,56 @@ private class PhoneMotion(context: Context) : SensorEventListener {
             Surface.ROTATION_270 -> dy to -dx
             else -> dx to dy
         }
-        return sx to -sy
+        return soften(sx) to soften(-sy)
+    }
+
+    /**
+     * A small tilt does nothing (dead zone), larger ones pour gently, and shakes are capped, so
+     * holding the phone a little off straight doesn't send the liquid flying.
+     */
+    private fun soften(g: Float): Float {
+        val v = when {
+            g > TILT_DEAD -> (g - TILT_DEAD) / (1f - TILT_DEAD)
+            g < -TILT_DEAD -> (g + TILT_DEAD) / (1f - TILT_DEAD)
+            else -> 0f
+        }
+        return (v * TILT_GAIN).coerceIn(-MAX_G, MAX_G)
+    }
+
+    /** The turn rate with a dead zone and less punch: only a real twist swirls the liquid. */
+    fun calmSpin(): Float {
+        val r = spinRate
+        return when {
+            r > SPIN_DEAD -> (r - SPIN_DEAD) * SPIN_GAIN
+            r < -SPIN_DEAD -> (r + SPIN_DEAD) * SPIN_GAIN
+            else -> 0f
+        }
     }
 
     override fun onSensorChanged(e: SensorEvent) {
         when (e.sensor.type) {
             Sensor.TYPE_ACCELEROMETER -> {
-                // light smoothing: keeps splashes, drops sensor noise
-                ax += (e.values[0] / SensorManager.GRAVITY_EARTH - ax) * 0.5f
-                ay += (e.values[1] / SensorManager.GRAVITY_EARTH - ay) * 0.5f
+                // steady smoothing (~0.2 s): a jolt or a hand tremor barely moves the liquid
+                ax += (e.values[0] / SensorManager.GRAVITY_EARTH - ax) * SMOOTHING
+                ay += (e.values[1] / SensorManager.GRAVITY_EARTH - ay) * SMOOTHING
             }
             Sensor.TYPE_GYROSCOPE -> spinRate = e.values[2]
         }
     }
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
+
+    private companion object {
+        /** Share of each accelerometer reading taken (50 a second). */
+        const val SMOOTHING = 0.1f
+        /** Tilts below this (in g, about 7 degrees) don't move the liquid. */
+        const val TILT_DEAD = 0.12f
+        /** Gravity felt by the liquid, relative to the real thing. */
+        const val TILT_GAIN = 0.7f
+        /** Shakes are capped at this many g. */
+        const val MAX_G = 1f
+        /** Turn rates below this (rad/s) leave the liquid alone; above, a share of it swirls it. */
+        const val SPIN_DEAD = 0.4f
+        const val SPIN_GAIN = 0.35f
+    }
 }

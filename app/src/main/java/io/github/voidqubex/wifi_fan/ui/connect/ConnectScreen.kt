@@ -66,6 +66,7 @@ import io.github.voidqubex.wifi_fan.ui.components.AppButton
 import io.github.voidqubex.wifi_fan.ui.components.ScanDots
 import io.github.voidqubex.wifi_fan.ui.components.bounceClickable
 import io.github.voidqubex.wifi_fan.ui.components.bounceCombinedClickable
+import io.github.voidqubex.wifi_fan.ui.components.frosted
 import io.github.voidqubex.wifi_fan.ui.components.rememberHaptics
 import io.github.voidqubex.wifi_fan.ui.components.monoFill
 import io.github.voidqubex.wifi_fan.ui.components.pressScaleModifier
@@ -318,8 +319,7 @@ private fun BoardTile(
         modifier = Modifier
             .fillMaxWidth()
             .height(150.dp)
-            .clip(shape)
-            .background(cs.surface.copy(alpha = 0.85f))
+            .frosted(shape, cs.surface.copy(alpha = 0.4f))
             .border(1.dp, cs.onBackground.copy(alpha = 0.08f), shape)
             .bounceCombinedClickable(pressedScale = 0.97f, onLongClick = onLongClick, onClick = onClick)
             .padding(16.dp)
@@ -499,8 +499,7 @@ private fun DeviceList(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(shape)
-            .background(cs.surface.copy(alpha = 0.85f))
+            .frosted(shape, cs.surface.copy(alpha = 0.45f))
             .border(1.dp, cs.onBackground.copy(alpha = 0.08f), shape)
             .padding(vertical = 8.dp)
     ) {
