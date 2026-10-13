@@ -48,6 +48,7 @@ class MainActivity : ComponentActivity() {
         AppLook.refractiveGlass = settingsStore.refractiveGlass
         AppLook.haptics = settingsStore.haptics
         AppLook.hapticStrength = settingsStore.hapticStrength
+        AppLook.imageDim = settingsStore.imageDim
         WindowCompat.setDecorFitsSystemWindows(window, false)
         enableEdgeToEdge()
         setContent {

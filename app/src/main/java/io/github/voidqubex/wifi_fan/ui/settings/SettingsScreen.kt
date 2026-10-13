@@ -260,6 +260,36 @@ internal fun SettingsScreen(
                 listOf("Particles", "Aurora", "Fluid", "Image", "Plain"),
                 backgrounds.indexOf(background)
             ) { onBackgroundChange(backgrounds[it]) }
+            androidx.compose.animation.AnimatedVisibility(
+                visible = background == AppBackground.IMAGE,
+                enter = fadeIn(tween(200)) + androidx.compose.animation.expandVertically(tween(280)),
+                exit = fadeOut(tween(150)) + androidx.compose.animation.shrinkVertically(tween(240))
+            ) {
+                Column {
+                    Spacer(Modifier.height(14.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "Darkness",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = onBg.copy(alpha = 0.6f),
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            "${(AppLook.imageDim * 100).roundToInt()} %",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = onBg
+                        )
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    GradientBar(
+                        fraction = AppLook.imageDim / 0.95f,
+                        stops = listOf(onBg.copy(alpha = 0.12f), onBg.copy(alpha = 0.55f)),
+                        thumbColor = MaterialTheme.colorScheme.primary,
+                        onFraction = { AppLook.imageDim = it * 0.95f },
+                        onFinished = { store.imageDim = AppLook.imageDim }
+                    )
+                }
+            }
             SettingGap()
             SettingHeading("Colour", "Pure grayscale, grayscale with accents, or fully coloured")
             SegmentedPill(listOf("Monochrome", "Tinted", "Coloured"), colorScheme.ordinal) {

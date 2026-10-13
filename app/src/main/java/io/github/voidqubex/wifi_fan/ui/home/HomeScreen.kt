@@ -152,6 +152,7 @@ import io.github.voidqubex.wifi_fan.ui.connect.toEntries
 import io.github.voidqubex.wifi_fan.ui.settings.SettingsScreen
 import io.github.voidqubex.wifi_fan.ui.settings.UpdatePrompt
 import io.github.voidqubex.wifi_fan.ui.settings.UpdatePromptDialog
+import io.github.voidqubex.wifi_fan.ui.theme.AppLook
 import io.github.voidqubex.wifi_fan.ui.theme.activeFill
 import io.github.voidqubex.wifi_fan.ui.theme.circle
 import io.github.voidqubex.wifi_fan.ui.theme.onActiveFill
@@ -1014,7 +1015,7 @@ fun BleControlScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.6f))
+                        .background(Color.Black.copy(alpha = AppLook.imageDim))
                 )
             }
 

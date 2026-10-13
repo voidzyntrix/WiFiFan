@@ -43,6 +43,8 @@ object AppLook {
     var haptics by mutableStateOf(true)
     /** How strong the haptics are, 0.1 (faint) to 1 (full). */
     var hapticStrength by mutableFloatStateOf(0.7f)
+    /** How much black lies over the Image background, 0 (none) to 0.95. */
+    var imageDim by mutableFloatStateOf(0.9f)
 }
 
 /** True in the pure Monochrome scheme. */
