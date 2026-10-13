@@ -241,11 +241,24 @@ internal fun SettingsScreen(
             uiOpen = !uiOpen; store.setCategoryCollapsed("ui", !uiOpen)
         }) {
             SettingSection("Theme", first = true)
-            SettingHeading("Background", "What appears behind the controls")
+            val backgrounds = listOf(
+                AppBackground.SIMPLE, AppBackground.AURORA, AppBackground.FLUID,
+                AppBackground.IMAGE, AppBackground.PLAIN
+            )
+            SettingHeading(
+                "Background",
+                when (background) {
+                    AppBackground.SIMPLE -> "Slow floating particles"
+                    AppBackground.AURORA -> "Soft glows drifting in the LED's colour"
+                    AppBackground.FLUID -> "Liquid you can tilt, shake and swirl (motion sensors)"
+                    AppBackground.IMAGE -> "A photo of a living room"
+                    AppBackground.PLAIN -> "Nothing behind the controls; lightest on the battery"
+                }
+            )
             SegmentedPill(
-                listOf("Particles", "Image"),
-                if (background == AppBackground.IMAGE) 1 else 0
-            ) { onBackgroundChange(if (it == 1) AppBackground.IMAGE else AppBackground.SIMPLE) }
+                listOf("Particles", "Aurora", "Fluid", "Image", "Plain"),
+                backgrounds.indexOf(background)
+            ) { onBackgroundChange(backgrounds[it]) }
             SettingGap()
             SettingHeading("Colour", "Pure grayscale, grayscale with accents, or fully coloured")
             SegmentedPill(listOf("Monochrome", "Tinted", "Coloured"), colorScheme.ordinal) {

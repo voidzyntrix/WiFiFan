@@ -8,8 +8,8 @@ import io.github.voidqubex.wifi_fan.ui.theme.DefaultAccent
 /** Which color palette the theme uses. */
 enum class AppColorScheme { MONOCHROME, TINTED, COLORED }
 
-/** What sits behind the UI. */
-enum class AppBackground { SIMPLE, IMAGE }
+/** What sits behind the UI. SIMPLE is the particles (the name is what older versions saved). */
+enum class AppBackground { SIMPLE, IMAGE, AURORA, FLUID, PLAIN }
 
 /** A board the app has connected to: its Bluetooth MAC address and the name it advertises. */
 data class PairedBoard(val address: String, val bleName: String?)

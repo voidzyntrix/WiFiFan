@@ -91,6 +91,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import io.github.voidqubex.wifi_fan.PairedBoard
@@ -128,6 +129,9 @@ import io.github.voidqubex.wifi_fan.ota.OtaState
 import io.github.voidqubex.wifi_fan.ui.components.AmbientParticleBackground
 import io.github.voidqubex.wifi_fan.ui.components.CircleIconButton
 import io.github.voidqubex.wifi_fan.ui.components.GradientBar
+import io.github.voidqubex.wifi_fan.ui.components.AuroraBackground
+import io.github.voidqubex.wifi_fan.ui.components.FluidBackground
+import io.github.voidqubex.wifi_fan.ui.components.FitText
 import io.github.voidqubex.wifi_fan.ui.components.LocalBackdropLayer
 import io.github.voidqubex.wifi_fan.ui.components.LocalBlurLayer
 import io.github.voidqubex.wifi_fan.ui.components.PanelCard
@@ -989,6 +993,21 @@ fun BleControlScreen(
                     active = isConnected && ledOn,
                     tint = MaterialTheme.colorScheme.onBackground
                 )
+
+                // Aurora and Fluid take the LED's colour while it is on
+                AppBackground.AURORA -> AuroraBackground(
+                    modifier = Modifier.fillMaxSize(),
+                    hue = if (isConnected && ledOn) previewHue else 200f,
+                    saturation = if (isConnected && ledOn) previewSat else 0.7f
+                )
+
+                AppBackground.FLUID -> FluidBackground(
+                    modifier = Modifier.fillMaxSize(),
+                    tint = if (isConnected && ledOn) Color.hsv((previewHue % 360f + 360f) % 360f, previewSat.coerceIn(0f, 1f), 1f)
+                    else MaterialTheme.colorScheme.primary
+                )
+
+                AppBackground.PLAIN -> {}
             }
             if (background == AppBackground.IMAGE) {
                 Box(
@@ -1049,16 +1068,23 @@ fun BleControlScreen(
                     ) { connected ->
                         if (connected) {
                             val onBg = MaterialTheme.colorScheme.onBackground
-                            val modeList = listOf(
-                                Triple(LED_MODE_SOLID, "Solid", true),
-                                Triple(LED_MODE_RAINBOW, "Rainbow", true),
-                                Triple(LED_MODE_CANDLE, "Candle", fwCandle)
-                            ) + LedEffects.map { Triple(it.first, it.second, fwEffects) } + listOf(
-                                Triple(LedChase.first, LedChase.second, fwSplit),
-                                Triple(LED_MODE_MUSIC, "Music", true),
-                                Triple(LED_MODE_VISUALIZER, "Visualizer", true),
-                                Triple(LED_MODE_SCREEN, "Screen", true)
+                            // The mode menu's sections: plain light, the board's own effects, and
+                            // the modes the app drives from sound or the screen.
+                            val modeGroups = listOf(
+                                "Light" to listOf(
+                                    Triple(LED_MODE_SOLID, "Solid", true),
+                                    Triple(LED_MODE_RAINBOW, "Rainbow", true),
+                                    Triple(LED_MODE_CANDLE, "Candle", fwCandle)
+                                ),
+                                "Board effects" to LedEffects.map { Triple(it.first, it.second, fwEffects) } +
+                                    Triple(LedChase.first, LedChase.second, fwSplit),
+                                "Reactive" to listOf(
+                                    Triple(LED_MODE_MUSIC, "Music", true),
+                                    Triple(LED_MODE_VISUALIZER, "Visualizer", true),
+                                    Triple(LED_MODE_SCREEN, "Screen", true)
+                                )
                             )
+                            val modeList = modeGroups.flatMap { it.second }
                             val modeLabel = modeList.firstOrNull { it.first == ledMode }?.second ?: "Solid"
                             var modeMenu by remember { mutableStateOf(false) }
                             val menuState = remember { MutableTransitionState(false) }
@@ -1286,37 +1312,48 @@ fun BleControlScreen(
                                                             .border(1.dp, onBg.copy(alpha = 0.08f), menuShape)
                                                             .padding(6.dp)
                                                     ) {
-                                                        modeList.forEach { (mode, label, enabled) ->
-                                                            val sel = mode == ledMode
-                                                            Row(
-                                                                verticalAlignment = Alignment.CenterVertically,
-                                                                modifier = Modifier
-                                                                    .fillMaxWidth()
-                                                                    .clip(rounded(14.dp))
-                                                                    .background(
-                                                                        if (sel) MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
-                                                                        else Color.Transparent
-                                                                    )
-                                                                    .alpha(if (enabled) 1f else 0.35f)
-                                                                    .bounceClickable(enabled = enabled, pressedScale = 0.97f) {
-                                                                        haptics.tap()
-                                                                        modeMenu = false; startMode(mode)
+                                                        modeGroups.forEachIndexed { g, (title, modes) ->
+                                                            Text(
+                                                                title.uppercase(),
+                                                                style = MaterialTheme.typography.labelSmall,
+                                                                fontWeight = FontWeight.SemiBold,
+                                                                letterSpacing = 1.2.sp,
+                                                                color = onBg.copy(alpha = 0.45f),
+                                                                modifier = Modifier.padding(
+                                                                    start = 8.dp, top = if (g == 0) 4.dp else 12.dp, bottom = 6.dp
+                                                                )
+                                                            )
+                                                            // three to a row, equal widths
+                                                            modes.chunked(3).forEach { row ->
+                                                                Row(
+                                                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                                                    modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp)
+                                                                ) {
+                                                                    row.forEach { (mode, label, enabled) ->
+                                                                        val sel = mode == ledMode
+                                                                        Box(
+                                                                            contentAlignment = Alignment.Center,
+                                                                            modifier = Modifier
+                                                                                .weight(1f)
+                                                                                .clip(rounded(12.dp))
+                                                                                .background(if (sel) activeFill() else onBg.copy(alpha = 0.06f))
+                                                                                .alpha(if (enabled) 1f else 0.35f)
+                                                                                .bounceClickable(enabled = enabled, pressedScale = 0.95f) {
+                                                                                    haptics.tap()
+                                                                                    modeMenu = false; startMode(mode)
+                                                                                }
+                                                                                .padding(horizontal = 6.dp, vertical = 10.dp)
+                                                                        ) {
+                                                                            FitText(
+                                                                                label,
+                                                                                style = MaterialTheme.typography.labelLarge,
+                                                                                fontWeight = if (sel) FontWeight.SemiBold else FontWeight.Medium,
+                                                                                color = if (sel) onActiveFill() else onBg
+                                                                            )
+                                                                        }
                                                                     }
-                                                                    .padding(horizontal = 14.dp, vertical = 12.dp)
-                                                            ) {
-                                                                Text(
-                                                                    label,
-                                                                    modifier = Modifier.weight(1f),
-                                                                    style = MaterialTheme.typography.bodyLarge,
-                                                                    fontWeight = if (sel) FontWeight.SemiBold else FontWeight.Normal,
-                                                                    color = if (sel) MaterialTheme.colorScheme.primary else onBg
-                                                                )
-                                                                if (sel) Box(
-                                                                    Modifier
-                                                                        .size(8.dp)
-                                                                        .clip(circle())
-                                                                        .background(MaterialTheme.colorScheme.primary)
-                                                                )
+                                                                    repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
+                                                                }
                                                             }
                                                         }
                                                     }
