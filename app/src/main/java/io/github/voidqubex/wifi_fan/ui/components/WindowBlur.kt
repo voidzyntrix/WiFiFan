@@ -4,6 +4,9 @@ import android.view.WindowManager
 import androidx.compose.foundation.background
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -30,6 +33,14 @@ import androidx.compose.ui.window.DialogWindowProvider
 import java.util.function.Consumer
 
 /**
+ * Ticks every frame while a dialog or popup is open. They are windows of their own, which Android
+ * does not tell when the screen's background changes; glass reads this so it redraws with it.
+ */
+internal object GlassTick {
+    var frame by mutableLongStateOf(0L)
+}
+
+/**
  * Real blur behind a dialog or popup window: Android's compositor blurs everything under the
  * window (the background, cards, the LED preview, whatever the screen shows), Android 12+.
  * Call it inside the dialog's or popup's content; [popup] says which kind of window it is.
@@ -44,6 +55,7 @@ internal fun rememberWindowBlur(popup: Boolean = false, radius: Dp = 60.dp): Boo
     val px = with(LocalDensity.current) { radius.roundToPx() }
     val wm = remember { context.getSystemService(WindowManager::class.java) }
     var enabled by remember { mutableStateOf(runCatching { wm.isCrossWindowBlurEnabled }.getOrDefault(false)) }
+    LaunchedEffect(Unit) { while (true) withFrameNanos { GlassTick.frame++ } }
     DisposableEffect(view) {
         val listener = Consumer<Boolean> { enabled = it }
         runCatching { wm.addCrossWindowBlurEnabledListener(listener) }
@@ -85,10 +97,13 @@ internal fun Modifier.glass(shape: Shape, tint: Color, corner: Dp = ROUND): Modi
         .onGloballyPositioned { pos = it.positionOnScreen() }
         .clip(shape)
     return if (AppLook.refractiveGlass) {
-        base.refractiveBackdrop(backdrop, { pos }, corner * AppLook.cornerScale).background(tint)
+        base.drawBehind { GlassTick.frame }
+            .refractiveBackdrop(backdrop, { pos }, corner * AppLook.cornerScale).background(tint)
     } else {
-        base.drawBehind { if (blurLayer != null) translate(-pos.x, -pos.y) { drawLayer(blurLayer) } }
-            .background(tint)
+        base.drawBehind {
+            GlassTick.frame
+            if (blurLayer != null) translate(-pos.x, -pos.y) { drawLayer(blurLayer) }
+        }.background(tint)
     }
 }
 
