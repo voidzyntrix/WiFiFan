@@ -1309,7 +1309,7 @@ fun BleControlScreen(
                                                         Modifier
                                                             .width(with(density) { anchorW.toDp() })
                                                             .clip(menuShape)
-                                                            .background(MaterialTheme.colorScheme.surface.copy(alpha = if (menuBlurred) 0.6f else 0.97f))
+                                                            .background(MaterialTheme.colorScheme.surface.copy(alpha = if (menuBlurred) 0.82f else 0.97f))
                                                             .border(1.dp, onBg.copy(alpha = 0.08f), menuShape)
                                                             .padding(6.dp)
                                                     ) {

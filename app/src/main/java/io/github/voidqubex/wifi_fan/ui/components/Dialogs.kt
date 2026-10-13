@@ -51,7 +51,7 @@ internal fun DialogCard(
         Modifier
             .fillMaxWidth()
             .clip(shape)
-            .background(MaterialTheme.colorScheme.surface.copy(alpha = if (blurred) 0.6f else 1f))
+            .background(MaterialTheme.colorScheme.surface.copy(alpha = if (blurred) 0.82f else 1f))
             .border(1.dp, onBg.copy(alpha = 0.08f), shape)
             .padding(24.dp)
     ) {

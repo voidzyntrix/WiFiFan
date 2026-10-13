@@ -12,7 +12,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Shape
+import io.github.voidqubex.wifi_fan.ui.theme.AppLook
+import io.github.voidqubex.wifi_fan.ui.theme.rounded
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.layer.drawLayer
@@ -35,7 +36,7 @@ import java.util.function.Consumer
  * saver), so the window's surface can be see-through while it does and solid when it doesn't.
  */
 @Composable
-internal fun rememberWindowBlur(popup: Boolean = false, radius: Dp = 28.dp): Boolean {
+internal fun rememberWindowBlur(popup: Boolean = false, radius: Dp = 60.dp): Boolean {
     val view = LocalView.current
     val context = LocalContext.current
     val px = with(LocalDensity.current) { radius.roundToPx() }
@@ -56,7 +57,7 @@ internal fun rememberWindowBlur(popup: Boolean = false, radius: Dp = 28.dp): Boo
             (view.parent as? DialogWindowProvider)?.window?.let { window ->
                 window.addFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
                 window.attributes = window.attributes.also { it.blurBehindRadius = px }
-                window.setDimAmount(0.25f)   // the blur already sets the dialog apart
+                window.setDimAmount(0.35f)
             }
         }
         onDispose { runCatching { wm.removeCrossWindowBlurEnabledListener(listener) } }
@@ -70,12 +71,19 @@ internal fun rememberWindowBlur(popup: Boolean = false, radius: Dp = 28.dp): Boo
  * Cards sit straight on the background, so that is exactly what is behind them.
  */
 @Composable
-internal fun Modifier.frosted(shape: Shape, tint: Color): Modifier {
+internal fun Modifier.frosted(corner: Dp, tint: Color): Modifier {
     val blurLayer = LocalBlurLayer.current
+    val backdrop = LocalBackdropLayer.current
     var pos by remember { mutableStateOf(Offset.Zero) }
-    return this
+    val base = this
         .onGloballyPositioned { pos = it.positionInRoot() }
-        .clip(shape)
-        .drawBehind { if (blurLayer != null) translate(-pos.x, -pos.y) { drawLayer(blurLayer) } }
-        .background(tint)
+        .clip(rounded(corner))
+    // Refractive glass replaces the blur: the sharp background, bent at the rim (as PanelCard).
+    return if (AppLook.refractiveGlass) {
+        base.refractiveBackdrop(backdrop, { pos }, corner * AppLook.cornerScale)
+            .background(Color.Black.copy(alpha = 0.22f))
+    } else {
+        base.drawBehind { if (blurLayer != null) translate(-pos.x, -pos.y) { drawLayer(blurLayer) } }
+            .background(tint)
+    }
 }

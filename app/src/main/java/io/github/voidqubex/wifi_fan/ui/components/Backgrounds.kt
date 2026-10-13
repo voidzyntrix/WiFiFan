@@ -29,6 +29,8 @@ import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.scale
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
@@ -91,8 +93,12 @@ private const val STEP_RATE = 240f
 private const val ONE_G = 0.003f
 /** The box is this many interaction radii wide; its height follows the screen. */
 private const val SIM_WIDTH = 14f
-/** Liquid fills about the bottom quarter of a phone screen. */
-private const val PARTICLES_PER_AREA = 600f / (14f * 31f)
+/** Liquid fills about the bottom fifth of a phone screen (fewer particles: smooth on slow phones). */
+private const val PARTICLES_PER_AREA = 380f / (14f * 31f)
+/** The liquid is drawn (and blurred into one surface) at this share of the screen's resolution. */
+private const val DRAW_SCALE = 0.5f
+/** At most this many steps a frame: a slow phone runs the liquid a bit slower, not at 10 fps. */
+private const val MAX_STEPS_PER_FRAME = 3
 
 /**
  * Liquid in the phone: tilting pours it, shaking splashes it, and twisting the phone leaves
@@ -123,7 +129,7 @@ fun FluidBackground(modifier: Modifier = Modifier, tint: Color) {
     val sim = remember(boxW, boxH) {
         if (boxW == 0 || boxH == 0) null else {
             val h = SIM_WIDTH * boxH / boxW
-            FluidSim(SIM_WIDTH, h, (SIM_WIDTH * h * PARTICLES_PER_AREA).roundToInt().coerceIn(100, 900))
+            FluidSim(SIM_WIDTH, h, (SIM_WIDTH * h * PARTICLES_PER_AREA).roundToInt().coerceIn(80, 520))
         }
     }
     // what the canvas draws: a copy, so drawing never sees a half-done step
@@ -134,13 +140,11 @@ fun FluidBackground(modifier: Modifier = Modifier, tint: Color) {
         var last = withFrameNanos { it }
         while (true) {
             val now = withFrameNanos { it }
-            val steps = ((now - last) / 1e9f * STEP_RATE).roundToInt().coerceIn(1, 8)
+            val steps = ((now - last) / 1e9f * STEP_RATE).roundToInt().coerceIn(1, MAX_STEPS_PER_FRAME)
             last = now
             withContext(Dispatchers.Default) {
                 val (gx, gy) = motion.screenGravity()
-                // gyroscope z: anticlockwise on screen is positive; the sim's spin is clockwise
-                val spin = -motion.calmSpin() / STEP_RATE
-                repeat(steps) { sim.step(gx * ONE_G, gy * ONE_G, spin) }
+                repeat(steps) { sim.step(gx * ONE_G, gy * ONE_G, 0f) }
             }
             for (i in 0 until sim.count) { shown[2 * i] = sim.x[i]; shown[2 * i + 1] = sim.y[i] }
             frame++
@@ -151,7 +155,7 @@ fun FluidBackground(modifier: Modifier = Modifier, tint: Color) {
     // its inside away again. What's left is a bright rim round a faint, see-through body.
     val full = rememberGraphicsLayer()
     val inner = rememberGraphicsLayer()
-    val cell = if (boxW > 0) boxW / SIM_WIDTH else 1f
+    val cell = if (boxW > 0) boxW / SIM_WIDTH * DRAW_SCALE else 1f
     remember(cell) {
         full.renderEffect = metaballs(cell * 0.32f, 0.45f).asComposeRenderEffect()
         inner.renderEffect = metaballs(cell * 0.32f, 0.7f).asComposeRenderEffect()
@@ -174,10 +178,14 @@ fun FluidBackground(modifier: Modifier = Modifier, tint: Color) {
                 drawCircle(tint, r, Offset(shown[2 * i] * cell, shown[2 * i + 1] * cell))
             }
         }
-        full.record(block = particles)
-        inner.record(block = particles)
-        drawLayer(full)
-        drawLayer(inner)
+        // drawn and blurred at half resolution (a quarter of the pixels), then scaled up
+        val low = IntSize((size.width * DRAW_SCALE).roundToInt().coerceAtLeast(1), (size.height * DRAW_SCALE).roundToInt().coerceAtLeast(1))
+        full.record(size = low, block = particles)
+        inner.record(size = low, block = particles)
+        scale(1f / DRAW_SCALE, pivot = Offset.Zero) {
+            drawLayer(full)
+            drawLayer(inner)
+        }
     }
 }
 
@@ -200,17 +208,12 @@ private fun metaballs(blur: Float, level: Float): RenderEffect {
     )
 }
 
-/**
- * The phone's felt gravity (accelerometer, so shakes count too) in screen axes, and how fast
- * it turns in the screen's plane (gyroscope). Values in g and rad/s.
- */
+/** The phone's felt gravity (accelerometer, smoothed) in screen axes, in g. */
 private class PhoneMotion(context: Context) : SensorEventListener {
     private val sensors = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
     private val display = context.display
     @Volatile private var ax = 0f
     @Volatile private var ay = 1f   // until the sensor reports: held upright
-    @Volatile var spinRate = 0f
-        private set
     private var running = false
 
     fun start() {
@@ -219,16 +222,12 @@ private class PhoneMotion(context: Context) : SensorEventListener {
         sensors.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)?.let {
             sensors.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME)
         }
-        sensors.getDefaultSensor(Sensor.TYPE_GYROSCOPE)?.let {
-            sensors.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME)
-        }
     }
 
     fun stop() {
         if (!running) return
         running = false
         sensors.unregisterListener(this)
-        spinRate = 0f
     }
 
     /** Gravity in screen axes (x right, y down), in g. */
@@ -259,16 +258,6 @@ private class PhoneMotion(context: Context) : SensorEventListener {
         return (v * TILT_GAIN).coerceIn(-MAX_G, MAX_G)
     }
 
-    /** The turn rate with a dead zone and less punch: only a real twist swirls the liquid. */
-    fun calmSpin(): Float {
-        val r = spinRate
-        return when {
-            r > SPIN_DEAD -> (r - SPIN_DEAD) * SPIN_GAIN
-            r < -SPIN_DEAD -> (r + SPIN_DEAD) * SPIN_GAIN
-            else -> 0f
-        }
-    }
-
     override fun onSensorChanged(e: SensorEvent) {
         when (e.sensor.type) {
             Sensor.TYPE_ACCELEROMETER -> {
@@ -276,23 +265,19 @@ private class PhoneMotion(context: Context) : SensorEventListener {
                 ax += (e.values[0] / SensorManager.GRAVITY_EARTH - ax) * SMOOTHING
                 ay += (e.values[1] / SensorManager.GRAVITY_EARTH - ay) * SMOOTHING
             }
-            Sensor.TYPE_GYROSCOPE -> spinRate = e.values[2]
         }
     }
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
 
     private companion object {
-        /** Share of each accelerometer reading taken (50 a second). */
-        const val SMOOTHING = 0.1f
-        /** Tilts below this (in g, about 7 degrees) don't move the liquid. */
-        const val TILT_DEAD = 0.12f
+        /** Share of each accelerometer reading taken (50 a second): ~0.4 s to follow a tilt. */
+        const val SMOOTHING = 0.05f
+        /** Tilts below this (in g, about 9 degrees) don't move the liquid. */
+        const val TILT_DEAD = 0.16f
         /** Gravity felt by the liquid, relative to the real thing. */
-        const val TILT_GAIN = 0.7f
+        const val TILT_GAIN = 0.5f
         /** Shakes are capped at this many g. */
-        const val MAX_G = 1f
-        /** Turn rates below this (rad/s) leave the liquid alone; above, a share of it swirls it. */
-        const val SPIN_DEAD = 0.4f
-        const val SPIN_GAIN = 0.35f
+        const val MAX_G = 0.6f
     }
 }

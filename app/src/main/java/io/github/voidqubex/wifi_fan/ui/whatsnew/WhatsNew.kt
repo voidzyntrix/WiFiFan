@@ -62,7 +62,7 @@ internal fun WhatsNewCard(version: String, notes: WhatsNewNotes, onDismiss: () -
         Modifier
             .fillMaxWidth()
             .clip(shape)
-            .background(MaterialTheme.colorScheme.surface.copy(alpha = if (blurred) 0.6f else 1f))
+            .background(MaterialTheme.colorScheme.surface.copy(alpha = if (blurred) 0.82f else 1f))
             .border(1.dp, onBg.copy(alpha = 0.1f), shape)
             .padding(20.dp)
     ) {

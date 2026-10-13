@@ -163,7 +163,7 @@ internal class FluidSim(val width: Float, val height: Float, val count: Int) {
         const val NEAR_STIFFNESS = 0.1f
         const val SIGMA = 0.3f
         const val BETA = 0.3f
-        const val DAMPING = 0.995f
+        const val DAMPING = 0.985f
         const val MAX_MOVE = 0.4f
         const val WALL = 0.15f
     }
