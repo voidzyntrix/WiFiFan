@@ -116,10 +116,10 @@ class SolarSyncService : Service() {
         return START_NOT_STICKY
     }
 
-    /** LED1: the grid, LED2: the battery (the grid colour again when there is no battery). */
+    /** LED1: the grid (blue in a power cut), LED2: the battery (the grid colour again when there is no battery). */
     private fun show(l: LedLink, r: SolarReading) {
         val bri = SyncParams.bri
-        val h1 = SolarPolicy.gridHue(r.gridKw)
+        val h1 = SolarPolicy.led1Hue(r)
         val h2 = r.socPercent?.let { SolarPolicy.batteryHue(it) } ?: h1
         SyncHub.hue.value = h1
         SyncHub.sat.value = 1f

@@ -6,8 +6,8 @@ import org.junit.Test
 
 class SolarPolicyTest {
     private fun reading(
-        grid: Float = 0f, soc: Float? = 60f, pv: Float = 1f, fault: Boolean = false
-    ) = SolarReading(gridKw = grid, socPercent = soc, pvKw = pv, loadKw = 1f, fault = fault)
+        grid: Float = 0f, soc: Float? = 60f, pv: Float = 1f, fault: Boolean = false, offGrid: Boolean = false
+    ) = SolarReading(gridKw = grid, socPercent = soc, pvKw = pv, loadKw = 1f, fault = fault, offGrid = offGrid)
 
     @Test fun gridLedIsGreenWhileExporting() {
         assertEquals(120f, SolarPolicy.gridHue(-0.05f), 0.01f)
@@ -33,6 +33,14 @@ class SolarPolicyTest {
         assertEquals(AlertKind.RED, SolarPolicy.alertFor(reading(fault = true), 0, 20))
         assertEquals(AlertKind.NONE, SolarPolicy.alertFor(reading(soc = 45f), 0, 20))
         assertEquals(AlertKind.NONE, SolarPolicy.alertFor(reading(soc = 20f), 0, 20))
+    }
+
+    @Test fun aPowerCutIsBlueAndBlinksRed() {
+        val cut = reading(offGrid = true)
+        assertEquals(SolarPolicy.OFF_GRID_HUE, SolarPolicy.led1Hue(cut), 0.01f)
+        assertEquals(AlertKind.RED, SolarPolicy.alertFor(cut, 0, 20))
+        assertEquals(SolarPolicy.gridHue(0f), SolarPolicy.led1Hue(reading()), 0.01f)
+        assertEquals(true, SolarPolicy.describe(cut).startsWith("Grid is down"))
     }
 
     @Test fun noBatteryMeansNoBatteryAlert() {

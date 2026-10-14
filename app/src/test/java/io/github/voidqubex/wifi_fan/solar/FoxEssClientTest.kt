@@ -55,6 +55,12 @@ class FoxEssClientTest {
         assertNull(r.socPercent)
     }
 
+    @Test fun offGridIsRunningState164() {
+        assertTrue(FoxEssClient.parseReading(answer(datas("runningState" to 164.0))).offGrid)
+        assertFalse(FoxEssClient.parseReading(answer(datas("runningState" to 163.0))).offGrid)
+        assertFalse(FoxEssClient.parseReading(answer(datas("pvPower" to 1.0))).offGrid)
+    }
+
     @Test fun faultsAreRecognised() {
         assertTrue(FoxEssClient.parseReading(answer(datas("currentFaultCount" to 2.0))).fault)
         assertTrue(FoxEssClient.parseReading(answer(datas("runningState" to 165.0))).fault)

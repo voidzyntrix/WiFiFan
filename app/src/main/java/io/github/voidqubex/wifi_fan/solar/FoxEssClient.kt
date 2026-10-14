@@ -15,7 +15,9 @@ data class SolarReading(
     val socPercent: Float?,
     val pvKw: Float,
     val loadKw: Float,
-    val fault: Boolean
+    val fault: Boolean,
+    /** The grid is down and the inverter runs the house from its battery (runningState 164, "off-grid"). */
+    val offGrid: Boolean = false
 )
 
 data class FoxDevice(val serial: String, val name: String, val status: Int)
@@ -78,7 +80,8 @@ object FoxEssClient {
             socPercent = values["SoC"]?.toFloat(),
             pvKw = (values["pvPower"] ?: 0.0).toFloat(),
             loadKw = (values["loadsPower"] ?: 0.0).toFloat(),
-            fault = fault
+            fault = fault,
+            offGrid = state == 164
         )
     }
 
