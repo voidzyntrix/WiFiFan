@@ -40,6 +40,10 @@
  *                      ocean = drifting blues and teals, party = smooth jumps
  *                      between random colours, aurora = slow green-violet waves
  *   candle, rainbow, chase and the effects all replace each other.
+ *   send  sleep=M  ->  sleep timer (1.7.0): the light, whatever it shows, fades
+ *                      smoothly to off over M minutes (1-240), then the LEDs
+ *                      are off. Colours and modes sent meanwhile keep fading
+ *                      with it. sleep=0 cancels it (full brightness again).
  *   send  ver      ->  replies "VER,<FW_VERSION>"
  *   send  ota      ->  replies "OTA", then restarts into the Bluetooth
  *                      bootloader for a firmware update (see the
@@ -80,7 +84,7 @@
 
 #define WS_USE_DMA   0               /* 1 = timer + DMA, 0 = polled SysTick */
 
-#define FW_VERSION   "1.6.1"     /* reported by "ver"; bump for each release */
+#define FW_VERSION   "1.7.0"     /* reported by "ver"; bump for each release */
 
 #define START_BAUD   115200          /* used until a baud rate has been detected */
 
@@ -277,11 +281,14 @@ static const uint8_t gamma8[256] = {
 };
 
 /* The one place colours reach the LEDs: gamma-corrects each channel. */
+/* Sleep timer: every colour is scaled by this (0..256) before the gamma table. */
+static uint16_t sleep_k = 256;
+
 static void ws_set(const uint8_t px[NUM_LEDS][3])
 {
     uint8_t g[NUM_LEDS][3];
     for (int i = 0; i < NUM_LEDS; i++)
-        for (int c = 0; c < 3; c++) g[i][c] = gamma8[px[i][c]];
+        for (int c = 0; c < 3; c++) g[i][c] = gamma8[(uint8_t)((px[i][c] * sleep_k) >> 8)];
     ws_write((const uint8_t (*)[3])g);
 }
 
@@ -499,6 +506,8 @@ typedef struct {
 static led_t    L[NUM_LEDS] = { [0].rnd = 0x1234567u, [1].rnd = 0x9E3779B9u };
 static uint8_t  split;                       /* 0 = Linked (boot default), 1 = Separate */
 static uint8_t  flashing, dirty;
+static uint8_t  sleeping;                    /* "sleep=M" running */
+static uint32_t sleep_start, sleep_ms;       /* when it started, how long it takes */
 static uint32_t flash_end, last_frame;
 
 #define LED2_RB_OFS  (HUE_MAX / 2)           /* Separate rainbow: LED2 180 deg on */
@@ -1010,6 +1019,22 @@ static void led_poll(void)
         dirty = 1;
     }
 
+    if (sleeping && frame) {
+        uint32_t el = (t - sleep_start) / TICKS_PER_MS;
+        if (el >= sleep_ms) {
+            /* Faded out: turn the LEDs off for real (at once, they are dark already) and
+             * give the next colour its full brightness back. */
+            sleeping = 0;
+            led_colour(0, 0, 0);
+            for (int i = 0; i < NUM_LEDS; i++) { L[i].shown = L[i].fade_to; L[i].fading = 0; }
+            sleep_k = 256;
+            dirty = 1;
+        } else {
+            uint16_t k = (uint16_t)(256u - 256u * el / sleep_ms);
+            if (k != sleep_k) { sleep_k = k; dirty = 1; }
+        }
+    }
+
     if (dirty) {
         uint8_t px[NUM_LEDS][3];
         uint8_t anim = rainbow || candle || fx;
@@ -1204,6 +1229,15 @@ static void line_end(void)
     }
     else if (strcmp(w, "ota") == 0) {
         enter_bootloader();
+    }
+    else if (strncmp(w, "sleep=", 6) == 0) {               /* minutes, 0 = cancel */
+        if (parse_nums(w + 6, n, 1, 240)) {
+            sleeping    = n[0] != 0;
+            sleep_start = now();
+            sleep_ms    = n[0] * 60000u;
+            if (!sleeping) { sleep_k = 256; dirty = 1; }
+        }
+        else led_flash(BRIGHT, BRIGHT, BRIGHT, 60);
     }
     else if (strncmp(w, "split=", 6) == 0) {               /* 0 Linked, 1 Separate */
         if (parse_nums(w + 6, n, 1, 1)) set_split((uint8_t)n[0]);

@@ -1,5 +1,6 @@
 package io.github.voidqubex.wifi_fan.ui.home
 
+import io.github.voidqubex.wifi_fan.ui.components.bounceCombinedClickable
 import android.view.WindowManager
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.ui.geometry.Offset
@@ -271,6 +272,10 @@ fun BleControlScreen(
         setBoardName(address, "")
     }
     var boardMenu by remember { mutableStateOf<DeviceEntry?>(null) }
+    // Sleep timer (firmware 1.7.0): the board fades the light out by itself; the app only
+    // remembers when, so the power button shows off once it is done.
+    var sleepMenu by remember { mutableStateOf(false) }
+    var sleepEndsAt by remember { mutableLongStateOf(0L) }
     val boardTitle = deviceAddress?.let { boardNames[it] } ?: deviceName ?: "Connected"
 
     // Scenes: one-tap favourites, saved as JSON.
@@ -1178,7 +1183,10 @@ fun BleControlScreen(
                                         modifier = Modifier
                                             .size(44.dp)
                                             .glass(circle(), powerBg)
-                                            .bounceClickable { haptics.confirm(); togglePower() }
+                                            .bounceCombinedClickable(
+                                                pressedScale = 0.9f,
+                                                onLongClick = { haptics.longPress(); sleepMenu = true }
+                                            ) { haptics.confirm(); togglePower() }
                                     ) {
                                         Icon(
                                             painter = painterResource(R.drawable.power),
@@ -1610,6 +1618,43 @@ fun BleControlScreen(
     }
 
     // ── Dialogs: board name, board options, new scene, scene options ──
+    if (sleepMenu) {
+        fun startSleep(minutes: Int) {
+            sleepMenu = false
+            if (!fwAtLeast("1.7.0")) {
+                Toast.makeText(context, "The sleep timer needs board firmware 1.7.0", Toast.LENGTH_SHORT).show()
+                return
+            }
+            bleManager.sendData("sleep=$minutes")
+            sleepEndsAt = if (minutes == 0) 0L else SystemClock.elapsedRealtime() + minutes * 60_000L
+            haptics.confirm()
+            Toast.makeText(
+                context,
+                if (minutes == 0) "Sleep timer off" else "The light fades out over $minutes min",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+        val left = ((sleepEndsAt - SystemClock.elapsedRealtime()) / 60_000L).coerceAtLeast(0L)
+        ActionsDialog(
+            title = "Sleep timer",
+            subtitle = if (sleepEndsAt > 0L) "Running: off in about ${left + 1} min" else "The light fades slowly to off",
+            actions = listOfNotNull(
+                "15 minutes" to { startSleep(15) },
+                "30 minutes" to { startSleep(30) },
+                "1 hour" to { startSleep(60) },
+                if (sleepEndsAt > 0L) "Stop the timer" to { startSleep(0) } else null
+            ),
+            onDismiss = { sleepMenu = false }
+        )
+    }
+    // When the timer has run out the board is off: show it.
+    LaunchedEffect(sleepEndsAt) {
+        if (sleepEndsAt == 0L) return@LaunchedEffect
+        delay((sleepEndsAt - SystemClock.elapsedRealtime()).coerceAtLeast(0L))
+        if (bri >= MIN_VISIBLE_BRIGHTNESS) { lastOnBri = bri; lastOnMode = ledMode }
+        bri = 0f
+        sleepEndsAt = 0L
+    }
     boardMenu?.let { board ->
         ActionsDialog(
             title = boardNames[board.address] ?: board.bleName ?: "LED board",

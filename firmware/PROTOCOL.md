@@ -14,13 +14,14 @@ switches rate, and the first command after a switch may be lost.
 
 | Send   | Reply           |
 |--------|-----------------|
-| `ver\` | `VER,1.6.1\`    |
+| `ver\` | `VER,1.7.0\`    |
 
 Everything in "New in 1.6.0" below needs `VER` >= 1.6.0. Older firmware does
 not know those commands (it answers them with a white flash or a wrong colour),
 so the app must only send them after reading a version >= 1.6.0.
 The 4th `candle` parameter (S, candle style) needs `VER` >= 1.6.1; 1.6.0
 ignores it (it reads `candle=V/M/H/S` as `candle=V/M/H`, i.e. two candles).
+`sleep=M` needs `VER` >= 1.7.0 (older firmware flashes white).
 
 ## Linked vs Separate (`split`)
 
@@ -128,12 +129,13 @@ each LED's own).
 |---------|---------|---------|
 | `fade=MS` | colour fade time 0-5000 ms (default 1500; not saved) | `fade=300\` |
 | `split=0` / `split=1` | Linked / Separate (see above; not saved) | `split=1\` |
+| `sleep=M` | sleep timer (1.7.0): whatever shows fades smoothly to off over M minutes (1-240), then the LEDs are off; colours sent meanwhile keep fading with it; `sleep=0` cancels (not saved) | `sleep=30\` |
 | `ver` | reply `VER,<version>\` | `ver\` |
 | `ota` | reply `OTA\`, then restart into the Bluetooth bootloader for a firmware update | `ota\` |
 
 ## Typical app sequences
 
-- Connect: `ver\` -> `VER,1.6.1\` -> two-LED UI enabled (and the candle style).
+- Connect: `ver\` -> `VER,1.7.0\` -> two-LED UI enabled (and the candle style, sleep timer).
 - Two solid colours: `split=1\` then `hh=0/100/100/240/100/100\` (or `h1=` / `h2=`).
 - One-flame candle: `split=1\` then `candle=60/1/19/0\` (two candles: `candle=60/1/19/1\`).
 - Two-LED rainbow: `split=1\` then `rain=100/60/15\`.
