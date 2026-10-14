@@ -22,16 +22,21 @@ object SolarPolicy {
     /** From this much import (kW) on the grid LED is fully red. */
     private const val RED_AT_KW = 1.5f
 
+    /** Any import from this much (kW) on is clearly yellow, not yellow-green. */
+    private const val YELLOW_KW = 0.1f
+    private const val YELLOW_HUE = 60f
+
     /** Exporting more than this (kW) shows pure green. */
     private const val EXPORT_KW = 0.05f
 
     /**
-     * LED1, the grid: green while exporting, lime when balanced, amber around 0.9 kW of import,
+     * LED1, the grid: green while exporting, lime when balanced, yellow from 0.1 kW of import,
      * red from 1.5 kW. Degrees of hue.
      */
     fun gridHue(gridKw: Float): Float = when {
         gridKw <= -EXPORT_KW -> 120f
-        else -> (BALANCED_HUE * (1f - gridKw.coerceAtLeast(0f) / RED_AT_KW)).coerceIn(0f, BALANCED_HUE)
+        gridKw < YELLOW_KW -> BALANCED_HUE - (BALANCED_HUE - YELLOW_HUE) * (gridKw.coerceAtLeast(0f) / YELLOW_KW)
+        else -> (YELLOW_HUE * (1f - (gridKw - YELLOW_KW) / (RED_AT_KW - YELLOW_KW))).coerceIn(0f, YELLOW_HUE)
     }
 
     /** Hue of LED1 while the grid is down: blue, which nothing else uses. */

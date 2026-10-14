@@ -16,7 +16,9 @@ class SolarPolicyTest {
 
     @Test fun gridLedGoesFromLimeThroughAmberToRed() {
         assertEquals(105f, SolarPolicy.gridHue(0f), 0.01f)
-        assertEquals(52.5f, SolarPolicy.gridHue(0.75f), 0.01f)
+        assertEquals(60f, SolarPolicy.gridHue(0.1f), 0.01f)
+        assertEquals(55.7f, SolarPolicy.gridHue(0.2f), 0.1f)
+        assertEquals(32.1f, SolarPolicy.gridHue(0.75f), 0.1f)
         assertEquals(0f, SolarPolicy.gridHue(1.5f), 0.01f)
         assertEquals(0f, SolarPolicy.gridHue(6f), 0.01f)
     }
