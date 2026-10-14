@@ -58,17 +58,39 @@ object GitHubReleases {
      */
     private fun newestFromFeed(assetName: Regex): ReleaseAsset? {
         val feed = String(get(FEED_URL, limit = 2 * 1024 * 1024), Charsets.UTF_8)
-        var best: ReleaseAsset? = null
+        val candidates = mutableListOf<ReleaseAsset>()
         for (m in TAG_IN_FEED.findAll(feed)) {
             val kind = m.groupValues[1]
             val version = m.groupValues[2]
             val name = ASSET_PREFIX[kind]?.format(version) ?: continue
             if (assetName.matchEntire(name)?.groupValues?.get(1) != version) continue
             val tag = "$kind-v$version"
-            val candidate = ReleaseAsset(version, tag, "$DOWNLOAD_URL/$tag/$name", 0L)
-            if (best == null || compareVersions(candidate.version, best.version) > 0) best = candidate
+            candidates += ReleaseAsset(version, tag, "$DOWNLOAD_URL/$tag/$name", 0L)
         }
-        return best
+        // The feed lists a tag as soon as it is pushed, minutes before its build has attached
+        // the file (which then answers 404): only offer a version whose file is really there.
+        return candidates
+            .distinctBy { it.version }
+            .sortedWith { x, y -> compareVersions(y.version, x.version) }
+            .take(3)
+            .firstOrNull { assetExists(it.downloadUrl) }
+    }
+
+    /** True when [url] can be downloaded (a HEAD request, following the redirect to the CDN). */
+    private fun assetExists(url: String): Boolean = try {
+        val conn = URL(url).openConnection() as HttpURLConnection
+        try {
+            conn.requestMethod = "HEAD"
+            conn.connectTimeout = 15_000
+            conn.readTimeout = 15_000
+            conn.instanceFollowRedirects = true
+            conn.setRequestProperty("User-Agent", "Glow-app")
+            conn.responseCode == HttpURLConnection.HTTP_OK
+        } finally {
+            conn.disconnect()
+        }
+    } catch (e: IOException) {
+        false
     }
 
     private fun newestFromApi(assetName: Regex): ReleaseAsset? {
