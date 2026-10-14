@@ -108,24 +108,28 @@ class SolarSyncService : Service() {
                         nextFetch = now + RETRY_MS
                     }
                 }
-                reading?.let { show(l, it) }
+                val look = reading?.let { SolarPolicy.look(it) }
+                look?.let { show(l, it) }
                 AlertCenter.set("solar", SolarPolicy.alertFor(reading, now - lastGood, store.solarLowPercent))
-                delay(RESEND_MS)
+                // Breathing needs about five updates a second; steady colours only every 10 s.
+                delay(if (look != null && (look.pulse1 || look.pulse2)) PULSE_MS else RESEND_MS)
             }
         }
         return START_NOT_STICKY
     }
 
-    /** LED1: the grid (blue in a power cut), LED2: the battery (the grid colour again when there is no battery). */
-    private fun show(l: LedLink, r: SolarReading) {
+    /** LED1: the grid, LED2: the battery (see [SolarPolicy.look]); either may breathe. */
+    private fun show(l: LedLink, look: SolarLook) {
         val bri = SyncParams.bri
-        val h1 = SolarPolicy.led1Hue(r)
-        val h2 = r.socPercent?.let { SolarPolicy.batteryHue(it) } ?: h1
-        SyncHub.hue.value = h1
+        val t = SystemClock.elapsedRealtime()
+        val v1 = bri * if (look.pulse1) SolarPolicy.breath(t, BREATH_MS) else 1f
+        val v2 = bri * if (look.pulse2) SolarPolicy.breath(t, BREATH_MS) else 1f
+        SyncHub.hue.value = look.hue1
         SyncHub.sat.value = 1f
-        SyncHub.hue2.value = h2
+        SyncHub.hue2.value = look.hue2
         SyncHub.sat2.value = 1f
-        if (l.twoLeds) l.colours(h1, 1f, bri, h2, 1f, bri, 0L) else l.colour(h1, 1f, bri, 0L)
+        if (l.twoLeds) l.colours(look.hue1, 1f, v1, look.hue2, 1f, v2, 0L)
+        else l.colour(look.hue1, 1f, v1, 0L)
     }
 
     /** Made-up readings that sweep through export, import and an emptying/filling battery. */
@@ -190,9 +194,11 @@ class SolarSyncService : Service() {
         private const val ACTION_STOP = "io.github.voidqubex.wifi_fan.solar.STOP"
         private const val CHANNEL = "solar_sync"
         private const val NOTIFICATION_ID = 13
-        /** Slow colour changes: the data only moves every few minutes. */
-        private const val FADE_MS = 3000
+        /** Smooth steps between updates; short enough for the breathing's five updates a second. */
+        private const val FADE_MS = 400
         private const val RESEND_MS = 10_000L
+        private const val PULSE_MS = 200L
+        private const val BREATH_MS = 3000L
         private const val RETRY_MS = 60_000L
         private const val DEMO_EVERY_MS = 10_000L
 

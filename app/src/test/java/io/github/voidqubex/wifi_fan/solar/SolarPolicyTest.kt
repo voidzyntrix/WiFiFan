@@ -43,6 +43,32 @@ class SolarPolicyTest {
         assertEquals(true, SolarPolicy.describe(cut).startsWith("Grid is down"))
     }
 
+    @Test fun aBigExportTurnsLed1Cyan() {
+        assertEquals(SolarPolicy.HEAVY_EXPORT_HUE, SolarPolicy.led1Hue(reading(grid = -4.5f)), 0.01f)
+        assertEquals(120f, SolarPolicy.led1Hue(reading(grid = -3.9f)), 0.01f)
+    }
+
+    @Test fun heavyImportMakesLed1Pulse() {
+        assertEquals(true, SolarPolicy.look(reading(grid = 1.4f)).pulse1)
+        assertEquals(false, SolarPolicy.look(reading(grid = 0.9f)).pulse1)
+        assertEquals(false, SolarPolicy.look(reading(grid = -2f)).pulse1)
+    }
+
+    @Test fun batteryLedBreathesOnlyWhenTheBatteryAloneCarriesTheHouse() {
+        val night = SolarPolicy.look(reading(soc = 50f, pv = 0f, offGrid = true))
+        assertEquals(true, night.pulse2)
+        assertEquals(60f, night.hue2, 0.01f)
+        assertEquals(false, SolarPolicy.look(reading(soc = 50f, pv = 1.2f, offGrid = true)).pulse2)
+        assertEquals(false, SolarPolicy.look(reading(soc = 50f, pv = 0f, offGrid = false)).pulse2)
+        assertEquals(false, SolarPolicy.look(reading(soc = null, pv = 0f, offGrid = true)).pulse2)
+    }
+
+    @Test fun theBreathIsSmoothAndStartsDim() {
+        assertEquals(0.35f, SolarPolicy.breath(0, 3000), 0.001f)
+        assertEquals(1f, SolarPolicy.breath(1500, 3000), 0.001f)
+        assertEquals(0.35f, SolarPolicy.breath(3000, 3000), 0.001f)
+    }
+
     @Test fun noBatteryMeansNoBatteryAlert() {
         assertEquals(AlertKind.NONE, SolarPolicy.alertFor(reading(soc = null), 0, 20))
     }
