@@ -166,6 +166,10 @@ class SettingsStore(context: Context) {
     var batteryLowAlert: Boolean
         get() = prefs.getBoolean("battery_low_alert", false)
         set(value) { prefs.edit().putBoolean("battery_low_alert", value).apply() }
+    /** The low-battery alert starts below this many percent (5-50). */
+    var batteryLowPercent: Int
+        get() = prefs.getInt("battery_low_percent", 20).coerceIn(5, 50)
+        set(value) { prefs.edit().putInt("battery_low_percent", value).apply() }
     var batteryFullAlert: Boolean
         get() = prefs.getBoolean("battery_full_alert", false)
         set(value) { prefs.edit().putBoolean("battery_full_alert", value).apply() }

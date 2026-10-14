@@ -5,7 +5,7 @@ enum class BatteryAlertState { NONE, LOW, FULL }
 
 /** The rules, as plain Kotlin so they can be tested. */
 object BatteryAlertPolicy {
-    /** Below this many percent (and not charging) the battery counts as low. */
+    /** The default for "below this many percent (and not charging) the battery counts as low". */
     const val LOW_PERCENT = 20
 
     /** The green blinks of a full battery last this long. */
@@ -19,9 +19,10 @@ object BatteryAlertPolicy {
         plugged: Boolean,
         statusFull: Boolean,
         lowOn: Boolean,
-        fullOn: Boolean
+        fullOn: Boolean,
+        lowPercent: Int = LOW_PERCENT
     ): BatteryAlertState = when {
-        lowOn && percent in 0 until LOW_PERCENT && !plugged -> BatteryAlertState.LOW
+        lowOn && percent in 0 until lowPercent && !plugged -> BatteryAlertState.LOW
         fullOn && plugged && (statusFull || percent >= 100) -> BatteryAlertState.FULL
         else -> BatteryAlertState.NONE
     }

@@ -222,10 +222,37 @@ internal fun SettingsScreen(
             SettingSection("Battery alerts")
             var batteryLow by remember { mutableStateOf(store.batteryLowAlert) }
             var batteryFull by remember { mutableStateOf(store.batteryFullAlert) }
+            var lowPercent by remember { mutableIntStateOf(store.batteryLowPercent) }
             SettingSwitch(
-                "Low battery", "Two red blinks a minute while the phone is below 20 % and not charging",
+                "Low battery", "Two red blinks a minute while the phone is low and not charging",
                 batteryLow
             ) { batteryLow = it; store.batteryLowAlert = it; BatteryAlert.refresh() }
+            androidx.compose.animation.AnimatedVisibility(
+                visible = batteryLow,
+                enter = fadeIn(tween(200)) + androidx.compose.animation.expandVertically(tween(280)),
+                exit = fadeOut(tween(150)) + androidx.compose.animation.shrinkVertically(tween(240))
+            ) {
+                Column {
+                    Spacer(Modifier.height(14.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "Blink below",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = onBg.copy(alpha = 0.6f),
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text("$lowPercent %", style = MaterialTheme.typography.labelLarge, color = onBg)
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    GradientBar(
+                        fraction = (lowPercent - 5) / 45f,
+                        stops = listOf(onBg.copy(alpha = 0.12f), onBg.copy(alpha = 0.55f)),
+                        thumbColor = MaterialTheme.colorScheme.primary,
+                        onFraction = { lowPercent = (5 + it * 45f).roundToInt() },
+                        onFinished = { store.batteryLowPercent = lowPercent; BatteryAlert.refresh() }
+                    )
+                }
+            }
             SwitchGap()
             SettingSwitch(
                 "Full battery", "Two green blinks a minute for 10 minutes when the phone is fully charged",

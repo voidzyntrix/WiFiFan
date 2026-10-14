@@ -76,7 +76,7 @@ object BatteryAlert {
     private fun evaluate() {
         val store = SettingsStore(app)
         val wanted = BatteryAlertPolicy.state(
-            percent, plugged, statusFull, store.batteryLowAlert, store.batteryFullAlert
+            percent, plugged, statusFull, store.batteryLowAlert, store.batteryFullAlert, store.batteryLowPercent
         )
         val now = SystemClock.elapsedRealtime()
         if (wanted != shown) {

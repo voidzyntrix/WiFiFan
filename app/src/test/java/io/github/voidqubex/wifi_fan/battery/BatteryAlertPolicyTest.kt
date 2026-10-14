@@ -14,6 +14,12 @@ class BatteryAlertPolicyTest {
         assertEquals(BatteryAlertState.NONE, state(50))
     }
 
+    @Test fun theLowLevelCanBeChosen() {
+        assertEquals(BatteryAlertState.LOW, BatteryAlertPolicy.state(29, false, false, true, true, lowPercent = 30))
+        assertEquals(BatteryAlertState.NONE, BatteryAlertPolicy.state(30, false, false, true, true, lowPercent = 30))
+        assertEquals(BatteryAlertState.NONE, BatteryAlertPolicy.state(14, false, false, true, true, lowPercent = 10))
+    }
+
     @Test fun chargingIsNotLow() {
         assertEquals(BatteryAlertState.NONE, state(10, plugged = true))
     }
