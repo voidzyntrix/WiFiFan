@@ -64,9 +64,9 @@ class SolarPolicyTest {
     }
 
     @Test fun theBreathIsSmoothAndStartsDim() {
-        assertEquals(0.35f, SolarPolicy.breath(0, 3000), 0.001f)
-        assertEquals(1f, SolarPolicy.breath(1500, 3000), 0.001f)
-        assertEquals(0.35f, SolarPolicy.breath(3000, 3000), 0.001f)
+        assertEquals(0.15f, SolarPolicy.breath(0, 3000, 0.15f), 0.001f)
+        assertEquals(1f, SolarPolicy.breath(1500, 3000, 0.15f), 0.001f)
+        assertEquals(0.15f, SolarPolicy.breath(3000, 3000, 0.15f), 0.001f)
     }
 
     @Test fun noBatteryMeansNoBatteryAlert() {

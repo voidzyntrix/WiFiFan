@@ -67,10 +67,10 @@ object SolarPolicy {
         )
     }
 
-    /** Brightness factor 0.35..1 of a breath [periodMs] long at [timeMs] (smooth, starts dim). */
-    fun breath(timeMs: Long, periodMs: Long): Float {
+    /** Brightness factor from [low] to 1 over a breath [periodMs] long at [timeMs] (smooth, starts dim). */
+    fun breath(timeMs: Long, periodMs: Long, low: Float): Float {
         val phase = (timeMs % periodMs).toFloat() / periodMs
-        return 0.35f + 0.65f * (0.5f - 0.5f * cos(2.0 * PI * phase)).toFloat()
+        return low + (1f - low) * (0.5f - 0.5f * cos(2.0 * PI * phase)).toFloat()
     }
 
     /** LED2, the home battery: red when empty to green when full. Degrees of hue. */
