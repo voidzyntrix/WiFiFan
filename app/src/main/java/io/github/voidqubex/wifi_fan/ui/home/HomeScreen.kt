@@ -100,7 +100,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import io.github.voidqubex.wifi_fan.PairedBoard
 import io.github.voidqubex.wifi_fan.audio.AudioSyncService
-import io.github.voidqubex.wifi_fan.bluetooth.LinkService
 import io.github.voidqubex.wifi_fan.auto.AutoLight
 import io.github.voidqubex.wifi_fan.auto.AutoLightService
 import io.github.voidqubex.wifi_fan.screen.ScreenSyncService
@@ -320,12 +319,9 @@ fun BleControlScreen(
             else -> bleManager.disconnect()
         }
     }
-    // A board that connects opens, and stays connected with the app closed (LinkService).
+    // A board that connects opens.
     LaunchedEffect(isConnected) {
-        if (isConnected) {
-            boardOpen = true
-            LinkService.start(context)
-        }
+        if (isConnected) boardOpen = true
     }
     val fwOptions = fwAtLeast("1.3.0")
     // Hue picked in the colour controls while Candle runs (null = the Settings candle colour).

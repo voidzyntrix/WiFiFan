@@ -82,8 +82,9 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         super.onDestroy()
         SyncHub.uiAlive = false
-        // Closing the app keeps the Bluetooth link (the manager lives in the Application), so the
-        // board stays connected until you disconnect or Android ends the process.
+        // Leaving for good ends the Bluetooth link (a rotation doesn't), unless Music, Visualizer,
+        // Screen sync or Auto light still drives the LED: that service lets go of it when it stops.
+        if (isFinishing && !SyncHub.isActive() && !AutoLight.running) bleManager.disconnect()
     }
 }
 

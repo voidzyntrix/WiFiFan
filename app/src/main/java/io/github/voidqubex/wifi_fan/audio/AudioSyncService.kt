@@ -242,6 +242,9 @@ class AudioSyncService : Service() {
         // now, the shared state and the board's fade are its, not ours to reset.
         val ours = SyncHub.release(SyncKind.MUSIC, SyncKind.VISUALIZER)
         shutdown(restoreFade = ours)
+        // Stopped with the app closed (notification Stop): let go of the board too, unless
+        // another sync or Auto light still uses it.
+        if (ours && !SyncHub.uiAlive && !AutoLight.running) (application as GlowApp).bleManager.disconnect()
         super.onDestroy()
     }
 

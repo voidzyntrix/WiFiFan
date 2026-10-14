@@ -67,12 +67,6 @@
             android:exported="false"
             android:foregroundServiceType="mediaProjection" />
 
-        <!-- Keeps the board connected while the app is closed -->
-        <service
-            android:name=".bluetooth.LinkService"
-            android:exported="false"
-            android:foregroundServiceType="connectedDevice" />
-
         <!-- Auto light: reading light in hand, night light when the phone is down and locked -->
         <service
             android:name=".auto.AutoLightService"
