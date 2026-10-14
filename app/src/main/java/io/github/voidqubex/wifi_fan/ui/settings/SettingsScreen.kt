@@ -368,19 +368,10 @@ internal fun SettingsScreen(
                 AppLook.roundLedPreview
             ) { AppLook.roundLedPreview = it; store.roundLedPreview = it }
             SwitchGap()
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                SettingSwitch(
-                    "Refractive glass", "Clear cards that bend the background at their edges, no blur",
-                    AppLook.refractiveGlass
-                ) { AppLook.refractiveGlass = it; store.refractiveGlass = it }
-            } else {
-                SettingHeading("Refractive glass", "Clear cards that bend the background at their edges")
-                Text(
-                    "Needs Android 13",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = onBg.copy(alpha = 0.45f)
-                )
-            }
+            SettingSwitch(
+                "Refractive glass", "Clear cards that bend the background at their edges, no blur",
+                AppLook.refractiveGlass
+            ) { AppLook.refractiveGlass = it; store.refractiveGlass = it }
             SettingSection("Behaviour")
             SettingSwitch(
                 "Rainbow preview", "Animate the colour sliders while Rainbow runs",

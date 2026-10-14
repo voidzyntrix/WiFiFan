@@ -23,6 +23,7 @@ internal class FluidSim(val width: Float, val height: Float, val count: Int) {
     private val cellStart = IntArray(cols * rows + 1)
     private val cellItems = IntArray(count)
     private val cellOf = IntArray(count)
+    private val cellFill = IntArray(cols * rows + 1)
 
     init {
         // a block of liquid resting at the bottom, a little jittered so it settles naturally
@@ -82,7 +83,8 @@ internal class FluidSim(val width: Float, val height: Float, val count: Int) {
             cellStart[c + 1]++
         }
         for (c in 1..cols * rows) cellStart[c] += cellStart[c - 1]
-        val fill = cellStart.copyOf()
+        val fill = cellFill
+        cellStart.copyInto(fill)
         for (i in 0 until count) cellItems[fill[cellOf[i]]++] = i
     }
 

@@ -1,5 +1,8 @@
 package io.github.voidqubex.wifi_fan.ui.home
 
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.graphics.drawscope.scale
 import io.github.voidqubex.wifi_fan.ui.components.glass
 import android.Manifest
 import android.annotation.SuppressLint
@@ -968,7 +971,10 @@ fun BleControlScreen(
     // The backdrop is recorded into a layer so the cards can draw a blurred copy of it.
     val backdropLayer = rememberGraphicsLayer()
     val blurLayer = rememberGraphicsLayer()
-    SideEffect { blurLayer.renderEffect = BlurEffect(60f, 60f, TileMode.Clamp) }
+    // The blur runs on a quarter-size copy (1/16 of the pixels, redone every frame the background
+    // moves); blurLayer scales it back up, so the glass that draws it needs no changes.
+    val blurSmall = rememberGraphicsLayer()
+    SideEffect { blurSmall.renderEffect = BlurEffect(15f, 15f, TileMode.Clamp) }
 
     Scaffold { _ ->
         CompositionLocalProvider(LocalBlurLayer provides blurLayer, LocalBackdropLayer provides backdropLayer) {
@@ -978,7 +984,14 @@ fun BleControlScreen(
             Box(
                 Modifier.fillMaxSize().drawWithContent {
                     backdropLayer.record { this@drawWithContent.drawContent() }
-                    blurLayer.record { drawLayer(backdropLayer) }
+                    val small = IntSize(
+                        (size.width / BLUR_DOWNSCALE).roundToInt().coerceAtLeast(1),
+                        (size.height / BLUR_DOWNSCALE).roundToInt().coerceAtLeast(1)
+                    )
+                    blurSmall.record(size = small) {
+                        scale(1f / BLUR_DOWNSCALE, pivot = Offset.Zero) { drawLayer(backdropLayer) }
+                    }
+                    blurLayer.record { scale(BLUR_DOWNSCALE, pivot = Offset.Zero) { drawLayer(blurSmall) } }
                     drawLayer(backdropLayer)
                 }
             ) {
@@ -1701,3 +1714,6 @@ private fun BoardPill(name: String, version: String?, canRename: Boolean, onClic
         }
     }
 }
+
+/** The shared background blur is computed at 1/this of the screen's size. */
+private const val BLUR_DOWNSCALE = 4f
