@@ -191,6 +191,26 @@ internal fun SolarPanel(state: SolarState, running: Boolean, onStop: () -> Unit,
             Spacer(Modifier.height(4.dp))
             PanelHint("Last try failed: ${state.error}")
         }
+        Spacer(Modifier.height(12.dp))
+        Text(
+            "What the LEDs show",
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = onBg
+        )
+        Spacer(Modifier.height(4.dp))
+        PanelHint(
+            "LED1, grid: green = exporting · lime = balanced · yellow to red = importing " +
+                "(red from 1.5 kW) · orange-red pulsing = importing over 1 kW · cyan = exporting over 4 kW · " +
+                "blue = grid down"
+        )
+        Spacer(Modifier.height(4.dp))
+        PanelHint(
+            "LED2, battery: red = empty · orange · green = full · slow breathing = " +
+                "running on battery, grid and sun both off"
+        )
+        Spacer(Modifier.height(4.dp))
+        PanelHint("Blinks: red = low battery, fault or offline · green = battery full with sun to spare")
         Spacer(Modifier.height(16.dp))
         PillButton("Stop solar", highlighted = false, onClick = onStop)
     }
