@@ -1,0 +1,20 @@
+// Notes shown by "What's new" (newest first). Add an entry with every version bump.
+
+export const WHATS_NEW: { version: string; notes: string[] }[] = [
+  {
+    version: '1.0.0',
+    notes: [
+      'Glow for Windows: everything from the phone app, at your desk.',
+      'Connect over Bluetooth; boards you used before reconnect with one click.',
+      'Solid, Rainbow, Candle, Breathe, Ocean, Party, Aurora and Chase, Linked or Separate LEDs.',
+      'Music listens to the microphone; Visualizer plays along with everything Windows plays; Screen sync follows your monitor.',
+      'Auto light follows Windows lock and idle time, or the room light seen through the webcam.',
+      'Fluid background: real water that follows your mouse movements and sloshes when you drag the window.',
+      'Refractive glass drawn at full resolution, with curved, light-catching edges.',
+      'Built for the mouse: scenes, mode, brightness and colour sit together under the power button.',
+      'Board firmware updates over Bluetooth, from GitHub or a .bin file.',
+      'Keyboard shortcuts: Space power, 1-9 scenes, [ ] brightness, M modes.',
+      'Keeps running in the tray while a sync or Auto light drives the LED.',
+    ],
+  },
+]

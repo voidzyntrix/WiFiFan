@@ -1,0 +1,51 @@
+# Builds Glow for Windows (desktop/) and publishes it as Glow-Desktop-<version>.exe, which the
+# desktop app's update check picks up. Runs when a tag like desktop-v1.0.0 is pushed.
+# (The Android app ignores these releases: its updater only looks at app-v / fw-v tags.)
+name: Desktop release
+
+on:
+  push:
+    tags: ['desktop-v*']
+
+permissions:
+  contents: write   # create the release and upload the exe
+
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Check the tag matches the desktop version
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if [ "desktop-v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME doesn't match version \"$version\" in desktop/package.json"
+            exit 1
+          fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+
+      - run: npm ci
+
+      - name: Build the portable exe
+        run: npm run dist
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'   # unsigned build
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Glow for Windows ${{ env.VERSION }}
+          files: desktop/release/Glow-Desktop-${{ env.VERSION }}.exe
+          fail_on_unmatched_files: true
