@@ -36,6 +36,11 @@ object GitHubReleases {
      * The newest asset whose name fully matches [assetName], whose first group must
      * capture a "1.2.3"-style version. null if no release has one.
      */
+    /** The newest matching asset from the release feed only (not rate limited; size unknown). */
+    suspend fun newestFromFeedOnly(assetName: Regex): ReleaseAsset? = withContext(Dispatchers.IO) {
+        newestFromFeed(assetName)
+    }
+
     suspend fun newest(assetName: Regex): ReleaseAsset? = withContext(Dispatchers.IO) {
         // The API allows only 60 requests per hour per internet connection; when it
         // refuses (HTTP 403/429) or fails, fall back to the release feed, which isn't limited.

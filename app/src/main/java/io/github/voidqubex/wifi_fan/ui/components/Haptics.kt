@@ -1,5 +1,7 @@
 package io.github.voidqubex.wifi_fan.ui.components
 
+import android.os.VibrationAttributes
+import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
@@ -44,7 +46,15 @@ internal class AppHaptics(private val view: View) {
                     (pulseMs * (0.5f + level)).toLong().coerceAtLeast(6L), VibrationEffect.DEFAULT_AMPLITUDE
                 )
         }
-        runCatching { motor.vibrate(effect) }
+        runCatching {
+            // Android 13+ files a vibration without a purpose under media vibration, which many
+            // phones (e.g. on Android 15) have off; say it is touch feedback.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                motor.vibrate(effect, VibrationAttributes.createForUsage(VibrationAttributes.USAGE_TOUCH))
+            } else {
+                motor.vibrate(effect)
+            }
+        }
     }
 
     /** A light tick: one step of a slider. */

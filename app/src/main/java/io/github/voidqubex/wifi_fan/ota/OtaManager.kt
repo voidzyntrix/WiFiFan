@@ -76,6 +76,26 @@ class OtaManager(private val ble: BleManager, private val scope: CoroutineScope)
         }
     }
 
+    /** Like AppUpdater.checkQuietly: the feed, no "Checking", only from a settled state. */
+    fun checkQuietly(boardVersion: String) {
+        val settled = { s: OtaState ->
+            s == OtaState.Idle || s is OtaState.UpToDate || s is OtaState.UpdateAvailable || s is OtaState.Error
+        }
+        if (!settled(_state.value)) return
+        scope.launch {
+            val latest = runCatching { FirmwareRepository.latestFromFeed() }.getOrNull() ?: return@launch
+            val now = _state.value
+            if (!settled(now)) return@launch
+            if (GitHubReleases.compareVersions(latest.version, boardVersion) > 0) {
+                if ((now as? OtaState.UpdateAvailable)?.release?.version != latest.version) {
+                    _state.value = OtaState.UpdateAvailable(latest)
+                }
+            } else if (now !is OtaState.UpToDate) {
+                _state.value = OtaState.UpToDate(latest.version)
+            }
+        }
+    }
+
     fun startUpdate(release: FirmwareRelease) {
         if (_state.value.busy) return
         scope.launch {

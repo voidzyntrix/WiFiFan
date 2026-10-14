@@ -9,13 +9,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asComposeRenderEffect
-import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
@@ -81,16 +75,7 @@ internal fun Modifier.refractiveBackdrop(
     position: () -> Offset,
     cornerRadius: Dp
 ): Modifier {
-    if (backdrop == null) return this
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
-        val rim = rememberGraphicsLayer()
-        val mask = rememberGraphicsLayer()
-        remember(rim, mask) {
-            rim.compositingStrategy = androidx.compose.ui.graphics.layer.CompositingStrategy.Offscreen
-            mask.blendMode = androidx.compose.ui.graphics.BlendMode.DstIn
-        }
-        return this.drawBehind { fadedGlass(backdrop, rim, mask, position(), cornerRadius.toPx()) }
-    }
+    if (backdrop == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return this
     val layer = rememberGraphicsLayer()
     val glass = remember { GlassEffect() }
     return this.drawBehind {
@@ -103,55 +88,6 @@ internal fun Modifier.refractiveBackdrop(
         layer.record { translate(-p.x, -p.y) { drawLayer(backdrop) } }
         drawLayer(layer)
     }
-}
-
-/**
- * Android 12 has no shaders for the glass, so the rim is faked smoothly: a slightly magnified
- * copy of the background (pulled inwards, like the bent edge of a thick pane) fades in towards
- * the border through a soft mask, over the clear background. No hard steps, one extra copy.
- */
-private fun DrawScope.fadedGlass(
-    backdrop: GraphicsLayer, rim: GraphicsLayer, mask: GraphicsLayer, p: Offset, corner: Float
-) {
-    val r = corner.coerceAtMost(size.minDimension / 2f)
-    val edge = EDGE.toPx().coerceAtMost(size.minDimension / 2f)
-    val off = STRENGTH.toPx() * 0.8f
-    val sx = 1f / (1f - off / (size.width / 2f)).coerceAtLeast(0.3f)
-    val sy = 1f / (1f - off / (size.height / 2f)).coerceAtLeast(0.3f)
-    translate(-p.x, -p.y) { drawLayer(backdrop) }
-    // the mask: opaque at the border, fading to nothing [edge] inside (thin rings blended by
-    // anti-aliasing, so it reads as one smooth gradient)
-    mask.record {
-        val n = 14
-        val w = edge / n
-        for (i in 0 until n) {
-            val t = (i + 0.5f) / n                 // 0 at the border, 1 at the inner end
-            val a = (1f - t) * (1f - t)
-            val inset = w * i + w / 2f
-            drawRoundRect(
-                Color.Black.copy(alpha = a),
-                topLeft = Offset(inset, inset),
-                size = androidx.compose.ui.geometry.Size(size.width - inset * 2f, size.height - inset * 2f),
-                cornerRadius = CornerRadius((r - inset).coerceAtLeast(0f)),
-                style = Stroke(w * 1.2f)
-            )
-        }
-    }
-    rim.record {
-        scale(sx, sy, pivot = center) { translate(-p.x, -p.y) { drawLayer(backdrop) } }
-        drawLayer(mask)
-    }
-    drawLayer(rim)
-    drawRoundRect(
-        Brush.linearGradient(
-            listOf(Color.White.copy(alpha = 0.22f), Color.Transparent),
-            start = Offset.Zero, end = Offset(size.width * 0.5f, size.height * 0.5f)
-        ),
-        topLeft = Offset(edge / 4f, edge / 4f),
-        size = androidx.compose.ui.geometry.Size(size.width - edge / 2f, size.height - edge / 2f),
-        cornerRadius = CornerRadius((r - edge / 4f).coerceAtLeast(0f)),
-        style = Stroke(edge / 2f)
-    )
 }
 
 /** The shader effect, rebuilt only when the element's size or corners change. */

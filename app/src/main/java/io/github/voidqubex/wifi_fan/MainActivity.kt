@@ -1,5 +1,6 @@
 package io.github.voidqubex.wifi_fan
 
+import android.os.Build
 import android.annotation.SuppressLint
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -45,7 +46,8 @@ class MainActivity : ComponentActivity() {
         AppLook.cornerScale = settingsStore.cornerScale
         AppLook.roundLedPreview = settingsStore.roundLedPreview
         AppLook.pureBlack = settingsStore.pureBlack
-        AppLook.refractiveGlass = settingsStore.refractiveGlass
+        // the glass shader needs Android 13
+        AppLook.refractiveGlass = settingsStore.refractiveGlass && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
         AppLook.haptics = settingsStore.haptics
         AppLook.hapticStrength = settingsStore.hapticStrength
         AppLook.imageDim = settingsStore.imageDim

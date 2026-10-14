@@ -368,10 +368,19 @@ internal fun SettingsScreen(
                 AppLook.roundLedPreview
             ) { AppLook.roundLedPreview = it; store.roundLedPreview = it }
             SwitchGap()
-            SettingSwitch(
-                "Refractive glass", "Clear cards that bend the background at their edges, no blur",
-                AppLook.refractiveGlass
-            ) { AppLook.refractiveGlass = it; store.refractiveGlass = it }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                SettingSwitch(
+                    "Refractive glass", "Clear cards that bend the background at their edges, no blur",
+                    AppLook.refractiveGlass
+                ) { AppLook.refractiveGlass = it; store.refractiveGlass = it }
+            } else {
+                SettingHeading("Refractive glass", "Clear cards that bend the background at their edges")
+                Text(
+                    "Needs Android 13",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = onBg.copy(alpha = 0.45f)
+                )
+            }
             SettingSection("Behaviour")
             SettingSwitch(
                 "Rainbow preview", "Animate the colour sliders while Rainbow runs",
@@ -430,9 +439,11 @@ internal fun SettingsScreen(
         Spacer(Modifier.height(12.dp))
 
         // ── Firmware & updates ──
+        val appUpdateState by AppUpdater.state.collectAsState()
+        val anyUpdate = appUpdateState is AppUpdateState.UpdateAvailable || otaState is OtaState.UpdateAvailable
         SettingsCard("Firmware & updates", firmwareOpen, Modifier.entrance(4), {
             firmwareOpen = !firmwareOpen; store.setCategoryCollapsed("firmware", !firmwareOpen)
-        }) {
+        }, badge = anyUpdate) {
             SettingSection("Board", first = true)
             FirmwareSection(
                 otaManager   = otaManager,
@@ -597,7 +608,8 @@ private fun FirmwareSection(
             else                 -> "Board firmware version unknown"
         },
         status = otaStatusText(state),
-        error = state is OtaState.Error
+        error = state is OtaState.Error,
+        badge = state is OtaState.UpdateAvailable
     ) {
         if (state.busy || state == OtaState.Checking) {
             UpdateProgress(
@@ -628,6 +640,7 @@ private fun AppUpdateSection() {
 
     UpdateBlock(
         title = "Glow v$installedVersion",
+        badge = state is AppUpdateState.UpdateAvailable,
         status = appUpdateStatusText(state),
         error = state is AppUpdateState.Error
     ) {
@@ -681,6 +694,7 @@ private fun UpdateBlock(
     title: String,
     status: String,
     error: Boolean,
+    badge: Boolean = false,
     action: @Composable ColumnScope.() -> Unit
 ) {
     val onBg = MaterialTheme.colorScheme.onBackground
@@ -690,12 +704,18 @@ private fun UpdateBlock(
             .glass(rounded(18.dp), onBg.copy(alpha = 0.05f), 18.dp)
             .padding(16.dp)
     ) {
-        Text(
-            text       = title,
-            style      = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.SemiBold,
-            color      = onBg
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text       = title,
+                style      = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color      = onBg
+            )
+            if (badge) {
+                Spacer(Modifier.width(8.dp))
+                UpdateDot()
+            }
+        }
         Spacer(Modifier.height(4.dp))
         Text(
             text  = status,

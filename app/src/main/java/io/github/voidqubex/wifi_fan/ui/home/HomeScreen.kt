@@ -1,5 +1,7 @@
 package io.github.voidqubex.wifi_fan.ui.home
 
+import android.view.WindowManager
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.graphics.drawscope.scale
@@ -286,10 +288,13 @@ fun BleControlScreen(
     var twoCandles by remember { mutableStateOf(ledStore.twoCandles) }
     var keepScreenOn by remember { mutableStateOf(ledStore.keepScreenOn) }
     var updatePrompts by remember { mutableStateOf(ledStore.updatePrompts) }
-    val rootView = LocalView.current
+    // The window's own flag, so the firmware update (which keeps its view's screen-on flag set
+    // while it runs) and this setting can't switch each other off.
     DisposableEffect(keepScreenOn) {
-        rootView.keepScreenOn = keepScreenOn
-        onDispose { rootView.keepScreenOn = false }
+        val window = (context as? Activity)?.window
+        if (keepScreenOn) window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        else window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        onDispose { window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
     }
     // Until the board answers "ver" again, go by what it reported last time, so the layout it has
     // (one LED or two) shows from the first frame instead of popping in.
@@ -360,6 +365,20 @@ fun BleControlScreen(
         if (isConnected && boardVersion != null &&
             (st == OtaState.Idle || st is OtaState.Error || st is OtaState.Done || st is OtaState.UpToDate)
         ) otaManager.checkForUpdate(boardVersion)
+    }
+
+    // Then every 10 s while the app is on screen, quietly (the release feed, which GitHub doesn't
+    // rate limit), so a new release shows up without reopening the app.
+    val pollOwner = LocalLifecycleOwner.current
+    LaunchedEffect(isConnected, boardVersion) {
+        pollOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            while (true) {
+                delay(10_000)
+                AppUpdater.checkQuietly(context)
+                val version = boardVersion
+                if (isConnected && version != null) otaManager.checkQuietly(version)
+            }
+        }
     }
 
     // "What's new" once after an update (a fresh install only remembers its version).

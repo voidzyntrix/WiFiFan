@@ -25,6 +25,9 @@ object FirmwareRepository {
 
     suspend fun latest(): FirmwareRelease? = GitHubReleases.newest(ASSET_NAME)
 
+    /** [latest] from the release feed only: for frequent background checks. */
+    suspend fun latestFromFeed(): FirmwareRelease? = GitHubReleases.newestFromFeedOnly(ASSET_NAME)
+
     /** Downloads the image and checks it fits the board; throws with a readable message if not. */
     suspend fun download(release: FirmwareRelease): ByteArray = withContext(Dispatchers.IO) {
         val image = GitHubReleases.get(release.downloadUrl, limit = APP_MAX + 1)

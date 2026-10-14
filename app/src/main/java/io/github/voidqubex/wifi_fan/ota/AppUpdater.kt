@@ -85,6 +85,32 @@ object AppUpdater {
         }
     }
 
+    /**
+     * A quiet check for the periodic poll: the release feed (not rate limited), no "Checking"
+     * state, and failures change nothing. Only replaces a settled state (idle, up to date,
+     * update available, error), never a running update.
+     */
+    fun checkQuietly(context: Context) {
+        val settled = { s: AppUpdateState ->
+            s == AppUpdateState.Idle || s is AppUpdateState.UpToDate ||
+                s is AppUpdateState.UpdateAvailable || s is AppUpdateState.Error
+        }
+        if (!settled(_state.value)) return
+        val current = installedVersion(context)
+        scope.launch {
+            val latest = runCatching { GitHubReleases.newestFromFeedOnly(ASSET_NAME) }.getOrNull() ?: return@launch
+            val now = _state.value
+            if (!settled(now)) return@launch
+            if (GitHubReleases.compareVersions(latest.version, current) > 0) {
+                if ((now as? AppUpdateState.UpdateAvailable)?.release?.version != latest.version) {
+                    _state.value = AppUpdateState.UpdateAvailable(latest)
+                }
+            } else if (now !is AppUpdateState.UpToDate) {
+                _state.value = AppUpdateState.UpToDate(latest.version)
+            }
+        }
+    }
+
     fun startUpdate(context: Context, release: ReleaseAsset) {
         if (_state.value.busy) return
         val app = context.applicationContext

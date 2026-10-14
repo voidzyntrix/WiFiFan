@@ -150,6 +150,7 @@ internal fun SettingsCard(
     expanded: Boolean,
     modifier: Modifier = Modifier,
     onToggle: () -> Unit,
+    badge: Boolean = false,
     content: @Composable ColumnScope.() -> Unit
 ) {
     val arrow by animateFloatAsState(if (expanded) 90f else -90f, tween(250), label = "cardArrow")
@@ -166,9 +167,13 @@ internal fun SettingsCard(
                 text = title,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.weight(1f)
+                color = MaterialTheme.colorScheme.onSurface
             )
+            if (badge) {
+                Spacer(Modifier.width(8.dp))
+                UpdateDot()
+            }
+            Spacer(Modifier.weight(1f))
             Icon(
                 painter = painterResource(R.drawable.arrow_back),
                 contentDescription = if (expanded) "Minimise $title" else "Expand $title",
@@ -187,6 +192,12 @@ internal fun SettingsCard(
             }
         }
     }
+}
+
+/** The "update available" dot next to a title. */
+@Composable
+internal fun UpdateDot() {
+    Box(Modifier.size(8.dp).clip(circle()).background(MaterialTheme.colorScheme.primary))
 }
 
 @Composable
