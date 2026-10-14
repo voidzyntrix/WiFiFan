@@ -67,6 +67,12 @@
             android:exported="false"
             android:foregroundServiceType="mediaProjection" />
 
+        <!-- Solar: the LEDs follow a FoxESS inverter -->
+        <service
+            android:name=".solar.SolarSyncService"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice" />
+
         <!-- Auto light: reading light in hand, night light when the phone is down and locked -->
         <service
             android:name=".auto.AutoLightService"

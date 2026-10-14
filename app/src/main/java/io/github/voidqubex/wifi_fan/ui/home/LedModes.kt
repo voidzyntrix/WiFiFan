@@ -13,6 +13,8 @@ internal const val LED_MODE_MUSIC = 7
 internal const val LED_MODE_SCREEN = 8
 /** Visualizer: bass, mids and treble of what the speakers play set the colour (app-side, foreground service). */
 internal const val LED_MODE_VISUALIZER = 9
+/** Solar: the grid (LED1) and the home battery (LED2) of a FoxESS inverter (app-side, foreground service). */
+internal const val LED_MODE_SOLAR = 11
 /** Chase (firmware 1.6.0+): LED1's colour bounces between the two LEDs (Linked: both pulse). */
 internal const val LED_MODE_CHASE = 10
 

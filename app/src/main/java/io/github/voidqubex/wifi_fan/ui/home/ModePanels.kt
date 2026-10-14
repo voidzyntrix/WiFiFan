@@ -1,5 +1,7 @@
 package io.github.voidqubex.wifi_fan.ui.home
 
+import io.github.voidqubex.wifi_fan.solar.SolarState
+import io.github.voidqubex.wifi_fan.solar.SolarPolicy
 import io.github.voidqubex.wifi_fan.ui.components.glass
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -165,6 +167,35 @@ internal fun VisualizerPanel(
 }
 
 /** Screen sync status, with a button to stop it. */
+@Composable
+internal fun SolarPanel(state: SolarState, running: Boolean, onStop: () -> Unit, modifier: Modifier = Modifier) {
+    val onBg = MaterialTheme.colorScheme.onBackground
+    PanelCard(modifier) {
+        Text(
+            "Solar",
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = onBg
+        )
+        Spacer(Modifier.height(4.dp))
+        val reading = state.reading
+        PanelHint(
+            when {
+                reading != null -> SolarPolicy.describe(reading) + if (state.demo) "  (demo values)" else ""
+                state.error != null -> state.error
+                running -> "Asking FoxESS for the first reading…"
+                else -> "Starting…"
+            }
+        )
+        if (reading != null && state.error != null) {
+            Spacer(Modifier.height(4.dp))
+            PanelHint("Last try failed: ${state.error}")
+        }
+        Spacer(Modifier.height(16.dp))
+        PillButton("Stop solar", highlighted = false, onClick = onStop)
+    }
+}
+
 @Composable
 internal fun ScreenSyncPanel(running: Boolean, onStop: () -> Unit, modifier: Modifier = Modifier) {
     val onBg = MaterialTheme.colorScheme.onBackground

@@ -29,6 +29,13 @@ class SyncHubTest {
         assertFalse(SyncKind.VISUALIZER.sharesServiceWith(SyncKind.SCREEN))
     }
 
+    @Test fun solarIsItsOwnServiceToo() {
+        assertFalse(SyncKind.SOLAR.sharesServiceWith(SyncKind.MUSIC))
+        assertFalse(SyncKind.SOLAR.sharesServiceWith(SyncKind.SCREEN))
+        assertFalse(SyncKind.VISUALIZER.sharesServiceWith(SyncKind.SOLAR))
+        assertTrue(SyncKind.SOLAR.sharesServiceWith(SyncKind.SOLAR))
+    }
+
     @Test fun aStoppingServiceClearsWhatIsItsOwn() {
         SyncHub.active.value = SyncKind.MUSIC
         SyncHub.level.value = 0.7f

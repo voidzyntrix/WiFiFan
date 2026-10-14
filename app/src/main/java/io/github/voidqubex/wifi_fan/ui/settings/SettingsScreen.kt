@@ -124,6 +124,7 @@ internal fun SettingsScreen(
     var uiOpen by remember { mutableStateOf(!store.categoryCollapsed("ui")) }
     var firmwareOpen by remember { mutableStateOf(!store.categoryCollapsed("firmware")) }
     var autoOpen by remember { mutableStateOf(!store.categoryCollapsed("auto")) }
+    var solarOpen by remember { mutableStateOf(!store.categoryCollapsed("solar")) }
     var cornerStyle by remember { mutableIntStateOf(store.cornerStyle) }
     var customCorner by remember { mutableFloatStateOf(store.customCorner) }
     val onBg = MaterialTheme.colorScheme.onBackground
@@ -271,6 +272,15 @@ internal fun SettingsScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = onBg.copy(alpha = 0.45f)
             )
+        }
+
+        Spacer(Modifier.height(12.dp))
+
+        // ── Solar (FoxESS) ──
+        SettingsCard("Solar (FoxESS)", solarOpen, Modifier.entrance(2), {
+            solarOpen = !solarOpen; store.setCategoryCollapsed("solar", !solarOpen)
+        }) {
+            SolarSettings(store)
         }
 
         Spacer(Modifier.height(12.dp))

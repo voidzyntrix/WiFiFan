@@ -1,5 +1,8 @@
 package io.github.voidqubex.wifi_fan.ui.home
 
+import io.github.voidqubex.wifi_fan.solar.SolarSyncService
+import io.github.voidqubex.wifi_fan.solar.SolarHub
+import io.github.voidqubex.wifi_fan.SecretStore
 import io.github.voidqubex.wifi_fan.ui.theme.appIsDark
 import io.github.voidqubex.wifi_fan.ui.components.bounceCombinedClickable
 import android.view.WindowManager
@@ -597,7 +600,7 @@ fun BleControlScreen(
         LED_MODE_BREATHE -> { sendHsvColour(); sendEffect(LED_MODE_BREATHE) }   // breathes in the picked colour(s)
         LED_MODE_CHASE -> { sendHsvColour(); sendEffect(LED_MODE_CHASE) }       // chases LED1's colour
         LED_MODE_OCEAN, LED_MODE_PARTY, LED_MODE_AURORA -> sendEffect(ledMode)
-        LED_MODE_MUSIC, LED_MODE_VISUALIZER, LED_MODE_SCREEN -> {}   // their services send the colour
+        LED_MODE_MUSIC, LED_MODE_VISUALIZER, LED_MODE_SCREEN, LED_MODE_SOLAR -> {}   // their services send the colour
         else -> sendSolid()
     }
 
@@ -642,6 +645,7 @@ fun BleControlScreen(
     // app closed. This screen starts and stops them, and shows what they report.
     LaunchedEffect(musicKeepColour) { ledStore.musicKeepColour = musicKeepColour }
     val syncActive by SyncHub.active.collectAsState()
+    val solarState by SolarHub.state.collectAsState()
     val syncLevel by SyncHub.level.collectAsState()
     val syncHue by SyncHub.hue.collectAsState()
     val syncSat by SyncHub.sat.collectAsState()
@@ -673,6 +677,7 @@ fun BleControlScreen(
     fun stopSync(kind: SyncKind) {
         when (kind) {
             SyncKind.SCREEN -> ScreenSyncService.stop(context)
+            SyncKind.SOLAR -> SolarSyncService.stop(context)
             SyncKind.MUSIC, SyncKind.VISUALIZER -> AudioSyncService.stop(context)
             SyncKind.NONE -> {}
         }
@@ -757,6 +762,15 @@ fun BleControlScreen(
             LED_MODE_SCREEN -> if (ledMode != LED_MODE_SCREEN) {
                 pendingKind = SyncKind.SCREEN
                 continueToCapture()
+            }
+            LED_MODE_SOLAR -> if (ledMode != LED_MODE_SOLAR) {
+                val ready = ledStore.solarDemo ||
+                    (SecretStore(context).foxApiKey.isNotBlank() && ledStore.foxSerial.isNotBlank())
+                if (ready) ledMode = LED_MODE_SOLAR
+                else {
+                    Toast.makeText(context, "Add your FoxESS API key in Settings → Solar first.", Toast.LENGTH_LONG).show()
+                    showSettings = true
+                }
             }
             LED_MODE_CHASE -> { sendHsvColour(); sendEffect(LED_MODE_CHASE) }   // keeps the colour
             else -> { if (ledKelvinMode) ledKelvinMode = false; sendEffect(mode) }
@@ -860,6 +874,11 @@ fun BleControlScreen(
     LaunchedEffect(musicWanted, syncActive) {
         if (musicWanted && syncActive != SyncKind.MUSIC) AudioSyncService.startMic(context)
     }
+    // Solar starts once it is wanted (it needs no consent, only the board and the internet).
+    val solarWanted = ledMode == LED_MODE_SOLAR && isConnected && ledOn
+    LaunchedEffect(solarWanted, syncActive) {
+        if (solarWanted && syncActive != SyncKind.SOLAR) SolarSyncService.start(context)
+    }
     // Stop what runs for a mode that is no longer shown, or while the LED is off. (Music and
     // Visualizer share one service, which restarts instead when the other one is picked.)
     LaunchedEffect(syncActive, ledMode, ledOn) {
@@ -867,6 +886,7 @@ fun BleControlScreen(
             LED_MODE_MUSIC -> SyncKind.MUSIC
             LED_MODE_VISUALIZER -> SyncKind.VISUALIZER
             LED_MODE_SCREEN -> SyncKind.SCREEN
+            LED_MODE_SOLAR -> SyncKind.SOLAR
             else -> SyncKind.NONE
         }
         if (syncActive != SyncKind.NONE && (wanted == SyncKind.NONE || !syncActive.sharesServiceWith(wanted))) {
@@ -882,6 +902,7 @@ fun BleControlScreen(
             SyncKind.MUSIC -> LED_MODE_MUSIC
             SyncKind.VISUALIZER -> LED_MODE_VISUALIZER
             SyncKind.SCREEN -> LED_MODE_SCREEN
+            SyncKind.SOLAR -> LED_MODE_SOLAR
             SyncKind.NONE -> -1
         }
         if (was != SyncKind.NONE && syncActive == SyncKind.NONE && ledMode == mine) {
@@ -893,7 +914,9 @@ fun BleControlScreen(
         val message = syncError ?: return@LaunchedEffect
         SyncHub.error.value = null
         Toast.makeText(context, message, Toast.LENGTH_LONG).show()
-        if (ledMode == LED_MODE_MUSIC || ledMode == LED_MODE_VISUALIZER || ledMode == LED_MODE_SCREEN) {
+        if (ledMode == LED_MODE_MUSIC || ledMode == LED_MODE_VISUALIZER || ledMode == LED_MODE_SCREEN ||
+            ledMode == LED_MODE_SOLAR
+        ) {
             ledMode = LED_MODE_SOLID
             sendCurrent()
         }
@@ -918,7 +941,7 @@ fun BleControlScreen(
     val previewHue = when (ledMode) {
         LED_MODE_RAINBOW, LED_MODE_PARTY -> rainbowHue
         LED_MODE_CANDLE -> if (flame) flameHue + 5f else candleHue.toFloat()
-        LED_MODE_MUSIC, LED_MODE_VISUALIZER, LED_MODE_SCREEN -> liveHue
+        LED_MODE_MUSIC, LED_MODE_VISUALIZER, LED_MODE_SCREEN, LED_MODE_SOLAR -> liveHue
         LED_MODE_OCEAN -> 205f + 20f * sin(rainbowHue / 360f * 6.2832f)
         LED_MODE_AURORA -> 200f + 80f * sin(rainbowHue / 360f * 6.2832f / 4f)
         else -> hue
@@ -928,7 +951,7 @@ fun BleControlScreen(
         LED_MODE_OCEAN -> 0.9f
         LED_MODE_AURORA -> 0.82f
         LED_MODE_PARTY -> 1f
-        LED_MODE_MUSIC, LED_MODE_VISUALIZER, LED_MODE_SCREEN -> liveSat
+        LED_MODE_MUSIC, LED_MODE_VISUALIZER, LED_MODE_SCREEN, LED_MODE_SOLAR -> liveSat
         else -> sat
     }
     val previewVal = when (ledMode) {
@@ -947,7 +970,7 @@ fun BleControlScreen(
         LED_MODE_RAINBOW -> (rainbowHue + 180f) % 360f
         LED_MODE_PARTY -> (rainbowHue + 120f) % 360f
         LED_MODE_CANDLE -> if (flame) (flameHue - 5f).coerceAtLeast(0f) else candleHue.toFloat()
-        LED_MODE_MUSIC, LED_MODE_VISUALIZER, LED_MODE_SCREEN -> liveHue2
+        LED_MODE_MUSIC, LED_MODE_VISUALIZER, LED_MODE_SCREEN, LED_MODE_SOLAR -> liveHue2
         LED_MODE_OCEAN -> 205f - 20f * sin(phase)
         LED_MODE_AURORA -> 200f - 80f * sin(phase / 4f)
         LED_MODE_CHASE -> hue
@@ -955,7 +978,7 @@ fun BleControlScreen(
     }
     val previewSat2 = when (ledMode) {
         LED_MODE_RAINBOW, LED_MODE_CHASE -> sat
-        LED_MODE_MUSIC, LED_MODE_VISUALIZER, LED_MODE_SCREEN -> liveSat2
+        LED_MODE_MUSIC, LED_MODE_VISUALIZER, LED_MODE_SCREEN, LED_MODE_SOLAR -> liveSat2
         LED_MODE_CANDLE -> if (flame) 0.99f else previewSat
         LED_MODE_OCEAN, LED_MODE_AURORA, LED_MODE_PARTY -> previewSat
         else -> sat2
@@ -974,6 +997,7 @@ fun BleControlScreen(
         LED_MODE_MUSIC -> "Music"
         LED_MODE_VISUALIZER -> "Visualizer"
         LED_MODE_SCREEN -> "Screen sync"
+        LED_MODE_SOLAR -> "Solar"
         LED_MODE_SOLID -> {
             fun label(kel: Boolean, k: Float, h: Float, s: Float) = if (kel) "${(k / 50).roundToInt() * 50} K" else
                 AndroidColor.HSVToColor(floatArrayOf(h, s, 1f)).let {
@@ -1117,7 +1141,8 @@ fun BleControlScreen(
                                 "Reactive" to listOf(
                                     Triple(LED_MODE_MUSIC, "Music", true),
                                     Triple(LED_MODE_VISUALIZER, "Visualizer", true),
-                                    Triple(LED_MODE_SCREEN, "Screen", true)
+                                    Triple(LED_MODE_SCREEN, "Screen", true),
+                                    Triple(LED_MODE_SOLAR, "Solar", true)
                                 )
                             )
                             val modeList = modeGroups.flatMap { it.second }
@@ -1466,6 +1491,14 @@ fun BleControlScreen(
                                     Spacer(Modifier.height(12.dp))
                                     ScreenSyncPanel(
                                         running = syncActive == SyncKind.SCREEN,
+                                        onStop = { startMode(LED_MODE_SOLID) },
+                                        modifier = Modifier.entrance(4)
+                                    )
+                                } else if (ledMode == LED_MODE_SOLAR) {
+                                    Spacer(Modifier.height(12.dp))
+                                    SolarPanel(
+                                        state = solarState,
+                                        running = syncActive == SyncKind.SOLAR,
                                         onStop = { startMode(LED_MODE_SOLID) },
                                         modifier = Modifier.entrance(4)
                                     )
