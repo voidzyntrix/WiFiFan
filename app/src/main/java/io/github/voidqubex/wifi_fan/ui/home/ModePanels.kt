@@ -206,8 +206,8 @@ internal fun SolarPanel(state: SolarState, running: Boolean, onStop: () -> Unit,
         )
         Spacer(Modifier.height(4.dp))
         PanelHint(
-            "LED2, battery: red = empty · orange · green = full · slow breathing = " +
-                "running on battery, grid and sun both off"
+            "LED2, battery: red below 30 % · yellow 30 to 75 % · green above 75 % · " +
+                "breathing = running on battery, grid and sun both off (fast below 20 %)"
         )
         Spacer(Modifier.height(4.dp))
         PanelHint("Blinks: red = low battery, fault or offline · green = battery full with sun to spare")

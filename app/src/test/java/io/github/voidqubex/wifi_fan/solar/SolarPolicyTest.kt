@@ -64,9 +64,21 @@ class SolarPolicyTest {
     }
 
     @Test fun theBreathIsSmoothAndStartsDim() {
-        assertEquals(0.15f, SolarPolicy.breath(0, 3000, 0.15f), 0.001f)
-        assertEquals(1f, SolarPolicy.breath(1500, 3000, 0.15f), 0.001f)
-        assertEquals(0.15f, SolarPolicy.breath(3000, 3000, 0.15f), 0.001f)
+        assertEquals(0.05f, SolarPolicy.breath(0, 3000, 0.05f), 0.001f)
+        assertEquals(1f, SolarPolicy.breath(1500, 3000, 0.05f), 0.001f)
+        assertEquals(0.05f, SolarPolicy.breath(3000, 3000, 0.05f), 0.001f)
+
+    @Test fun batteryColourBands() {
+        assertEquals(120f, SolarPolicy.batteryHue(80f), 0.01f)
+        assertEquals(60f, SolarPolicy.batteryHue(75f), 0.01f)
+        assertEquals(60f, SolarPolicy.batteryHue(30f), 0.01f)
+        assertEquals(0f, SolarPolicy.batteryHue(29f), 0.01f)
+    }
+
+    @Test fun lowBatteryOnBatteryBreathesFast() {
+        assertEquals(true, SolarPolicy.look(reading(soc = 15f, pv = 0f, offGrid = true)).fastPulse2)
+        assertEquals(false, SolarPolicy.look(reading(soc = 50f, pv = 0f, offGrid = true)).fastPulse2)
+    }
     }
 
     @Test fun noBatteryMeansNoBatteryAlert() {

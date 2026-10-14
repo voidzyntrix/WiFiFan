@@ -6,7 +6,10 @@ import kotlin.math.abs
 import kotlin.math.cos
 
 /** What the two LEDs show for a reading: a hue each, and whether it breathes instead of staying solid. */
-data class SolarLook(val hue1: Float, val pulse1: Boolean, val hue2: Float, val pulse2: Boolean)
+data class SolarLook(
+    val hue1: Float, val pulse1: Boolean,
+    val hue2: Float, val pulse2: Boolean, val fastPulse2: Boolean
+)
 
 /** How a [SolarReading] becomes LED colours and blink alerts, as plain Kotlin so it can be tested. */
 object SolarPolicy {
@@ -54,7 +57,8 @@ object SolarPolicy {
     /**
      * Both LEDs. LED1 (grid) pulses while importing more than [HEAVY_IMPORT_KW]. LED2 (battery) keeps
      * the battery colour and breathes only while the grid is down and there is no sun, i.e. the
-     * battery alone carries the house; with grid or sun available it stays solid.
+     * battery alone carries the house; below [BATTERY_FAST_BELOW] that breath is fast. With grid or
+     * sun available it stays solid.
      */
     fun look(r: SolarReading): SolarLook {
         val h1 = led1Hue(r)
@@ -63,7 +67,8 @@ object SolarPolicy {
             hue1 = h1,
             pulse1 = !r.offGrid && r.gridKw > HEAVY_IMPORT_KW,
             hue2 = if (soc != null) batteryHue(soc) else h1,
-            pulse2 = soc != null && r.offGrid && r.pvKw < NO_SUN_KW
+            pulse2 = soc != null && r.offGrid && r.pvKw < NO_SUN_KW,
+            fastPulse2 = soc != null && soc < BATTERY_FAST_BELOW
         )
     }
 
@@ -73,8 +78,21 @@ object SolarPolicy {
         return low + (1f - low) * (0.5f - 0.5f * cos(2.0 * PI * phase)).toFloat()
     }
 
-    /** LED2, the home battery: red when empty to green when full. Degrees of hue. */
-    fun batteryHue(socPercent: Float): Float = socPercent.coerceIn(0f, 100f) * 1.2f
+    /** Battery below this (%) is red. */
+    const val BATTERY_RED_BELOW = 30f
+
+    /** Battery above this (%) is green; between the two it is yellow. */
+    const val BATTERY_GREEN_ABOVE = 75f
+
+    /** Battery below this (%) breathes fast, to show it is nearly empty. */
+    const val BATTERY_FAST_BELOW = 20f
+
+    /** LED2, the home battery: green above 75 %, yellow from 30 % to 75 %, red below 30 %. Degrees of hue. */
+    fun batteryHue(socPercent: Float): Float = when {
+        socPercent > BATTERY_GREEN_ABOVE -> 120f
+        socPercent >= BATTERY_RED_BELOW -> 60f
+        else -> 0f
+    }
 
     /**
      * What the board should blink: red for an inverter fault, a power cut (grid down), no reading
