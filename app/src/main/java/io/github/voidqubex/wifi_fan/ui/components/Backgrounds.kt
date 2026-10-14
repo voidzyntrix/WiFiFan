@@ -96,7 +96,9 @@ private const val SIM_WIDTH = 14f
 /** Liquid fills about the bottom fifth of a phone screen (fewer particles: smooth on slow phones). */
 private const val PARTICLES_PER_AREA = 380f / (14f * 31f)
 /** The liquid is drawn (and blurred into one surface) at this share of the screen's resolution. */
-private const val DRAW_SCALE = 0.5f
+private const val DRAW_SCALE = 0.4f
+/** Frames that take longer than this on average (ms) mean a slow phone: the liquid then redraws at 30 fps. */
+private const val SLOW_FRAME_MS = 20f
 /** At most this many steps a frame: a slow phone runs the liquid a bit slower, not at 10 fps. */
 private const val MAX_STEPS_PER_FRAME = 4
 
@@ -138,36 +140,40 @@ fun FluidBackground(modifier: Modifier = Modifier, tint: Color) {
     LaunchedEffect(sim) {
         if (sim == null || shown == null) return@LaunchedEffect
         var last = withFrameNanos { it }
+        var avgMs = 16f
+        var slow = false
+        var tick = 0
         while (true) {
             val now = withFrameNanos { it }
-            val steps = ((now - last) / 1e9f * STEP_RATE).roundToInt().coerceIn(1, MAX_STEPS_PER_FRAME)
+            val dtMs = (now - last) / 1e6f
+            val steps = (dtMs / 1000f * STEP_RATE).roundToInt().coerceIn(1, MAX_STEPS_PER_FRAME)
             last = now
+            // A phone that can't keep up gets half the redraws (the whole screen redraws with
+            // the liquid); once slow, it stays at 30 fps so it doesn't flip back and forth.
+            avgMs += (dtMs - avgMs) * 0.1f
+            if (avgMs > SLOW_FRAME_MS) slow = true
             withContext(Dispatchers.Default) {
                 val (gx, gy) = motion.screenGravity()
                 repeat(steps) { sim.step(gx * ONE_G, gy * ONE_G, 0f) }
             }
+            if (slow && tick++ % 2 == 1) continue
             for (i in 0 until sim.count) { shown[2 * i] = sim.x[i]; shown[2 * i + 1] = sim.y[i] }
             frame++
         }
     }
 
-    // Two copies of the liquid: the whole blob, and a slightly smaller one that cuts most of
-    // its inside away again. What's left is a bright rim round a faint, see-through body.
+    // One blob, blurred and cut into a smooth surface (a single blur pass a frame, at 40 % size).
     val full = rememberGraphicsLayer()
-    val inner = rememberGraphicsLayer()
     val cell = if (boxW > 0) boxW / SIM_WIDTH * DRAW_SCALE else 1f
     remember(cell) {
         full.renderEffect = metaballs(cell * 0.32f, 0.45f).asComposeRenderEffect()
-        inner.renderEffect = metaballs(cell * 0.32f, 0.7f).asComposeRenderEffect()
-        inner.blendMode = BlendMode.DstOut
-        inner.alpha = 0.8f
     }
     Canvas(
         modifier
             .onSizeChanged { boxW = it.width; boxH = it.height }
             .graphicsLayer {
                 compositingStrategy = CompositingStrategy.Offscreen
-                alpha = 0.75f
+                alpha = 0.5f
             }
     ) {
         @Suppress("UNUSED_EXPRESSION") frame
@@ -178,14 +184,10 @@ fun FluidBackground(modifier: Modifier = Modifier, tint: Color) {
                 drawCircle(tint, r, Offset(shown[2 * i] * cell, shown[2 * i + 1] * cell))
             }
         }
-        // drawn and blurred at half resolution (a quarter of the pixels), then scaled up
+        // drawn and blurred at 40 % size (a sixth of the pixels), then scaled up
         val low = IntSize((size.width * DRAW_SCALE).roundToInt().coerceAtLeast(1), (size.height * DRAW_SCALE).roundToInt().coerceAtLeast(1))
         full.record(size = low, block = particles)
-        inner.record(size = low, block = particles)
-        scale(1f / DRAW_SCALE, pivot = Offset.Zero) {
-            drawLayer(full)
-            drawLayer(inner)
-        }
+        scale(1f / DRAW_SCALE, pivot = Offset.Zero) { drawLayer(full) }
     }
 }
 
