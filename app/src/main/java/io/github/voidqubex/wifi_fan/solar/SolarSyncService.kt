@@ -122,7 +122,7 @@ class SolarSyncService : Service() {
     private fun show(l: LedLink, look: SolarLook) {
         val bri = SyncParams.bri
         val t = SystemClock.elapsedRealtime()
-        val v1 = bri * if (look.pulse1) SolarPolicy.breath(t, BREATH_MS) else 1f
+        val v1 = bri * if (look.pulse1) SolarPolicy.breath(t, FAST_BREATH_MS) else 1f
         val v2 = bri * if (look.pulse2) SolarPolicy.breath(t, BREATH_MS) else 1f
         SyncHub.hue.value = look.hue1
         SyncHub.sat.value = 1f
@@ -199,6 +199,8 @@ class SolarSyncService : Service() {
         private const val RESEND_MS = 10_000L
         private const val PULSE_MS = 200L
         private const val BREATH_MS = 3000L
+        /** Heavy grid import pulses faster, so it reads differently from the battery's slow breath. */
+        private const val FAST_BREATH_MS = 800L
         private const val RETRY_MS = 60_000L
         private const val DEMO_EVERY_MS = 10_000L
 
