@@ -3,12 +3,16 @@ package io.github.voidqubex.wifi_fan.ui.components
 import kotlin.math.sqrt
 
 /**
- * A small particle liquid (Clavet et al. 2005, "Particle-based viscoelastic fluid simulation":
- * double density relaxation plus viscosity) in a box [width] x [height], measured in
- * interaction radii. Positions are prediction-relaxation style: velocities come from how far
- * each particle actually moved, which keeps it stable at a fixed step.
+ * A water-like particle liquid: Position Based Fluids (Macklin & Müller 2013, "Position Based
+ * Fluids") in a box [width] x [height], measured in interaction radii (h = 1). Each step predicts
+ * where the particles go, then solves a constant-density constraint a few times, so the liquid
+ * barely compresses (water is nearly incompressible) instead of springing back like the earlier
+ * solver; XSPH viscosity keeps the flow coherent without making it gloopy. Only overfull regions
+ * are pushed apart, so it splits into drops freely. Time is measured in steps (the caller runs
+ * [step] at a fixed rate), so velocities are radii per step.
  *
- * Gravity and the box's rotation come from the phone's sensors (see FluidBackground).
+ * Gravity comes from the phone's sensors (see FluidBackground). The desktop app's FluidSim.ts
+ * is the same solver.
  */
 internal class FluidSim(val width: Float, val height: Float, val count: Int) {
     val x = FloatArray(count)
@@ -17,6 +21,12 @@ internal class FluidSim(val width: Float, val height: Float, val count: Int) {
     private val vy = FloatArray(count)
     private val px = FloatArray(count)
     private val py = FloatArray(count)
+    private val lambda = FloatArray(count)
+    private val rho = FloatArray(count)
+    private val ddx = FloatArray(count)
+    private val ddy = FloatArray(count)
+    private val nbr = IntArray(count * MAX_NEIGHBOURS)
+    private val nbrCount = IntArray(count)
 
     private val cols = width.toInt() + 1
     private val rows = height.toInt() + 1
@@ -25,7 +35,16 @@ internal class FluidSim(val width: Float, val height: Float, val count: Int) {
     private val cellOf = IntArray(count)
     private val cellFill = IntArray(cols * rows + 1)
 
+    /** Rest density: what a particle inside the starting lattice feels. */
+    private val rho0: Float
+
     init {
+        var r0 = 0f
+        for (a in -2..2) for (b in -2..2) {
+            val r2 = (a * SPACING) * (a * SPACING) + (b * SPACING) * (b * SPACING)
+            if (r2 < 1f) { val q = 1f - r2; r0 += POLY6 * q * q * q }
+        }
+        rho0 = r0
         // a block of liquid resting at the bottom, a little jittered so it settles naturally
         val perRow = (width / SPACING).toInt()
         for (i in 0 until count) {
@@ -43,39 +62,42 @@ internal class FluidSim(val width: Float, val height: Float, val count: Int) {
         val cx = width / 2f
         val cy = height / 2f
         for (i in 0 until count) {
-            vx[i] = (vx[i] + gx) * DAMPING
-            vy[i] = (vy[i] + gy) * DAMPING
-        }
-        bucket()
-        viscosity()
-        for (i in 0 until count) {
-            px[i] = x[i]; py[i] = y[i]
-            var dx = vx[i]
-            var dy = vy[i]
+            var u = vx[i] + gx
+            var v = vy[i] + gy
             if (spin != 0f) {
-                dx += spin * (y[i] - cy)
-                dy -= spin * (x[i] - cx)
+                u += spin * (y[i] - cy)
+                v -= spin * (x[i] - cx)
             }
-            val sp = sqrt(dx * dx + dy * dy)
-            if (sp > MAX_MOVE) { dx *= MAX_MOVE / sp; dy *= MAX_MOVE / sp }
-            x[i] += dx
-            y[i] += dy
+            val sp = sqrt(u * u + v * v)
+            if (sp > MAX_MOVE) { u *= MAX_MOVE / sp; v *= MAX_MOVE / sp }
+            vx[i] = u; vy[i] = v
+            px[i] = x[i]; py[i] = y[i]
+            x[i] = clampX(x[i] + u, i)
+            y[i] = clampY(y[i] + v, i)
         }
-        bucket()
-        relax()
+        findNeighbours()
+        repeat(ITERATIONS) { solveDensity() }
         for (i in 0 until count) {
-            // each particle stops at its own distance from a wall, so a hard shake can't stack
-            // several on the very same spot (exactly overlapping ones never push apart)
-            val wall = WALL + (i % 16) * 0.01f
-            x[i] = x[i].coerceIn(wall, width - wall)
-            y[i] = y[i].coerceIn(wall, height - wall)
             vx[i] = x[i] - px[i]
             vy[i] = y[i] - py[i]
         }
+        xsph()
     }
 
-    /** Sorts particles into one-radius grid cells (counting sort). */
-    private fun bucket() {
+    // each particle stops at its own distance from a wall, so a hard shake can't stack several
+    // on the very same spot (exactly overlapping ones never push apart)
+    private fun clampX(v: Float, i: Int): Float {
+        val wall = WALL + (i % 16) * 0.005f
+        return v.coerceIn(wall, width - wall)
+    }
+
+    private fun clampY(v: Float, i: Int): Float {
+        val wall = WALL + (i % 16) * 0.005f
+        return v.coerceIn(wall, height - wall)
+    }
+
+    /** Grid bucketing (counting sort), then a neighbour list per particle within one radius. */
+    private fun findNeighbours() {
         cellStart.fill(0)
         for (i in 0 until count) {
             val c = (y[i].toInt().coerceIn(0, rows - 1)) * cols + x[i].toInt().coerceIn(0, cols - 1)
@@ -83,76 +105,106 @@ internal class FluidSim(val width: Float, val height: Float, val count: Int) {
             cellStart[c + 1]++
         }
         for (c in 1..cols * rows) cellStart[c] += cellStart[c - 1]
-        val fill = cellFill
-        cellStart.copyInto(fill)
-        for (i in 0 until count) cellItems[fill[cellOf[i]]++] = i
-    }
-
-    private inline fun neighbours(i: Int, body: (j: Int, dx: Float, dy: Float, r: Float) -> Unit) {
-        val c = cellOf[i]
-        val cxI = c % cols
-        val cyI = c / cols
-        for (ny in maxOf(0, cyI - 1)..minOf(rows - 1, cyI + 1)) {
-            for (nx in maxOf(0, cxI - 1)..minOf(cols - 1, cxI + 1)) {
-                val cell = ny * cols + nx
-                for (k in cellStart[cell] until cellStart[cell + 1]) {
-                    val j = cellItems[k]
-                    if (j <= i) continue
-                    val dx = x[j] - x[i]
-                    val dy = y[j] - y[i]
-                    val r2 = dx * dx + dy * dy
-                    if (r2 >= 1f || r2 < 1e-8f) continue
-                    body(j, dx, dy, sqrt(r2))
+        cellStart.copyInto(cellFill)
+        for (i in 0 until count) cellItems[cellFill[cellOf[i]]++] = i
+        for (i in 0 until count) {
+            val c = cellOf[i]
+            val cxI = c % cols
+            val cyI = c / cols
+            var n = 0
+            val base = i * MAX_NEIGHBOURS
+            loop@ for (ny in maxOf(0, cyI - 1)..minOf(rows - 1, cyI + 1)) {
+                for (nx in maxOf(0, cxI - 1)..minOf(cols - 1, cxI + 1)) {
+                    val cell = ny * cols + nx
+                    for (k in cellStart[cell] until cellStart[cell + 1]) {
+                        if (n >= MAX_NEIGHBOURS) break@loop
+                        val j = cellItems[k]
+                        if (j == i) continue
+                        val dx = x[j] - x[i]
+                        val dy = y[j] - y[i]
+                        if (dx * dx + dy * dy < 1f) nbr[base + n++] = j
+                    }
                 }
             }
+            nbrCount[i] = n
         }
     }
 
-    /** Pairs moving towards each other lose some of that speed (thickens the liquid). */
-    private fun viscosity() {
+    /** One Jacobi pass of the density constraint C = rho / rho0 - 1 (only where C > 0). */
+    private fun solveDensity() {
+        val inv = 1f / rho0
         for (i in 0 until count) {
-            neighbours(i) { j, dx, dy, r ->
-                val ux = dx / r
-                val uy = dy / r
-                val u = (vx[i] - vx[j]) * ux + (vy[i] - vy[j]) * uy
-                if (u > 0f) {
-                    val imp = (1f - r / 1f) * (SIGMA * u + BETA * u * u) * 0.5f
-                    vx[i] -= imp * ux; vy[i] -= imp * uy
-                    vx[j] += imp * ux; vy[j] += imp * uy
+            var density = POLY6           // itself
+            var gix = 0f
+            var giy = 0f
+            var sum2 = 0f
+            val base = i * MAX_NEIGHBOURS
+            for (k in 0 until nbrCount[i]) {
+                val j = nbr[base + k]
+                val dx = x[i] - x[j]
+                val dy = y[i] - y[j]
+                val r2 = dx * dx + dy * dy
+                if (r2 >= 1f) continue
+                val q = 1f - r2
+                density += POLY6 * q * q * q
+                if (r2 > 1e-9f) {
+                    val r = sqrt(r2)
+                    val g = SPIKY * (1f - r) * (1f - r) / r * inv
+                    val gx = g * dx
+                    val gy = g * dy
+                    gix += gx; giy += gy
+                    sum2 += gx * gx + gy * gy
                 }
             }
+            rho[i] = density
+            val c = density * inv - 1f
+            lambda[i] = if (c > 0f) -c / (sum2 + gix * gix + giy * giy + RELAXATION) else 0f
+        }
+        for (i in 0 until count) {
+            var sx = 0f
+            var sy = 0f
+            val base = i * MAX_NEIGHBOURS
+            val li = lambda[i]
+            for (k in 0 until nbrCount[i]) {
+                val j = nbr[base + k]
+                val s = li + lambda[j]
+                if (s == 0f) continue
+                val dx = x[i] - x[j]
+                val dy = y[i] - y[j]
+                val r2 = dx * dx + dy * dy
+                if (r2 >= 1f || r2 < 1e-9f) continue
+                val r = sqrt(r2)
+                val g = SPIKY * (1f - r) * (1f - r) / r * inv * s
+                sx += g * dx; sy += g * dy
+            }
+            ddx[i] = sx; ddy[i] = sy
+        }
+        for (i in 0 until count) {
+            x[i] = clampX(x[i] + ddx[i], i)
+            y[i] = clampY(y[i] + ddy[i], i)
         }
     }
 
-    private val density = FloatArray(count)
-    private val nearDensity = FloatArray(count)
-
-    /** Double density relaxation: pushes crowded particles apart, pulls sparse ones together. */
-    private fun relax() {
-        density.fill(0f)
-        nearDensity.fill(0f)
+    /** XSPH: each particle takes on a little of its neighbours' average velocity. */
+    private fun xsph() {
         for (i in 0 until count) {
-            neighbours(i) { j, _, _, r ->
-                val q = 1f - r
-                val q2 = q * q
-                density[i] += q2; density[j] += q2
-                nearDensity[i] += q2 * q; nearDensity[j] += q2 * q
+            var sx = 0f
+            var sy = 0f
+            val base = i * MAX_NEIGHBOURS
+            for (k in 0 until nbrCount[i]) {
+                val j = nbr[base + k]
+                val dx = x[i] - x[j]
+                val dy = y[i] - y[j]
+                val r2 = dx * dx + dy * dy
+                if (r2 >= 1f) continue
+                val q = 1f - r2
+                val w = POLY6 * q * q * q / maxOf(rho[j], 1e-3f)
+                sx += (vx[j] - vx[i]) * w
+                sy += (vy[j] - vy[i]) * w
             }
+            ddx[i] = sx; ddy[i] = sy
         }
-        for (i in 0 until count) {
-            val p = STIFFNESS * (density[i] - REST_DENSITY)
-            val pn = NEAR_STIFFNESS * nearDensity[i]
-            neighbours(i) { j, dx, dy, r ->
-                val q = 1f - r
-                val pj = STIFFNESS * (density[j] - REST_DENSITY)
-                val pnj = NEAR_STIFFNESS * nearDensity[j]
-                val d = ((p + pj) * 0.5f * q + (pn + pnj) * 0.5f * q * q) * 0.5f
-                val ux = dx / r * d
-                val uy = dy / r * d
-                x[i] -= ux; y[i] -= uy
-                x[j] += ux; y[j] += uy
-            }
-        }
+        for (i in 0 until count) { vx[i] += XSPH * ddx[i]; vy[i] += XSPH * ddy[i] }
     }
 
     private fun jitter(seed: Int): Float = ((seed * 1103515245 + 12345) ushr 16 and 0xFF) / 255f * 0.1f - 0.05f
@@ -160,13 +212,18 @@ internal class FluidSim(val width: Float, val height: Float, val count: Int) {
     companion object {
         /** Starting gap between particles, in radii. */
         const val SPACING = 0.5f
-        const val REST_DENSITY = 2.0f
-        const val STIFFNESS = 0.05f
-        const val NEAR_STIFFNESS = 0.1f
-        const val SIGMA = 0.08f
-        const val BETA = 0.05f
-        const val DAMPING = 0.995f
-        const val MAX_MOVE = 0.4f
+        /** Constraint iterations per step: more = stiffer (less compressible). */
+        const val ITERATIONS = 3
+        /** Constraint softening (PBF's epsilon): keeps the solve stable where particles are few. */
+        const val RELAXATION = 0.6f
+        /** XSPH viscosity: how much each particle takes on its neighbours' velocity. */
+        const val XSPH = 0.04f
+        const val MAX_MOVE = 0.35f
         const val WALL = 0.15f
+        const val MAX_NEIGHBOURS = 48
+        /** 2D poly6 normalisation for h = 1: W = POLY6 (1 - r²)³. */
+        const val POLY6 = 1.2732395f        // 4 / pi
+        /** 2D spiky gradient for h = 1: |∇W| = SPIKY (1 - r)². */
+        const val SPIKY = -9.549297f        // -30 / pi
     }
 }
