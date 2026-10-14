@@ -1,5 +1,6 @@
 package io.github.voidqubex.wifi_fan.ui.theme
 
+import androidx.compose.runtime.mutableIntStateOf
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.CornerSize
@@ -43,8 +44,18 @@ object AppLook {
     var haptics by mutableStateOf(true)
     /** How strong the haptics are, 0.1 (faint) to 1 (full). */
     var hapticStrength by mutableFloatStateOf(0.7f)
+    /** Light or dark: 0 follows the phone, 1 always light, 2 always dark. */
+    var themeMode by mutableIntStateOf(0)
     /** How much black lies over the Image background, 0 (none) to 0.95. */
     var imageDim by mutableFloatStateOf(0.9f)
+}
+
+/** Whether the app shows its dark theme: the Settings choice, or the phone's when that says System. */
+@Composable
+fun appIsDark(): Boolean = when (AppLook.themeMode) {
+    1 -> false
+    2 -> true
+    else -> isSystemInDarkTheme()
 }
 
 /** True in the pure Monochrome scheme. */
@@ -168,7 +179,7 @@ private fun coloredScheme(accent: Color, dark: Boolean): ColorScheme {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GlowTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    darkTheme: Boolean = appIsDark(),
     colored: Boolean = false,
     pureMono: Boolean = false,
     accent: Color = DefaultAccent,

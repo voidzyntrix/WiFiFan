@@ -1,5 +1,6 @@
 package io.github.voidqubex.wifi_fan.ui.home
 
+import io.github.voidqubex.wifi_fan.ui.theme.appIsDark
 import io.github.voidqubex.wifi_fan.ui.components.bounceCombinedClickable
 import android.view.WindowManager
 import androidx.lifecycle.repeatOnLifecycle
@@ -186,7 +187,7 @@ fun BleControlScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val isDark = isSystemInDarkTheme()
+    val isDark = appIsDark()
     val mono = colorScheme == AppColorScheme.TINTED
 
     SideEffect {

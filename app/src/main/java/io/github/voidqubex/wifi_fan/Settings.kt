@@ -162,6 +162,10 @@ class SettingsStore(context: Context) {
         get() = prefs.getBoolean("haptics", true)
         set(value) { prefs.edit().putBoolean("haptics", value).apply() }
     /** How strong the haptics are, 0.1 (faint) to 1 (full). */
+    /** Light or dark: 0 follows the phone, 1 always light, 2 always dark. */
+    var themeMode: Int
+        get() = prefs.getInt("theme_mode", 0).coerceIn(0, 2)
+        set(value) { prefs.edit().putInt("theme_mode", value).apply() }
     var imageDim: Float
         get() = prefs.getFloat("image_dim", 0.9f).coerceIn(0f, 0.95f)
         set(value) { prefs.edit().putFloat("image_dim", value).apply() }

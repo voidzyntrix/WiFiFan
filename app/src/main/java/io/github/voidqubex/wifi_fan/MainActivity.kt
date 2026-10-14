@@ -51,6 +51,7 @@ class MainActivity : ComponentActivity() {
         AppLook.haptics = settingsStore.haptics
         AppLook.hapticStrength = settingsStore.hapticStrength
         AppLook.imageDim = settingsStore.imageDim
+        AppLook.themeMode = settingsStore.themeMode
         WindowCompat.setDecorFitsSystemWindows(window, false)
         enableEdgeToEdge()
         setContent {

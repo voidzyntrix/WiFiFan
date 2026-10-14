@@ -291,6 +291,12 @@ internal fun SettingsScreen(
                 }
             }
             SettingGap()
+            SettingHeading("Appearance", "Light or dark, or the same as the phone")
+            SegmentedPill(listOf("System", "Light", "Dark"), AppLook.themeMode) {
+                AppLook.themeMode = it
+                store.themeMode = it
+            }
+            SettingGap()
             SettingHeading("Colour", "Pure grayscale, grayscale with accents, or fully coloured")
             SegmentedPill(listOf("Monochrome", "Tinted", "Coloured"), colorScheme.ordinal) {
                 onColorChange(AppColorScheme.entries[it])
