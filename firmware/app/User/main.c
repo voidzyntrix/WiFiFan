@@ -44,6 +44,14 @@
  *                      smoothly to off over M minutes (1-240), then the LEDs
  *                      are off. Colours and modes sent meanwhile keep fading
  *                      with it. sleep=0 cancels it (full brightness again).
+ *   send  alert=C/S/M -> blink alert (1.8.0), for the phone's battery: C 1 = red,
+ *                      2 = green; two short blinks every S seconds (5-3600) for
+ *                      M minutes (0 = no end). The blinks show over the running
+ *                      mode and give its colours back; they never replace it.
+ *                      The app repeats the command every minute as a sign of
+ *                      life (a repeat only refreshes, the time left is kept);
+ *                      with no byte from the phone for 150 s the alert ends by
+ *                      itself (Bluetooth dropped). alert=0 cancels.
  *   send  ver      ->  replies "VER,<FW_VERSION>"
  *   send  ota      ->  replies "OTA", then restarts into the Bluetooth
  *                      bootloader for a firmware update (see the
@@ -84,7 +92,7 @@
 
 #define WS_USE_DMA   0               /* 1 = timer + DMA, 0 = polled SysTick */
 
-#define FW_VERSION   "1.7.0"     /* reported by "ver"; bump for each release */
+#define FW_VERSION   "1.8.0"     /* reported by "ver"; bump for each release */
 
 #define START_BAUD   115200          /* used until a baud rate has been detected */
 
@@ -1051,6 +1059,64 @@ static void led_poll(void)
 /* ----------------------------------------------------------- commands --- */
 /* A message ends at a line ending (text only) or after a short pause, so app
  * buttons/pickers that send no line ending, or send raw bytes, work too. */
+/* ---------------------------------------------------------- alerts --- */
+#define ALERT_SILENCE_MS 150000u     /* no byte from the phone this long: it is gone */
+
+static uint8_t           alert_kind;                 /* 0 none, 1 red, 2 green */
+static uint8_t           alert_step;                 /* 0 wait, 1 blink 1 shown, 2 gap, 3 blink 2 shown */
+static uint32_t          alert_every_ms, alert_left_ms, alert_wait_ms, alert_quiet_ms, alert_last;
+static volatile uint8_t  rx_flag;                    /* set by the main loop for every received byte */
+
+static void alert_poll(void)
+{
+    if (!alert_kind) return;
+    uint32_t t  = now();
+    uint32_t dt = (t - alert_last) / TICKS_PER_MS;
+    if (dt == 0) return;
+    alert_last += dt * TICKS_PER_MS;
+
+    if (rx_flag) { rx_flag = 0; alert_quiet_ms = 0; }
+    else         alert_quiet_ms += dt;
+    if (alert_quiet_ms >= ALERT_SILENCE_MS) { alert_kind = 0; return; }
+    if (alert_left_ms) {
+        if (dt >= alert_left_ms) { alert_kind = 0; return; }
+        alert_left_ms -= dt;
+    }
+
+    if (flashing) return;                            /* a blink (or another flash) is showing */
+    if (alert_wait_ms > dt) { alert_wait_ms -= dt; return; }
+    alert_wait_ms = 0;
+
+    switch (alert_step) {
+    case 0:
+    case 2:
+        if (alert_kind == 1) led_flash((uint8_t)(BRIGHT * 3), 0, 0, 180);
+        else                 led_flash(0, (uint8_t)(BRIGHT * 3), 0, 180);
+        alert_step++;
+        break;
+    case 1:
+        alert_wait_ms = 220;                         /* the gap between the two blinks */
+        alert_step = 2;
+        break;
+    default:
+        alert_wait_ms = alert_every_ms;
+        alert_step = 0;
+        break;
+    }
+}
+
+static void alert_command(uint8_t kind, uint32_t every_s, uint32_t minutes)
+{
+    if (kind && kind == alert_kind) { alert_quiet_ms = 0; return; }   /* a repeat: just a sign of life */
+    alert_kind     = kind;
+    alert_every_ms = every_s * 1000u;
+    alert_left_ms  = minutes * 60000u;
+    alert_wait_ms  = 0;
+    alert_step     = 0;
+    alert_quiet_ms = 0;
+    alert_last     = now();
+}
+
 #define CMD_IDLE_MS  50              /* a pause this long ends a message */
 #define LINE_MAX     64
 
@@ -1230,6 +1296,14 @@ static void line_end(void)
     else if (strcmp(w, "ota") == 0) {
         enter_bootloader();
     }
+    else if (strncmp(w, "alert=", 6) == 0) {               /* C/S/M, or 0 to cancel */
+        if (parse_nums(w + 6, n, 3, 3600) && n[0] >= 1 && n[0] <= 2 && n[1] >= 5 && n[2] <= 240)
+            alert_command((uint8_t)n[0], n[1], n[2]);
+        else if (parse_nums(w + 6, n, 1, 3600) && n[0] == 0)
+            alert_command(0, 0, 0);
+        else
+            led_flash(BRIGHT, BRIGHT, BRIGHT, 60);
+    }
     else if (strncmp(w, "sleep=", 6) == 0) {               /* minutes, 0 = cancel */
         if (parse_nums(w + 6, n, 1, 240)) {
             sleeping    = n[0] != 0;
@@ -1356,6 +1430,7 @@ int main(void)
     while (1) {
         tx_poll();
         led_poll();
+        alert_poll();
 
         uint32_t nb = ab_poll();
         if (nb) {
@@ -1381,6 +1456,7 @@ int main(void)
         }
         ab.good++;
         last_rx = now();
+        rx_flag = 1;
 
         /* '\', CR and LF end a text message; inside a raw-byte message they are data */
         if ((b == '\\' || b == '\r' || b == '\n') && !line_binary) {

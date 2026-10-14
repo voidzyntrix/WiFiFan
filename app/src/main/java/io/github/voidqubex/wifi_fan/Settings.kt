@@ -162,6 +162,13 @@ class SettingsStore(context: Context) {
         get() = prefs.getBoolean("haptics", true)
         set(value) { prefs.edit().putBoolean("haptics", value).apply() }
     /** How strong the haptics are, 0.1 (faint) to 1 (full). */
+    /** Board blinks for the phone's battery: red when below 20 %, green when full (10 minutes). */
+    var batteryLowAlert: Boolean
+        get() = prefs.getBoolean("battery_low_alert", false)
+        set(value) { prefs.edit().putBoolean("battery_low_alert", value).apply() }
+    var batteryFullAlert: Boolean
+        get() = prefs.getBoolean("battery_full_alert", false)
+        set(value) { prefs.edit().putBoolean("battery_full_alert", value).apply() }
     /** Light or dark: 0 follows the phone, 1 always light, 2 always dark. */
     var themeMode: Int
         get() = prefs.getInt("theme_mode", 0).coerceIn(0, 2)

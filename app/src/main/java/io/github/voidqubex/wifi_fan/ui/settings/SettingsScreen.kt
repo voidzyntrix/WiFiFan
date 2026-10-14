@@ -1,5 +1,6 @@
 package io.github.voidqubex.wifi_fan.ui.settings
 
+import io.github.voidqubex.wifi_fan.battery.BatteryAlert
 import io.github.voidqubex.wifi_fan.ui.components.glass
 import android.content.Intent
 import android.net.Uri
@@ -218,6 +219,25 @@ internal fun SettingsScreen(
             SegmentedPill(listOf("Quick", "Normal", "Slow"), fades.indexOf(fadeMs)) {
                 onFadeMsChange(fades[it])
             }
+            SettingSection("Battery alerts")
+            var batteryLow by remember { mutableStateOf(store.batteryLowAlert) }
+            var batteryFull by remember { mutableStateOf(store.batteryFullAlert) }
+            SettingSwitch(
+                "Low battery", "Two red blinks a minute while the phone is below 20 % and not charging",
+                batteryLow
+            ) { batteryLow = it; store.batteryLowAlert = it; BatteryAlert.refresh() }
+            SwitchGap()
+            SettingSwitch(
+                "Full battery", "Two green blinks a minute for 10 minutes when the phone is fully charged",
+                batteryFull
+            ) { batteryFull = it; store.batteryFullAlert = it; BatteryAlert.refresh() }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = "The board blinks over whatever it shows and stops by itself when Bluetooth drops, " +
+                    "so the board has to stay connected. Needs board firmware 1.8.0.",
+                style = MaterialTheme.typography.bodySmall,
+                color = onBg.copy(alpha = 0.45f)
+            )
             Spacer(Modifier.height(16.dp))
             Text(
                 text = "Candle options, rainbow speed and fade need board firmware 1.3.0 or newer.",
