@@ -16,7 +16,7 @@ const RELAXATION = 0.6
 /** XSPH viscosity: how much each particle takes on its neighbours' velocity. */
 const XSPH = 0.04
 /** A particle never moves further than this in one step (radii). */
-const MAX_MOVE = 0.55
+const MAX_MOVE = 0.75
 const WALL = 0.15
 const MAX_NEIGHBOURS = 48
 

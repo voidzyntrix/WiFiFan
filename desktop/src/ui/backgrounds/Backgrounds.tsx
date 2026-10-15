@@ -290,6 +290,11 @@ function Fluid({ tint, netTint }: { tint: string; netTint: string }) {
       // the pointer is also a paddle: fluid right around it is thrown outwards, the faster it moves
       const speed = Math.hypot(m.dx, m.dy) / cellPx
       const paddle = Math.min(14 * Math.max(1, stir), speed * 0.9 * stir)
+      // From 60 % to 100 % the fluid near the pointer is also dragged up to the pointer's own
+      // speed (radii/s), so a fast sweep sends it racing along instead of nudging it.
+      const extra = Math.max(0, raw - 0.6) / 0.4
+      const follow = Math.min(1, speed * 4)
+      const vmx = Math.max(-70, Math.min(70, m.dx / cellPx / frameS)), vmy = Math.max(-70, Math.min(70, m.dy / cellPx / frameS))
       for (let i = 0; i < s.count; i++) {
         let k = near ? 0 : 1
         let out = 0, ox = 0, oy = 0
@@ -309,6 +314,11 @@ function Fluid({ tint, netTint }: { tint: string; netTint: string }) {
         if (k === 0) continue
         s.vx[i] += pushX * k + ox * out
         s.vy[i] += pushY * k + oy * out
+        if (extra > 0) {
+          const b = Math.min(0.85, extra * follow * 0.5 * Math.min(k, 1.6))
+          s.vx[i] += (vmx - s.vx[i]) * b
+          s.vy[i] += (vmy - s.vy[i]) * b
+        }
       }
     }
     m.dx = 0; m.dy = 0
