@@ -195,6 +195,17 @@ export function useLed() {
   // Modes, power, sleep
   // -------------------------------------------------------------------------
 
+  /**
+   * A sync (Music, Visualizer, Screen) announces itself the moment it runs, before the mode here is
+   * set; while it starts, the "stop a sync the mode doesn't want" effect below must not see that
+   * in-between state and stop it again (that left the panel on "Starting..." for good).
+   */
+  const starting = useRef(false)
+  async function startSync(start: () => Promise<boolean>, patch: Partial<UiState>) {
+    starting.current = true
+    try { if (await start()) update(patch) } finally { starting.current = false }
+  }
+
   async function startMode(mode: number) {
     const s = st.current
     ensureOn()
@@ -206,16 +217,13 @@ export function useLed() {
         return sendRainbow()
       case MODE.CANDLE: return sendCandle()
       case MODE.MUSIC:
-        if (await startMusic()) update({ mode: MODE.MUSIC })
-        return
+        return startSync(startMusic, { mode: MODE.MUSIC })
       case MODE.VISUALIZER:
         if (s.mode === MODE.VISUALIZER && sync.active === 'VISUALIZER') return
-        if (await startVisualizer()) update({ mode: MODE.VISUALIZER, kelvinMode: false })
-        return
+        return startSync(startVisualizer, { mode: MODE.VISUALIZER, kelvinMode: false })
       case MODE.SCREEN:
         if (s.mode === MODE.SCREEN && sync.active === 'SCREEN') return
-        if (await startScreen()) update({ mode: MODE.SCREEN, kelvinMode: false })
-        return
+        return startSync(startScreen, { mode: MODE.SCREEN, kelvinMode: false })
       case MODE.CHASE: sendHsvColour(); return sendEffect(MODE.CHASE)
       default:
         if (s.kelvinMode) s.kelvinMode = false
@@ -383,6 +391,7 @@ export function useLed() {
     const s = st.current
     const wanted = s.bri < MIN_VISIBLE ? 'NONE'
       : s.mode === MODE.MUSIC ? 'MUSIC' : s.mode === MODE.VISUALIZER ? 'VISUALIZER' : s.mode === MODE.SCREEN ? 'SCREEN' : 'NONE'
+    if (starting.current) return
     if (sync.active !== 'NONE' && wanted !== sync.active) stopSync()
   }, [st.current.mode, st.current.bri, sync.active])
 
