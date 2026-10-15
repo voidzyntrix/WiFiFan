@@ -2,6 +2,14 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '1.4.0',
+    notes: [
+      'One-click updates: Update downloads the new Glow, puts it in place of the old one (renamed to the new version) and restarts, all by itself.',
+      'Shortcuts that opened the old file open the new one.',
+      'The update prompt at launch has an Update now button and shows the progress.',
+    ],
+  },
+  {
     version: '1.3.0',
     notes: [
       'Net stiffness: a slider under Dot net sets how taut the net is, from loose and wobbly to snappy.',

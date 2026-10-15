@@ -9,7 +9,7 @@ import { DEFAULT_ACCENT, settings, useSettings, type Background, type ColorSchem
 import { setAutoLight, useAutoStatus } from '../../auto/autoLight'
 import { checkFirmware, otaBusy, startFirmwareUpdate, useOta, type OtaState } from '../../ota/ota'
 import { RELEASES_PAGE } from '../../ota/github'
-import { useAppUpdate, checkAppUpdate } from '../appUpdate'
+import { useAppUpdate, checkAppUpdate, installAppUpdate } from '../appUpdate'
 import {
   CircleIconButton, GradientBar, Hint, PillButton, ProgressBar, SegmentedPill, SettingHeading, SettingSection, SettingSwitch,
 } from '../components/Controls'
@@ -171,14 +171,21 @@ export function SettingsScreen({ onBack, onWhatsNew }: { onBack: () => void; onW
                   {app.kind === 'idle' ? 'New versions are published as GitHub releases.'
                     : app.kind === 'checking' ? 'Checking GitHub…'
                       : app.kind === 'upToDate' ? `Up to date (latest release is v${app.latest}).`
-                        : app.kind === 'available' ? `Version ${app.release.version} is available.` : app.message}
+                        : app.kind === 'available' ? `Version ${app.release.version} is available.`
+                          : app.kind === 'downloading' ? `Downloading v${app.version}…${app.fraction != null ? ` ${Math.floor(app.fraction * 100)} %` : ''}`
+                            : app.kind === 'restarting' ? `Installing v${app.version}. Glow restarts by itself…` : app.message}
                 </Txt>
               </div>
-              <Swap k={app.kind === 'available' ? 'download' : app.kind === 'checking' ? 'progress' : 'check'}>
+              <Swap k={app.kind === 'available' || (app.kind === 'error' && app.release) ? 'update'
+                : app.kind === 'checking' || app.kind === 'downloading' || app.kind === 'restarting' ? 'progress' : 'check'}>
                 {app.kind === 'available'
-                  ? <PillButton text={`Download v${app.release.version}`} highlighted onClick={() => openLink(app.release.downloadUrl)} />
-                  : app.kind === 'checking' ? <ProgressBar fraction={null} />
-                    : <PillButton text="Check for updates" onClick={() => void checkAppUpdate()} />}
+                  ? <PillButton text={`Update to v${app.release.version}`} highlighted onClick={() => void installAppUpdate(app.release)} />
+                  : app.kind === 'error' && app.release
+                    ? <PillButton text="Try again" highlighted onClick={() => void installAppUpdate(app.release!)} />
+                    : app.kind === 'checking' ? <ProgressBar fraction={null} />
+                      : app.kind === 'downloading' ? <ProgressBar fraction={app.fraction} />
+                        : app.kind === 'restarting' ? <ProgressBar fraction={1} />
+                          : <PillButton text="Check for updates" onClick={() => void checkAppUpdate()} />}
               </Swap>
             </div>
             <div className="button-row">

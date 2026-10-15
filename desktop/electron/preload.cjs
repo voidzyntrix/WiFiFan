@@ -31,6 +31,10 @@ contextBridge.exposeInMainWorld('glow', {
     bytes: (url, limit) => ipcRenderer.invoke('net:bytes', url, limit),
     exists: (url) => ipcRenderer.invoke('net:exists', url),
   },
+  update: {
+    install: (url, version) => ipcRenderer.invoke('update:install', url, version),
+    onProgress: (fn) => listen('update:progress', fn),
+  },
   openExternal: (url) => ipcRenderer.send('shell:open', url),
   keepRunning: (on) => ipcRenderer.send('app:keepRunning', on),
 })

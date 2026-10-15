@@ -25,6 +25,11 @@ export interface GlowDesktop {
     bytes(url: string, limit?: number): Promise<Uint8Array>
     exists(url: string): Promise<boolean>
   }
+  update: {
+    /** Downloads the release file, swaps it in for the running Glow and restarts. Rejects with 'UNSUPPORTED' when this Glow can't replace itself. */
+    install(url: string, version: string): Promise<void>
+    onProgress(fn: (p: { received: number; total: number }) => void): () => void
+  }
   openExternal(url: string): void
   keepRunning(on: boolean): void
 }

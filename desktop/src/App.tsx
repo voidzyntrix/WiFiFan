@@ -9,11 +9,11 @@ import { MODE } from './model/modes'
 import type { Scene } from './model/scenes'
 import { settings, useSettings, type PairedBoard } from './settings/store'
 import { useAutoStatus } from './auto/autoLight'
-import { checkFirmware, useOta } from './ota/ota'
-import { checkAppUpdate, useAppUpdate } from './ui/appUpdate'
+import { checkFirmware, useOta, type OtaState } from './ota/ota'
+import { checkAppUpdate, installAppUpdate, useAppUpdate, type AppUpdateState } from './ui/appUpdate'
 import { BackgroundLayer } from './ui/backgrounds/Backgrounds'
 import { GlassLayer } from './ui/backgrounds/Glass'
-import { ActionsDialog, Dialog, NameDialog, PillButton } from './ui/components/Controls'
+import { ActionsDialog, Dialog, NameDialog, PillButton, ProgressBar } from './ui/components/Controls'
 import { ConnectScreen } from './ui/screens/ConnectScreen'
 import { HomeScreen, previewOf } from './ui/screens/HomeScreen'
 import { SettingsScreen } from './ui/screens/SettingsScreen'
@@ -22,7 +22,7 @@ import { applyTheme, useSystemDark } from './ui/theme'
 import { toast, useToasts } from './ui/toast'
 import { WHATS_NEW } from './ui/whatsNew'
 import { sound } from './ui/sound'
-import { pulse, useExit, useFlip, useLeavingList } from './ui/motion'
+import { Swap, pulse, useExit, useFlip, useLeavingList } from './ui/motion'
 
 /** Modes whose preview moves, so the clock only ticks when something animates. */
 const ANIMATED = [MODE.RAINBOW, MODE.CANDLE, MODE.BREATHE, MODE.OCEAN, MODE.PARTY, MODE.AURORA, MODE.CHASE]
@@ -300,19 +300,16 @@ export function App() {
           </Dialog>
         )}
         {d.kind === 'update' && (
-          <Dialog onDismiss={() => setDialog(null)}>
-            <h2 className="dialog-title">Update available</h2>
-            {app.kind === 'available' && <div className="dialog-sub">Glow for Windows v{app.release.version}</div>}
-            {ota.kind === 'available' && <div className="dialog-sub">Board firmware v{ota.release.version}</div>}
-            <div className="dialog-buttons">
-              <PillButton text="Later" onClick={() => setDialog(null)} />
-              <PillButton text="Open Settings" highlighted onClick={() => {
-                setDialog(null)
-                settings.set({ collapsed: { ...settings.get().collapsed, firmware: false } })
-                setShowSettings(true)
-              }} />
-            </div>
-          </Dialog>
+          <UpdateDialog
+            app={app}
+            ota={ota}
+            onLater={() => setDialog(null)}
+            onSettings={() => {
+              setDialog(null)
+              settings.set({ collapsed: { ...settings.get().collapsed, firmware: false } })
+              setShowSettings(true)
+            }}
+          />
         )}
         </div>
       ))}
@@ -321,5 +318,41 @@ export function App() {
         {toastList.map(({ item: t, key, leaving }) => <div key={key} data-flip={key} className={'toast' + (leaving ? ' leaving' : '')}>{t.text}</div>)}
       </div>
     </>
+  )
+}
+
+/** "Update available": Glow's own update is one click (download, swap, restart); firmware lives in Settings. */
+function UpdateDialog(props: { app: AppUpdateState; ota: OtaState; onLater: () => void; onSettings: () => void }) {
+  const { app, ota } = props
+  const installing = app.kind === 'downloading' || app.kind === 'restarting'
+  const release = app.kind === 'available' || app.kind === 'error' ? app.release : undefined
+  return (
+    <Dialog onDismiss={props.onLater}>
+      <h2 className="dialog-title">{installing ? 'Updating Glow' : 'Update available'}</h2>
+      <Swap k={installing ? 'busy' : 'offer'} className="stack">
+        {installing ? (
+          <>
+            <div className="dialog-sub">
+              {app.kind === 'downloading'
+                ? `Downloading v${app.version}…${app.fraction != null ? ` ${Math.floor(app.fraction * 100)} %` : ''}`
+                : app.kind === 'restarting' ? `Installing v${app.version}. Glow restarts by itself…` : ''}
+            </div>
+            <ProgressBar fraction={app.kind === 'downloading' ? app.fraction : 1} />
+          </>
+        ) : (
+          <>
+            {release && <div className="dialog-sub">Glow for Windows v{release.version}</div>}
+            {ota.kind === 'available' && <div className="dialog-sub">Board firmware v{ota.release.version}</div>}
+            {app.kind === 'error' && <div className="dialog-sub">{app.message}</div>}
+            <div className="dialog-buttons">
+              <PillButton text="Later" onClick={props.onLater} />
+              {release
+                ? <PillButton text={app.kind === 'error' ? 'Try again' : 'Update now'} highlighted onClick={() => void installAppUpdate(release)} />
+                : <PillButton text="Open Settings" highlighted onClick={props.onSettings} />}
+            </div>
+          </>
+        )}
+      </Swap>
+    </Dialog>
   )
 }

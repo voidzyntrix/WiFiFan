@@ -12,12 +12,14 @@
 //  - Tray: while Music, Visualizer, Screen sync or Auto light runs, closing the window keeps Glow
 //    running in the tray (the stand-in for the foreground services and their notifications).
 //  - Network: GitHub release files are fetched here, where browser CORS rules don't apply.
+//  - Updates: the UI's "Update" downloads the new Glow.exe, swaps it in and restarts (updater.cjs).
 
 const {
   app, BrowserWindow, ipcMain, session, desktopCapturer, powerMonitor, powerSaveBlocker,
   Tray, Menu, nativeImage, net, shell, screen,
 } = require('electron')
 const path = require('node:path')
+const updater = require('./updater.cjs')
 
 const DEV_URL = process.env.GLOW_DEV_URL   // set by scripts/dev.mjs
 let win = null
@@ -135,6 +137,18 @@ function setupNet() {
   })
   ipcMain.handle('net:exists', async (_e, url) => {
     try { await fetchChecked(url, 'HEAD'); return true } catch { return false }
+  })
+  // One-click update: download, swap the exe, restart. Errors reach the UI as the message text.
+  ipcMain.handle('update:install', async (e, url, version) => {
+    try {
+      await updater.install({
+        url, version,
+        onProgress: (p) => { if (!e.sender.isDestroyed()) e.sender.send('update:progress', p) },
+        quit: () => { quitting = true; app.quit() },
+      })
+    } catch (err) {
+      throw new Error(err && err.message ? err.message : String(err))
+    }
   })
   ipcMain.on('shell:open', (_e, url) => { if (/^https:\/\//.test(url)) shell.openExternal(url) })
 }
