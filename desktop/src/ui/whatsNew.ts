@@ -2,6 +2,12 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '1.6.1',
+    notes: [
+      'Fluid: the outline is the full-brightness colour and the fluid itself is a lot darker.',
+    ],
+  },
+  {
     version: '1.6.0',
     notes: [
       'Fluid is a simple two-tone liquid now: the main colour with a thin lighter outline.',

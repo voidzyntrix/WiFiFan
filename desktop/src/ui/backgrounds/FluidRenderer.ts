@@ -2,8 +2,8 @@
 //  1. every particle is splatted as a small soft blob into a half-resolution density map
 //     (additively, so neighbouring particles melt into one body);
 //  2. the map is blurred a little so the outline comes out smooth;
-//  3. one full-resolution pass colours it: the main fluid in the liquid's colour and a thin
-//     outline, a few pixels wide, in a lighter tone of it. The edge is anti-aliased to the pixel.
+//  3. one full-resolution pass colours it: the main fluid in a dark tone of the liquid's colour and a thin
+//     outline, a few pixels wide, in the colour itself at full brightness. The edge is anti-aliased to the pixel.
 // The surface is drawn where the density passes a threshold that a single lone particle already
 // exceeds, so nothing is too thin to see: drops, spray and thin films all show.
 // The liquid is opaque (it hides whatever is behind it). The result is premultiplied RGBA on its
@@ -18,6 +18,8 @@ const WEIGHT = 0.35
 const MAX_WIDTH = 1920
 /** Density at the surface: below what a lone particle makes, so even one is a (small) drop. */
 const THRESHOLD = 0.15
+/** The fluid is this share of the outline's brightness. */
+const FLUID_DARKNESS = 0.26
 /** Width of the outline, px at 1280 wide (it scales a little with the screen). */
 const OUTLINE = 2.6
 
@@ -233,9 +235,9 @@ export class FluidRenderer {
     gl.uniform1i(this.loc['h.uDensity'], 0)
     gl.uniform2f(this.loc['h.uRes'], w, h)
     const main: [number, number, number] = [rgb[0] / 255, rgb[1] / 255, rgb[2] / 255]
-    gl.uniform3f(this.loc['h.uColor'], main[0], main[1], main[2])
-    // the outline: the same colour, lighter
-    gl.uniform3f(this.loc['h.uOutline'], main[0] + (1 - main[0]) * 0.6, main[1] + (1 - main[1]) * 0.6, main[2] + (1 - main[2]) * 0.6)
+    // the outline is the colour at full brightness; the fluid is a much darker tone of it
+    gl.uniform3f(this.loc['h.uOutline'], main[0], main[1], main[2])
+    gl.uniform3f(this.loc['h.uColor'], main[0] * FLUID_DARKNESS, main[1] * FLUID_DARKNESS, main[2] * FLUID_DARKNESS)
     gl.uniform1f(this.loc['h.uWidth'], OUTLINE * Math.min(1.5, Math.max(0.8, w / 1280)))
     gl.uniform1f(this.loc['h.uT'], THRESHOLD)
     gl.drawArrays(gl.TRIANGLES, 0, 3)
