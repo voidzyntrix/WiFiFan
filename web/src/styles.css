@@ -332,12 +332,13 @@ code { font-family: 'JetBrains Mono', monospace; font-size: 0.9em; }
 
 .led-preview { height: clamp(150px, 26vh, 230px); display: flex; min-height: 0; align-items: center; justify-content: center; gap: 12%; }
 .led-disc {
-  height: 78%; aspect-ratio: 1;
+  /* a circle whatever the box: the height is capped by the width too, never the width alone */
+  height: min(78%, 80cqw); aspect-ratio: 1;
   border-radius: var(--led-radius, 50%);
   border: 2px solid;
   transition: background 0.25s, box-shadow 0.25s, border-color 0.25s, transform 0.25s cubic-bezier(.2,.8,.2,1), opacity 0.3s, height 0.4s cubic-bezier(.2,.8,.2,1), max-width 0.4s;
 }
-.led-preview.pair .led-disc { height: 64%; max-width: 40%; }
+.led-preview.pair .led-disc { height: min(64%, 38cqw); }
 .led-disc.clickable { cursor: pointer; }
 .led-disc.clickable:hover { transform: scale(1.03); }
 .led-preview.pair .led-disc:not(.selected) { opacity: 0.75; }
@@ -701,7 +702,7 @@ md-fab.fab { position: absolute; right: calc(var(--pad) + 2px); bottom: calc(24p
 /* ── Refractive glass: Glass.tsx bends the background under every piece ───
    The pieces draw no blur of their own (it would smear the bend). */
 
-:root[data-glassgl] :is(.panel, .board-tile, .toast, .dialog) { backdrop-filter: none; }
+:root[data-design][data-effects][data-glassgl] :is(.panel, .board-tile, .toast, .dialog) { backdrop-filter: none; }
 :root[data-glassgl] :is(.panel, .board-tile) { background: rgb(0 0 0 / 0.2); border: 1px solid var(--on-bg-8); }
 :root[data-glassgl][data-theme='light'] :is(.panel, .board-tile) { background: rgb(255 255 255 / 0.22); }
 :root[data-glassgl] .toast { background: rgb(0 0 0 / 0.3); }

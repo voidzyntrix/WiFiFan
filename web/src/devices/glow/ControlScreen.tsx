@@ -321,13 +321,13 @@ function ColourTab({ c }: { c: LedController }) {
   const eKelvin = c.editsLed2 ? s.kelvin2 : s.kelvin
   const eSat = c.editsLed2 ? s.sat2 : s.sat
   const eHue = !c.editsLed2 ? shownHue : cycling ? (rainbowHue + 180) % 360 : s.hue2
-  const ledChoice = !s.separate || !c.caps.split ? 0 : 1 + s.editLed
+  const ledChoice = !s.separate || !c.caps.split ? 0 : 1 + Math.min(1, s.editLed)
 
   return (
     <div className="deck colour">
       {c.caps.split && (
         <SegmentedPill
-          options={['Linked', 'LED 1', 'LED 2', 'Both']}
+          options={['Linked', 'LED 1', 'LED 2']}
           selected={ledChoice}
           onSelect={(i) => c.setLedLayout(i > 0, i > 0 ? i - 1 : 0)}
         />

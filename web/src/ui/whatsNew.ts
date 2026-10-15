@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.1.1',
+    notes: [
+      'The two LED previews are circles again (they were squeezed into ovals).',
+      'The LED choice is now Linked, LED 1 or LED 2: Both did the same as Linked.',
+    ],
+  },
+  {
     version: '2.1.0',
     notes: [
       'Material You is now its own design (Settings > Design): solid Material 3 surfaces, buttons, tabs, chips, sliders, dialogs and a floating button. Glass stays as the other design. Phones start with Material You.',
