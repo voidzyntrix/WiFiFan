@@ -7,8 +7,8 @@ in **Settings → App** when its version is newer than the installed one.
 Android only installs an update if:
 
 - it is signed with the **same key** as the installed app, and
-- its `versionCode` is **higher**. The build sets it from `appVersion` in
-  `app/build.gradle.kts` (1.2.3 → 10203), so bumping `appVersion` is enough.
+- its `versionCode` is **higher**. The build sets it from `version` in
+  `web/package.json` (1.2.3 → 10203), so bumping that version is enough.
 
 ## One-time setup
 
@@ -63,7 +63,9 @@ updater (v1.1.0) on them by hand once; from then on they update themselves.
 
 ## Publishing an app release
 
-1. Bump `appVersion` in `app/build.gradle.kts` (e.g. `"1.2.0"`) and commit and push.
+1. Bump `version` in `web/package.json` (e.g. `"1.2.0"`) and commit and push.
+   The Android and Windows apps share that code (`web/`); bump `desktop/package.json`
+   too when the desktop app ships the same change.
 2. Tag that commit and push the tag:
 
    ```
@@ -72,7 +74,7 @@ updater (v1.1.0) on them by hand once; from then on they update themselves.
    ```
 
 3. The **App release** workflow (`.github/workflows/app-release.yml`) checks the
-   tag matches `appVersion`, builds and signs the APK, and publishes release
+   tag matches `web/package.json`, builds the shared app, builds and signs the APK, and publishes release
    `app-v1.2.0` with `wififan-app-1.2.0.apk` attached. Follow it under the repo's
    **Actions** tab. If you drafted the release in the GitHub UI with that tag
    instead, the workflow attaches the APK to it.

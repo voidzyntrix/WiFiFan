@@ -1,86 +1,46 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Bluetooth LE: finding and talking to devices -->
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
     <uses-permission
         android:name="android.permission.BLUETOOTH_SCAN"
-        android:usesPermissionFlags="neverForLocation"
-         />
+        android:usesPermissionFlags="neverForLocation" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <!-- Firmware updates: checks/downloads board firmware from GitHub releases -->
+    <!-- Firmware and app updates from GitHub releases -->
     <uses-permission android:name="android.permission.INTERNET" />
-    <!-- App updates: installs new versions of this app downloaded from GitHub releases -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
-
-    <!-- Music mode: listens to the microphone (asked for only when the mode is picked) -->
+    <!-- Music mode: the microphone (asked for only when the mode is picked) -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
-    <!-- Screen sync mode: screen capture in a foreground service -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
-    <!-- Music mode keeps listening with the app closed -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <!-- Haptics: the app drives the vibration motor itself, at the strength set in Settings -->
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.VIBRATE" />
-    <!-- Auto light: keeps the board link and watches the screen and lock state with the app closed -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
-    <!-- Auto light: keeps the CPU awake only while counting down to Night -->
-    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="true" />
 
     <application
-        android:name=".GlowApp"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
-        android:label="@string/activity_name"
+        android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.Glow">
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:label="@string/app_name"
-            android:theme="@style/Theme.Glow">
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode|density"
+            android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
 
-        <!-- Music (microphone) and Visualizer (speaker capture) -->
-        <service
-            android:name=".audio.AudioSyncService"
-            android:exported="false"
-            android:foregroundServiceType="microphone|mediaProjection" />
-
-        <service
-            android:name=".screen.ScreenSyncService"
-            android:exported="false"
-            android:foregroundServiceType="mediaProjection" />
-
-        <!-- Solar: the LEDs follow a FoxESS inverter -->
-        <service
-            android:name=".solar.SolarSyncService"
-            android:exported="false"
-            android:foregroundServiceType="connectedDevice" />
-
-        <!-- Auto light: reading light in hand, night light when the phone is down and locked -->
-        <service
-            android:name=".auto.AutoLightService"
-            android:exported="false"
-            android:foregroundServiceType="connectedDevice" />
-
         <receiver
-            android:name=".ota.InstallResultReceiver"
+            android:name=".InstallResultReceiver"
             android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />

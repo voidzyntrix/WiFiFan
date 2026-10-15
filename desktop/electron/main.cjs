@@ -1,6 +1,7 @@
 // Glow for Windows: the Electron main process.
 //
-// The UI (src/, React) runs in a Chromium window. This file gives it what a web page can't do
+// The UI is the shared Glow app (web/, React; the same app Glow for Android hosts), built into dist/
+// and run in a Chromium window. This file gives it what a web page can't do
 // on its own, standing in for the Android app's system services:
 //
 //  - Bluetooth: Chromium's Web Bluetooth asks the app to pick a device; the list is forwarded to
@@ -16,7 +17,7 @@
 
 const {
   app, BrowserWindow, ipcMain, session, desktopCapturer, powerMonitor, powerSaveBlocker,
-  Tray, Menu, nativeImage, net, shell, screen,
+  Tray, Menu, nativeImage, net, shell, screen, systemPreferences,
 } = require('electron')
 const path = require('node:path')
 const updater = require('./updater.cjs')
@@ -149,6 +150,13 @@ function setupNet() {
     } catch (err) {
       throw new Error(err && err.message ? err.message : String(err))
     }
+  })
+  // Material You on Windows: the theme grows from the Windows accent colour.
+  ipcMain.handle('theme:accent', () => {
+    try {
+      const c = systemPreferences.getAccentColor()          // RRGGBBAA
+      return c ? `#${c.slice(0, 6)}` : null
+    } catch { return null }
   })
   ipcMain.on('shell:open', (_e, url) => { if (/^https:\/\//.test(url)) shell.openExternal(url) })
 }

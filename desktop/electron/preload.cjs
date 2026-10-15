@@ -1,5 +1,5 @@
 // The bridge between the UI and electron/main.cjs: everything the UI may ask of the desktop.
-// The UI sees it as `window.glow` (typed in src/desktop.ts).
+// The UI sees it as `window.glow` (typed and wrapped in web/src/platform/index.ts).
 
 const { contextBridge, ipcRenderer } = require('electron')
 
@@ -34,6 +34,9 @@ contextBridge.exposeInMainWorld('glow', {
   update: {
     install: (url, version) => ipcRenderer.invoke('update:install', url, version),
     onProgress: (fn) => listen('update:progress', fn),
+  },
+  theme: {
+    accent: () => ipcRenderer.invoke('theme:accent'),
   },
   openExternal: (url) => ipcRenderer.send('shell:open', url),
   keepRunning: (on) => ipcRenderer.send('app:keepRunning', on),

@@ -2,13 +2,13 @@ import java.util.Properties
 
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.compose)
-    alias(libs.plugins.roborazzi)
 }
 
-// The app's version. Bump it for every release; the in-app updater compares it
-// with the newest wififan-app-<version>.apk on GitHub.
-val appVersion = "1.36.0"
+// The app's version: the shared app's (web/package.json), so Android, Windows and the web build
+// always carry the same number. The in-app updater compares it with the newest
+// wififan-app-<version>.apk on GitHub.
+val appVersion: String = Regex(""""version"\s*:\s*"(\d+\.\d+\.\d+)"""")
+    .find(rootProject.file("web/package.json").readText())!!.groupValues[1]
 
 // Release signing: keystore.properties in the project root (local builds) or
 // WIFIFAN_* environment variables (GitHub Actions). See docs/APP_UPDATES.md.
@@ -33,8 +33,6 @@ android {
         versionCode = appVersion.split('.').map { it.toInt() }
             .let { (major, minor, patch) -> major * 10000 + minor * 100 + patch }
         versionName = appVersion
-
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     signingConfigs {
@@ -53,50 +51,32 @@ android {
             // Unsigned without a keystore; Android Studio's "Generate Signed APK" still works.
             signingConfig = signingConfigs.findByName("release")
             isMinifyEnabled = false
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
-            )
         }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
-    buildFeatures {
-        compose = true
-    }
-    // Screenshot tests (Robolectric + Roborazzi) need the merged resources.
-    testOptions {
-        unitTests.isIncludeAndroidResources = true
-    }
-    // Release lint doubles the CI build time; run it on demand with ./gradlew lint.
+    // The shared app, built by `npm run build` in web/, is served from assets/web.
+    sourceSets["main"].assets.srcDir(file("build/generated/webAssets"))
     lint {
         checkReleaseBuilds = false
     }
 }
 
-dependencies {
-    implementation(libs.androidx.core.ktx)
-    implementation(libs.androidx.lifecycle.runtime.ktx)
-    implementation(libs.androidx.activity.compose)
-    implementation(platform(libs.androidx.compose.bom))
-    implementation(libs.androidx.compose.ui)
-    implementation(libs.androidx.compose.ui.graphics)
-    implementation(libs.androidx.compose.ui.tooling.preview)
-    implementation(libs.androidx.compose.material3)
-    testImplementation(libs.junit)
-    testImplementation(libs.androidx.junit)
-    testImplementation(libs.robolectric)
-    testImplementation(libs.roborazzi)
-    testImplementation(libs.roborazzi.compose)
-    testImplementation(libs.roborazzi.junit.rule)
-    testImplementation(platform(libs.androidx.compose.bom))
-    testImplementation(libs.androidx.compose.ui.test.junit4)
-    androidTestImplementation(libs.androidx.junit)
-    androidTestImplementation(libs.androidx.espresso.core)
-    androidTestImplementation(platform(libs.androidx.compose.bom))
-    androidTestImplementation(libs.androidx.compose.ui.test.junit4)
-    debugImplementation(libs.androidx.compose.ui.tooling)
-    debugImplementation(libs.androidx.compose.ui.test.manifest)
+// Copies web/dist (build it first: `npm ci && npm run build` in web/) into the APK's assets/web.
+val copyWebAssets by tasks.registering(Copy::class) {
+    val dist = rootProject.file("web/dist")
+    doFirst {
+        if (!dist.resolve("index.html").exists()) {
+            throw GradleException("web/dist is missing: run `npm ci && npm run build` in web/ first")
+        }
+    }
+    from(dist)
+    into(file("build/generated/webAssets/web"))
+}
+tasks.named("preBuild") { dependsOn(copyWebAssets) }
 
+dependencies {
+    implementation(libs.androidx.webkit)
 }

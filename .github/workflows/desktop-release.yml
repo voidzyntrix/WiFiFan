@@ -25,7 +25,9 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-          cache-dependency-path: desktop/package-lock.json
+          cache-dependency-path: |
+            desktop/package-lock.json
+            web/package-lock.json
 
       - name: Check the tag matches the desktop version
         run: |
@@ -36,7 +38,8 @@ jobs:
           fi
           echo "VERSION=$version" >> "$GITHUB_ENV"
 
-      - run: npm ci
+      - name: Install (the desktop shell and the shared app it builds)
+        run: npm ci && npm --prefix ../web ci
 
       - name: Build the portable exe
         run: npm run dist

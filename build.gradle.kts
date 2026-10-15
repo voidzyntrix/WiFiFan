@@ -1,6 +1,4 @@
-// Top-level build file where you can add configuration options common to all sub-projects/modules.
+// Top-level build file. Glow for Android is a WebView shell (app/) around the shared app (web/).
 plugins {
     alias(libs.plugins.android.application) apply false
-    alias(libs.plugins.kotlin.compose) apply false
-    alias(libs.plugins.roborazzi) apply false
 }

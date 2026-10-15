@@ -30,14 +30,24 @@ jobs:
           # Gradle cache and every release would start cold. Let them write it.
           cache-read-only: false
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
       - name: Check the tag matches the app version
         run: |
-          version=$(sed -n 's/^val appVersion = "\(.*\)"$/\1/p' app/build.gradle.kts)
+          version=$(node -p "require('./web/package.json').version")
           if [ "app-v$version" != "$GITHUB_REF_NAME" ]; then
-            echo "::error::Tag $GITHUB_REF_NAME doesn't match appVersion \"$version\" in app/build.gradle.kts"
+            echo "::error::Tag $GITHUB_REF_NAME doesn't match version \"$version\" in web/package.json"
             exit 1
           fi
           echo "VERSION=$version" >> "$GITHUB_ENV"
+
+      - name: Build the shared app (web/)
+        working-directory: web
+        run: npm ci && npm run build
 
       - name: Restore the signing key
         env:
