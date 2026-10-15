@@ -114,6 +114,9 @@ export function SettingsScreen({ onBack, onWhatsNew }: { onBack: () => void; onW
             <Presence show={p.background === 'FLUID'}>
               <LevelSlider label="Mouse movement" value={p.fluidStir} text={p.fluidStir === 0 ? 'Off' : `${Math.round(p.fluidStir * 100)} %`} onChange={(f) => set({ fluidStir: f })} />
             </Presence>
+            <Presence show={p.background === 'SIMPLE' || p.background === 'FLUID'}>
+              <SettingSwitch title="Dot net" subtitle="A net of dots the mouse pushes around; a push travels through the whole net" checked={p.dotNet} onChange={(v) => set({ dotNet: v })} />
+            </Presence>
             <SettingHeading title="Appearance" subtitle="Light or dark, or the same as Windows" />
             <SegmentedPill options={['System', 'Light', 'Dark']} selected={p.themeMode} onSelect={(i) => set({ themeMode: i })} />
             <SettingHeading title="Colour" subtitle="Pure grayscale, grayscale with accents, or fully coloured" />

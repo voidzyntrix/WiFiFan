@@ -2,6 +2,7 @@
 // Each one registers what it draws into (source.ts), so the refractive glass can bend it.
 
 import { useEffect, useRef, useState } from 'react'
+import { DotNet } from './DotNet'
 import { FluidSim } from './FluidSim'
 import { setBackdropFade, setBackdropSource } from './source'
 import { settings, type Background } from '../../settings/store'
@@ -56,6 +57,16 @@ function useSmoothColor(target: string, rate = 6) {
   }
 }
 
+/** The dot net (DotNet.ts), alive while mounted; null while Settings > Dot net is off. */
+function useDotNet() {
+  const net = useRef<DotNet | null>(null)
+  useEffect(() => {
+    net.current = new DotNet()
+    return () => { net.current?.dispose(); net.current = null }
+  }, [])
+  return net
+}
+
 /** A full-window canvas kept at device resolution, registered as what the glass bends. */
 function useCanvas(scale = 1) {
   const ref = useRef<HTMLCanvasElement>(null)
@@ -93,6 +104,7 @@ function Particles({ active, tint }: { active: boolean; tint: string }) {
   const parts = useRef<Particle[]>(Array.from({ length: 12 }, () => spawn(Math.random())))
   const spawnClock = useRef(0)
   const smooth = useSmoothColor(tint)
+  const net = useDotNet()
   useFrames((_t, dt) => {
     const c = ref.current
     if (!c) return
@@ -111,7 +123,8 @@ function Particles({ active, tint }: { active: boolean; tint: string }) {
     })
     g.clearRect(0, 0, c.width, c.height)
     const dpr = c.width / window.innerWidth
-    g.fillStyle = smooth(dt)
+    const color = smooth(dt)
+    g.fillStyle = color
     for (const p of parts.current) {
       g.globalAlpha = p.a
       g.beginPath()
@@ -119,6 +132,7 @@ function Particles({ active, tint }: { active: boolean; tint: string }) {
       g.fill()
     }
     g.globalAlpha = 1
+    if (settings.get().dotNet) net.current?.frame(g, dt, dpr, color)
   })
   return <canvas ref={ref} className="bg-canvas" />
 }
@@ -204,13 +218,15 @@ function simSize() {
  * Drawn as metaballs at full resolution: dots blurred together and cut at a threshold (the #goo
  * SVG filter, applied by the canvas itself so the glass sees the finished liquid).
  */
-function Fluid({ tint }: { tint: string }) {
+function Fluid({ tint, netTint }: { tint: string; netTint: string }) {
   const ref = useCanvas()
   const dots = useRef<HTMLCanvasElement>(document.createElement('canvas'))
   const sim = useRef<FluidSim | null>(null)
   const mouse = useRef({ x: -1, y: -1, dx: 0, dy: 0 })
   const win = useRef({ x: window.screenX, y: window.screenY, vx: 0, vy: 0 })
   const smooth = useSmoothColor(tint, 5)
+  const smoothNet = useSmoothColor(netTint)
+  const net = useDotNet()
 
   useEffect(() => {
     const make = () => {
@@ -299,6 +315,8 @@ function Fluid({ tint }: { tint: string }) {
     cg.filter = 'url(#goo)'
     cg.drawImage(d, 0, 0)
     cg.filter = 'none'
+    const netColor = smoothNet(dt)
+    if (settings.get().dotNet) net.current?.frame(cg, dt, c.width / window.innerWidth, netColor)
   })
 
   // Blur follows the cell size (0.32 of a cell, as on Android), in canvas pixels.
@@ -380,7 +398,7 @@ export function BackgroundLayer(props: {
   switch (shown) {
     case 'SIMPLE': return <Particles active={props.active} tint={props.tint} />
     case 'AURORA': return <Aurora hue={props.active ? props.hue : 200} sat={props.active ? props.sat : 0.7} />
-    case 'FLUID': return <Fluid tint={props.liquid} />
+    case 'FLUID': return <Fluid tint={props.liquid} netTint={props.tint} />
     case 'IMAGE': return <Photo dim={props.imageDim} />
     default: return null
   }

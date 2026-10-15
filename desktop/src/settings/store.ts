@@ -70,6 +70,8 @@ export interface Settings {
   autoSnapshot: string | null
   /** Fluid background: how hard the mouse stirs the liquid (0..1). */
   fluidStir: number
+  /** A net of dots the mouse pushes around, behind the Particles and Fluid backgrounds. */
+  dotNet: boolean
   captureDisplay: number
 }
 
@@ -128,6 +130,7 @@ const DEFAULTS: Settings = {
   autoBrightScene: 2,
   autoSnapshot: null,
   fluidStir: 0.6,
+  dotNet: true,
   captureDisplay: 0,
 }
 

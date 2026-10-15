@@ -2,6 +2,14 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '1.2.0',
+    notes: [
+      'Dot net: the Particles and Fluid backgrounds now carry a net of dots joined by lines.',
+      'Move the mouse through it to push dots away; each dot tugs its neighbours, so the movement travels through the net as a wave.',
+      'Settings > App UI > Dot net turns it off.',
+    ],
+  },
+  {
     version: '1.1.0',
     notes: [
       'Everything is glass: every card, button, pill, switch, slider, menu, dialog and toast either blurs or (with Refractive glass) bends what is behind it.',
