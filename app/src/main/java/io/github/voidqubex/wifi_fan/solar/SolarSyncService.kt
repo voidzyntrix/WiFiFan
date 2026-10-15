@@ -12,6 +12,7 @@ import android.content.pm.ServiceInfo
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.PowerManager
 import android.os.SystemClock
 import io.github.voidqubex.wifi_fan.GlowApp
 import io.github.voidqubex.wifi_fan.MainActivity
@@ -47,6 +48,7 @@ import kotlin.math.sin
 class SolarSyncService : Service() {
     private var scope: CoroutineScope? = null
     private var link: LedLink? = null
+    private var wakeLock: PowerManager.WakeLock? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -129,6 +131,9 @@ class SolarSyncService : Service() {
                 }
                 val look = reading?.let { SolarPolicy.look(it) }
                 look?.let { show(l, it) }
+                // Breathing is driven from here five times a second: with the screen off the CPU would
+                // sleep and it would stop, so keep it awake while (and only while) something breathes.
+                holdAwake(look != null && (look.pulse1 || look.pulse2))
                 AlertCenter.set("solar", SolarPolicy.alertFor(reading, now - lastGood, store.solarLowPercent))
                 // Breathing needs about five updates a second; steady colours only every 10 s.
                 delay(if (look != null && (look.pulse1 || look.pulse2)) PULSE_MS else RESEND_MS)
@@ -173,8 +178,21 @@ class SolarSyncService : Service() {
         return START_NOT_STICKY
     }
 
+    @Synchronized
+    private fun holdAwake(on: Boolean) {
+        if (on) {
+            val lock = wakeLock ?: getSystemService(PowerManager::class.java)
+                .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Glow:Solar")
+                .also { it.setReferenceCounted(false); wakeLock = it }
+            if (!lock.isHeld) lock.acquire()
+        } else {
+            wakeLock?.let { if (it.isHeld) it.release() }
+        }
+    }
+
     override fun onDestroy() {
         scope?.cancel()
+        holdAwake(false)
         scope = null
         AlertCenter.set("solar", AlertKind.NONE)
         // Changing the mode starts the new service before this one stops: if another sync is up by
