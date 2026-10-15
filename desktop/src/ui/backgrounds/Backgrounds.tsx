@@ -76,7 +76,7 @@ function drawNet(
 ) {
   const st = settings.get()
   if (!st.dotNet || !net) return
-  if (st.dotNetStyle === 'CELLS') net.cells.frame(g, dt, scale, color, st.dotNetStiffness, st.dotNetOpacity, 0.4 + st.fluidStir * 1.2, fluid)
+  if (st.dotNetStyle === 'CELLS') net.cells.frame(g, dt, scale, color, st.dotNetStiffness, st.dotNetOpacity, fluid)
   else net.dots.frame(g, dt, scale, color, st.dotNetStiffness, st.dotNetOpacity)
 }
 

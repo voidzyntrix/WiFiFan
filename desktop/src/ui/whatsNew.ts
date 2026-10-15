@@ -2,6 +2,14 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '1.12.2',
+    notes: [
+      'Cells net: waves going up are green and going down amber, as well as red for left and blue for right.',
+      'The colours fade out slowly and are averaged with the neighbouring cells, so they come out smooth.',
+      'The mouse no longer touches the grid: it moves the fluid, and the fluid stirs the grid.',
+    ],
+  },
+  {
     version: '1.12.1',
     notes: [
       'Cells net: black where nothing moves, red where a wave travels left, blue where it travels right.',

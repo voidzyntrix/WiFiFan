@@ -134,7 +134,7 @@ export function SettingsScreen({ onBack, onWhatsNew }: { onBack: () => void; onW
             </Presence>
             <Presence show={p.dotNet && (p.background === 'SIMPLE' || p.background === 'FLUID')}>
               <div className="stack">
-                <SettingHeading title="Net style" subtitle={p.dotNetStyle === 'CELLS' ? 'A grid of cells: waves travel across it, stirred by the mouse and the fluid' : 'Dots joined by lines, pushed around by the mouse'} />
+                <SettingHeading title="Net style" subtitle={p.dotNetStyle === 'CELLS' ? 'A grid of cells: waves travel across it, stirred by the fluid and carried along with it' : 'Dots joined by lines, pushed around by the mouse'} />
                 <SegmentedPill options={['Dots', 'Cells']} selected={p.dotNetStyle === 'CELLS' ? 1 : 0} onSelect={(i) => set({ dotNetStyle: i === 1 ? 'CELLS' : 'DOTS' })} />
               </div>
             </Presence>

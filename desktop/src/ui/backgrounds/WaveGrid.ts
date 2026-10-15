@@ -2,16 +2,16 @@
 // that carries waves.
 //  - Every cell has a height and a vertical speed; each step a cell is pulled towards the average
 //    of its four neighbours (the wave equation), so a disturbance spreads out as rings and
-//    bounces off the edges of the window. Stiffness is the wave speed.
-//  - The mouse presses the grid down where it points (Ctrl: lifts it up), so moving it draws a
-//    wake and a held pointer keeps a dent that sends rings outwards.
+//    bounces off the edges of the window. Stiffness is the wave speed. The heights are also
+//    smoothed a little by their neighbours every step, so the field stays soft, not grainy.
 //  - The fluid stirs it: wherever fluid arrives in a cell or leaves it (a slosh, a splash, a
-//    pointer shoving it about) the cell is kicked, so the moving surface sends waves across the
-//    grid. And the waves ride along with the fluid: inside it, the heights are carried by the
-//    fluid's own velocity.
-// Cells are black where the grid is at rest. Where a wave passes, a cell glows red if the wave is
-// travelling to the left and blue if it is travelling to the right (the sideways flow of the
-// wave's energy), brighter the stronger the wave; faint lines show the grid itself.
+//    shove) the cell is kicked, so the moving surface sends waves across the grid. And the waves
+//    ride along with the fluid: inside it, the heights are carried by the fluid's own velocity.
+//    The mouse does not touch the grid; it only moves the fluid.
+// Cells are black where the grid is at rest. Where a wave passes, a cell glows by the direction
+// the wave travels (the flow of its energy): red = left, blue = right, green = up, amber = down.
+// The glow lingers and fades out slowly, and is averaged with the neighbouring cells so it comes
+// out smooth. Faint lines show the grid itself.
 // Units are CSS px and seconds; drawing scales to the canvas.
 
 import type { FluidSim } from './FluidSim'
@@ -22,13 +22,19 @@ const CELL = 26
 const SPEED = 30
 /** How fast waves die out (per second). */
 const DAMPING = 3.6
-/** The mouse's reach in cells, and its push (height-speed per second at the middle). */
-const REACH = 5
-const MOUSE_KICK = 70
+/** How much of the neighbours' average each cell takes on per step (smoothing). */
+const SMOOTH = 0.12
 /** A cell's change in fluid cover kicks its height by this much. */
-const FLUID_KICK = 6
+const FLUID_KICK = 8
 const STEP = 1 / 120
 const LIMIT = 2
+/** How long a glow lingers: its strength falls to a third in this many seconds. */
+const LINGER = 1.8
+/** How strongly a wave lights a cell. */
+const GAIN = 14
+
+/** left, right, up, down */
+const COLOURS: [number, number, number][] = [[255, 59, 59], [47, 107, 255], [47, 209, 107], [255, 204, 47]]
 
 export class WaveGrid {
   private cols = 0
@@ -43,39 +49,21 @@ export class WaveGrid {
   private count = new Float32Array(0)
   private cover = new Float32Array(0)     // 0..1, how much fluid is in a cell
   private lastCover = new Float32Array(0)
-  private mouse = { x: -1e4, y: -1e4 }
-  private pull = false
+  private glow = new Float32Array(0)      // per cell: left, right, up, down (0..1), fading slowly
+  private soft = new Float32Array(0)      // the glow averaged with the neighbours, for drawing
   private left = 0
   private seenFluid = false
   private resizeTimer = 0
-  private readonly onMove: (e: PointerEvent) => void
-  private readonly onLeave: () => void
-  private readonly onKey: (e: KeyboardEvent) => void
-  private readonly onBlur: () => void
   private readonly onResize: () => void
 
   constructor() {
     this.build()
-    this.onMove = (e) => { this.mouse.x = e.clientX; this.mouse.y = e.clientY; this.pull = e.ctrlKey }
-    this.onLeave = () => { this.mouse.x = this.mouse.y = -1e4 }
-    this.onKey = (e) => { if (e.key === 'Control') this.pull = e.type === 'keydown' }
-    this.onBlur = () => { this.pull = false; this.onLeave() }
     this.onResize = () => { window.clearTimeout(this.resizeTimer); this.resizeTimer = window.setTimeout(() => this.build(), 200) }
-    window.addEventListener('pointermove', this.onMove)
-    document.addEventListener('pointerleave', this.onLeave)
-    window.addEventListener('keydown', this.onKey)
-    window.addEventListener('keyup', this.onKey)
-    window.addEventListener('blur', this.onBlur)
     window.addEventListener('resize', this.onResize)
   }
 
   dispose() {
     window.clearTimeout(this.resizeTimer)
-    window.removeEventListener('pointermove', this.onMove)
-    document.removeEventListener('pointerleave', this.onLeave)
-    window.removeEventListener('keydown', this.onKey)
-    window.removeEventListener('keyup', this.onKey)
-    window.removeEventListener('blur', this.onBlur)
     window.removeEventListener('resize', this.onResize)
   }
 
@@ -86,6 +74,9 @@ export class WaveGrid {
     this.rows = Math.ceil(hgt / this.cell) + 1
     const n = this.cols * this.rows
     for (const k of ['h', 'v', 'tmpH', 'tmpV', 'flowX', 'flowY', 'count', 'cover', 'lastCover'] as const) this[k] = new Float32Array(n)
+    this.glow = new Float32Array(n * 4)
+    this.soft = new Float32Array(n * 4)
+    this.seenFluid = false
   }
 
   /** Reads the fluid: where it is (cover) and how it moves (flow), per cell. */
@@ -108,7 +99,7 @@ export class WaveGrid {
     }
   }
 
-  private step(dt: number, c2: number, mouseKick: number, hasFluid: boolean) {
+  private step(dt: number, c2: number, hasFluid: boolean) {
     const { cols, rows, h, v, tmpH, tmpV, flowX, flowY, count } = this
     const n = cols * rows
 
@@ -132,46 +123,30 @@ export class WaveGrid {
       h.set(tmpH); v.set(tmpV)
     }
 
-    // the wave equation (edges reflect)
+    // the wave equation (edges reflect), with each height also drawn towards its neighbours' average
     for (let y = 0; y < rows; y++) {
       for (let x = 0; x < cols; x++) {
         const i = y * cols + x
         const l = x > 0 ? h[i - 1] : h[i], r = x < cols - 1 ? h[i + 1] : h[i]
         const u = y > 0 ? h[i - cols] : h[i], d = y < rows - 1 ? h[i + cols] : h[i]
         v[i] += (c2 * (l + r + u + d - 4 * h[i]) - DAMPING * v[i]) * dt
+        tmpH[i] = (l + r + u + d) * 0.25
       }
     }
-
-    // the mouse presses the grid down (Ctrl: up)
-    const m = this.mouse
-    if (m.x > -1e3 && mouseKick > 0) {
-      const mx = m.x / this.cell, my = m.y / this.cell
-      const x0 = Math.max(0, Math.floor(mx - REACH)), x1 = Math.min(cols - 1, Math.ceil(mx + REACH))
-      const y0 = Math.max(0, Math.floor(my - REACH)), y1 = Math.min(rows - 1, Math.ceil(my + REACH))
-      const sgn = this.pull ? 1 : -1
-      for (let y = y0; y <= y1; y++) {
-        for (let x = x0; x <= x1; x++) {
-          const d = Math.hypot(x + 0.5 - mx, y + 0.5 - my)
-          if (d >= REACH) continue
-          const f = 1 - d / REACH
-          v[y * cols + x] += sgn * mouseKick * f * f * dt
-        }
-      }
-    }
-
     for (let i = 0; i < n; i++) {
       h[i] += v[i] * dt
+      h[i] += (tmpH[i] - h[i]) * SMOOTH
       if (h[i] > LIMIT) { h[i] = LIMIT; v[i] = 0 } else if (h[i] < -LIMIT) { h[i] = -LIMIT; v[i] = 0 }
     }
   }
 
   /**
    * Advances by `dt` seconds and draws onto `g` (a canvas `scale` times larger than CSS px).
-   * `fluid` is the liquid in the window, when there is one; `mouse` scales the pointer's push.
+   * `fluid` is the liquid in the window, when there is one; without it the grid stays at rest.
    */
   frame(
     g: CanvasRenderingContext2D, dt: number, scale: number, color: string, stiffness: number, opacity: number,
-    mouse: number, fluid?: { sim: FluidSim; cellPx: number },
+    fluid?: { sim: FluidSim; cellPx: number },
   ) {
     const tension = 2 ** ((stiffness - 0.5) * 4)
     const speed = SPEED * Math.sqrt(tension)
@@ -194,9 +169,38 @@ export class WaveGrid {
     }
 
     this.left += Math.min(0.05, dt)
-    while (this.left >= STEP) { this.step(STEP, c2, MOUSE_KICK * mouse, !!fluid); this.left -= STEP }
+    while (this.left >= STEP) { this.step(STEP, c2, !!fluid); this.left -= STEP }
 
-    const { cols, rows, h, v } = this
+    const { cols, rows, h, v, glow, soft } = this
+    const n = cols * rows
+
+    // the glow: how strongly a wave travels in each direction now, kept while it fades slowly
+    const keep = Math.exp(-dt / LINGER)
+    for (let y = 0; y < rows; y++) {
+      for (let x = 0; x < cols; x++) {
+        const i = y * cols + x
+        const dhdx = ((x < cols - 1 ? h[i + 1] : h[i]) - (x > 0 ? h[i - 1] : h[i])) * 0.5
+        const dhdy = ((y < rows - 1 ? h[i + cols] : h[i]) - (y > 0 ? h[i - cols] : h[i])) * 0.5
+        // the energy of a wave flows with -v * grad h (positive x = right, positive y = down)
+        const fx = -v[i] * dhdx, fy = -v[i] * dhdy
+        const t0 = 1 - Math.exp(-GAIN * Math.max(0, -fx)), t1 = 1 - Math.exp(-GAIN * Math.max(0, fx))
+        const t2 = 1 - Math.exp(-GAIN * Math.max(0, -fy)), t3 = 1 - Math.exp(-GAIN * Math.max(0, fy))
+        const o = i * 4
+        glow[o] = Math.max(t0, glow[o] * keep)
+        glow[o + 1] = Math.max(t1, glow[o + 1] * keep)
+        glow[o + 2] = Math.max(t2, glow[o + 2] * keep)
+        glow[o + 3] = Math.max(t3, glow[o + 3] * keep)
+      }
+    }
+    // averaged with the neighbours, so it comes out smooth
+    for (let y = 0; y < rows; y++) {
+      for (let x = 0; x < cols; x++) {
+        const o = (y * cols + x) * 4
+        const l = x > 0 ? o - 4 : o, r = x < cols - 1 ? o + 4 : o, u = y > 0 ? o - cols * 4 : o, d = y < rows - 1 ? o + cols * 4 : o
+        for (let c = 0; c < 4; c++) soft[o + c] = 0.4 * glow[o + c] + 0.15 * (glow[l + c] + glow[r + c] + glow[u + c] + glow[d + c])
+      }
+    }
+
     const cs = this.cell * scale
     g.save()
     g.lineWidth = Math.max(1, scale)
@@ -210,18 +214,17 @@ export class WaveGrid {
     for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) g.rect(x * cs + inset, y * cs + inset, side, side)
     g.fill()
 
-    // red: a wave going left, blue: a wave going right. The energy of a wave flows with -v * dh/dx.
-    for (let y = 0; y < rows; y++) {
-      for (let x = 0; x < cols; x++) {
-        const i = y * cols + x
-        const dhdx = ((x < cols - 1 ? h[i + 1] : h[i]) - (x > 0 ? h[i - 1] : h[i])) * 0.5
-        const flow = -v[i] * dhdx
-        const m = Math.abs(flow)
-        if (m < 0.002) continue
-        g.globalAlpha = al(0.9 * (1 - Math.exp(-14 * m)))
-        g.fillStyle = flow > 0 ? '#2f6bff' : '#ff3b3b'
-        g.fillRect(x * cs + inset, y * cs + inset, side, side)
-      }
+    // coloured by the direction the waves go
+    for (let i = 0; i < n; i++) {
+      const o = i * 4
+      const sum = soft[o] + soft[o + 1] + soft[o + 2] + soft[o + 3]
+      if (sum < 0.02) continue
+      let r = 0, gr = 0, b = 0
+      for (let c = 0; c < 4; c++) { const w = soft[o + c]; r += COLOURS[c][0] * w; gr += COLOURS[c][1] * w; b += COLOURS[c][2] * w }
+      g.globalAlpha = al(0.9 * Math.min(1, sum))
+      g.fillStyle = `rgb(${Math.round(r / sum)} ${Math.round(gr / sum)} ${Math.round(b / sum)})`
+      const x = i % cols, y = (i - x) / cols
+      g.fillRect(x * cs + inset, y * cs + inset, side, side)
     }
 
     // the grid itself, faint
