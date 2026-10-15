@@ -112,7 +112,8 @@ export function SettingsScreen({ onBack, onWhatsNew }: { onBack: () => void; onW
               <LevelSlider label="Darkness" value={p.imageDim / 0.95} text={`${Math.round(p.imageDim * 100)} %`} onChange={(f) => set({ imageDim: f * 0.95 })} />
             </Presence>
             <Presence show={p.background === 'FLUID'}>
-              <LevelSlider label="Mouse movement" value={p.fluidStir} text={p.fluidStir === 0 ? 'Off' : `${Math.round(p.fluidStir * 100)} %`} onChange={(f) => set({ fluidStir: f })} />
+              <LevelSlider label="Mouse movement" value={p.fluidStir} text={p.fluidStir === 0 ? 'Off' : `${Math.round(p.fluidStir * 100)} %`} onChange={(f) => set({ fluidStir: f })}
+                hint="The pointer pushes the fluid away, moving or not. Hold Ctrl to pull it in instead." />
             </Presence>
             <Presence show={p.background === 'FLUID'}>
               <LevelSlider label="Viscosity" value={p.fluidViscosity} text={p.fluidViscosity < 0.2 ? 'Watery' : p.fluidViscosity > 0.8 ? 'Thick' : `${Math.round(p.fluidViscosity * 100)} %`}

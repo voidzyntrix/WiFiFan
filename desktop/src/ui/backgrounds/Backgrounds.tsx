@@ -232,6 +232,7 @@ function Fluid({ tint, netTint }: { tint: string; netTint: string }) {
   const dots = useRef<HTMLCanvasElement>(document.createElement('canvas'))
   const sim = useRef<FluidSim | null>(null)
   const mouse = useRef({ x: -1, y: -1, dx: 0, dy: 0 })
+  const pull = useRef(false)    // Ctrl is held: the pointer attracts instead of pushing
   const win = useRef({ x: window.screenX, y: window.screenY, vx: 0, vy: 0 })
   const smooth = useSmoothColor(tint, 5)
   const smoothNet = useSmoothColor(netTint)
@@ -252,14 +253,24 @@ function Fluid({ tint, netTint }: { tint: string; netTint: string }) {
       const m = mouse.current
       if (m.x >= 0) { m.dx += e.clientX - m.x; m.dy += e.clientY - m.y }
       m.x = e.clientX; m.y = e.clientY
+      pull.current = e.ctrlKey
     }
     const leave = () => { mouse.current.x = -1 }
+    // Holding Ctrl turns the pointer's push into a pull
+    const key = (e: KeyboardEvent) => { if (e.key === 'Control') pull.current = e.type === 'keydown' }
+    const blur = () => { pull.current = false }
     window.addEventListener('resize', resize)
     window.addEventListener('pointermove', move)
+    window.addEventListener('keydown', key)
+    window.addEventListener('keyup', key)
+    window.addEventListener('blur', blur)
     document.addEventListener('pointerleave', leave)
     return () => {
       window.removeEventListener('resize', resize)
       window.removeEventListener('pointermove', move)
+      window.removeEventListener('keydown', key)
+      window.removeEventListener('keyup', key)
+      window.removeEventListener('blur', blur)
       document.removeEventListener('pointerleave', leave)
     }
   }, [])
@@ -285,8 +296,9 @@ function Fluid({ tint, netTint }: { tint: string; netTint: string }) {
     if ((m.dx || m.dy) && stir > 0) {
       const cap = 12 * Math.max(1, stir)
       const lim = (v: number) => Math.max(-cap, Math.min(cap, v))
-      const pushX = lim((m.dx / cellPx) * MOUSE_PUSH * stir * 4)
-      const pushY = lim((m.dy / cellPx) * MOUSE_PUSH * stir * 4)
+      const sgn = pull.current ? -1 : 1          // Ctrl inverts everything the pointer does
+      const pushX = sgn * lim((m.dx / cellPx) * MOUSE_PUSH * stir * 4)
+      const pushY = sgn * lim((m.dy / cellPx) * MOUSE_PUSH * stir * 4)
       const mx = m.x / cellPx, my = m.y / cellPx
       const near = settings.get().fluidNearMouse
       // the pointer is also a paddle: fluid right around it is thrown outwards, the faster it moves
@@ -296,7 +308,7 @@ function Fluid({ tint, netTint }: { tint: string; netTint: string }) {
       // speed (radii/s), so a fast sweep sends it racing along instead of nudging it.
       const extra = Math.max(0, raw - 0.6) / 0.4
       const follow = Math.min(1, speed * 4)
-      const vmx = Math.max(-70, Math.min(70, m.dx / cellPx / frameS)), vmy = Math.max(-70, Math.min(70, m.dy / cellPx / frameS))
+      const vmx = sgn * Math.max(-70, Math.min(70, m.dx / cellPx / frameS)), vmy = sgn * Math.max(-70, Math.min(70, m.dy / cellPx / frameS))
       for (let i = 0; i < s.count; i++) {
         let k = near ? 0 : 1
         let out = 0, ox = 0, oy = 0
@@ -314,8 +326,8 @@ function Fluid({ tint, netTint }: { tint: string; netTint: string }) {
           }
         }
         if (k === 0) continue
-        s.vx[i] += pushX * k + ox * out
-        s.vy[i] += pushY * k + oy * out
+        s.vx[i] += pushX * k + sgn * ox * out
+        s.vy[i] += pushY * k + sgn * oy * out
         if (extra > 0) {
           const b = Math.min(0.85, extra * follow * 0.5 * Math.min(k, 1.6))
           s.vx[i] += (vmx - s.vx[i]) * b
@@ -329,6 +341,7 @@ function Fluid({ tint, netTint }: { tint: string; netTint: string }) {
     // that is strongest right at the pointer (it takes the same slider as the movement does).
     if (m.x >= 0 && stir > 0) {
       const hold = HOLD * Math.min(stir, 4) * frameS
+      const pulling = pull.current
       const hx = m.x / cellPx, hy = m.y / cellPx
       const r2max = NEAR_RADIUS * NEAR_RADIUS
       for (let i = 0; i < s.count; i++) {
@@ -337,7 +350,8 @@ function Fluid({ tint, netTint }: { tint: string; netTint: string }) {
         if (d2 >= r2max) continue
         const d = Math.sqrt(d2) || 0.001
         const f = 1 - d / NEAR_RADIUS
-        const push = hold * f * f
+        // (pulling fades out right at the pointer, so the fluid gathers there instead of jittering)
+        const push = hold * f * f * (pulling ? -2.5 * Math.min(1, d / 1.2) : 1)
         s.vx[i] += (dx / d) * push
         s.vy[i] += (dy / d) * push
       }

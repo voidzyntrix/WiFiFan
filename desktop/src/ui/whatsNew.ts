@@ -2,6 +2,12 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '1.10.0',
+    notes: [
+      'Hold Ctrl and the pointer attracts the fluid instead of pushing it: its movement, its paddle and its steady force are all inverted.',
+    ],
+  },
+  {
     version: '1.9.0',
     notes: [
       'The mouse pushes the fluid away all the time, not only while it moves: a steady force outwards, strongest right at the pointer.',
