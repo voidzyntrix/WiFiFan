@@ -70,6 +70,21 @@ class SolarPolicyTest {
         assertEquals(1f, SolarPolicy.breath(1500, 3000, 0.05f), 0.001f)
         assertEquals(0.05f, SolarPolicy.breath(3000, 3000, 0.05f), 0.001f)
 
+    @Test fun gridDownBlueFollowsTheHouseLoad() {
+        assertEquals(0.2f, SolarPolicy.gridDownLevel(0f), 0.001f)
+        assertEquals(0.2f, SolarPolicy.gridDownLevel(0.2f), 0.001f)
+        assertEquals(0.6f, SolarPolicy.gridDownLevel(1.1f), 0.001f)
+        assertEquals(1f, SolarPolicy.gridDownLevel(2f), 0.001f)
+        assertEquals(1f, SolarPolicy.gridDownLevel(5f), 0.001f)
+    }
+
+    @Test fun onlyTheGridDownBlueDependsOnTheLoad() {
+        val cutAt1kw = SolarReading(gridKw = 0f, socPercent = 60f, pvKw = 0f, loadKw = 1.1f, fault = false, offGrid = true)
+        assertEquals(0.6f, SolarPolicy.look(cutAt1kw).level1, 0.001f)
+        val gridUp = SolarReading(gridKw = 0f, socPercent = 60f, pvKw = 0f, loadKw = 1.1f, fault = false)
+        assertEquals(1f, SolarPolicy.look(gridUp).level1, 0.001f)
+    }
+
     @Test fun batteryColourBands() {
         assertEquals(120f, SolarPolicy.batteryHue(80f), 0.01f)
         assertEquals(60f, SolarPolicy.batteryHue(75f), 0.01f)

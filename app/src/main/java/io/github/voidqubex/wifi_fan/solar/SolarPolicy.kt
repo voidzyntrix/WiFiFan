@@ -7,7 +7,7 @@ import kotlin.math.cos
 
 /** What the two LEDs show for a reading: a hue each, and whether it breathes instead of staying solid. */
 data class SolarLook(
-    val hue1: Float, val pulse1: Boolean,
+    val hue1: Float, val pulse1: Boolean, val level1: Float = 1f,
     val hue2: Float, val pulse2: Boolean, val fastPulse2: Boolean
 )
 
@@ -42,6 +42,15 @@ object SolarPolicy {
     /** Hue of LED1 while the grid is down: blue, which nothing else uses. */
     const val OFF_GRID_HUE = 220f
 
+    /** House load (kW) at which LED1 is at its dimmest while the grid is down. */
+    const val GRID_DOWN_LOAD_LOW_KW = 0.2f
+
+    /** House load (kW) at which LED1 is at full brightness while the grid is down. */
+    const val GRID_DOWN_LOAD_FULL_KW = 2.0f
+
+    /** Dimmest LED1 while the grid is down, so it stays visible at the low end. */
+    const val GRID_DOWN_DIM = 0.2f
+
     /** Importing more than this (kW) makes LED1 pulse. */
     const val HEAVY_IMPORT_KW = 1.0f
 
@@ -71,10 +80,20 @@ object SolarPolicy {
         return SolarLook(
             hue1 = h1,
             pulse1 = !r.offGrid && r.gridKw > HEAVY_IMPORT_KW,
+            level1 = if (r.offGrid) gridDownLevel(r.loadKw) else 1f,
             hue2 = if (soc != null) batteryHue(soc) else h1,
             pulse2 = soc != null && r.offGrid && r.pvKw < NO_SUN_KW,
             fastPulse2 = soc != null && soc < BATTERY_FAST_BELOW
         )
+    }
+
+    /**
+     * While the grid is down, LED1's brightness follows the house load: [GRID_DOWN_DIM] at
+     * [GRID_DOWN_LOAD_LOW_KW] or less, full at [GRID_DOWN_LOAD_FULL_KW] or more, linear in between.
+     */
+    fun gridDownLevel(loadKw: Float): Float {
+        val t = ((loadKw - GRID_DOWN_LOAD_LOW_KW) / (GRID_DOWN_LOAD_FULL_KW - GRID_DOWN_LOAD_LOW_KW)).coerceIn(0f, 1f)
+        return GRID_DOWN_DIM + (1f - GRID_DOWN_DIM) * t
     }
 
     /** Brightness factor from [low] to 1 over a breath [periodMs] long at [timeMs] (smooth, starts dim). */

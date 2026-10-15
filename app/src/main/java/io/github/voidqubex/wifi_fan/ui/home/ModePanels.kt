@@ -202,7 +202,7 @@ internal fun SolarPanel(state: SolarState, running: Boolean, onStop: () -> Unit,
         PanelHint(
             "LED1, grid: green = exporting · lime = balanced · yellow to red = importing " +
                 "(red from 1.5 kW) · orange-red pulsing = importing over 1 kW · cyan = exporting over 4 kW · " +
-                "blue = grid down"
+                "blue = grid down, brighter as the house load rises (0.2 to 2 kW)"
         )
         Spacer(Modifier.height(4.dp))
         PanelHint(

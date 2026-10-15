@@ -146,7 +146,7 @@ class SolarSyncService : Service() {
     private fun show(l: LedLink, look: SolarLook) {
         val bri = SyncParams.bri
         val t = SystemClock.elapsedRealtime()
-        val v1 = bri * if (look.pulse1) SolarPolicy.breath(t, FAST_BREATH_MS, IMPORT_LOW) else 1f
+        val v1 = bri * if (look.pulse1) SolarPolicy.breath(t, FAST_BREATH_MS, IMPORT_LOW) else look.level1
         // The battery breath ignores the brightness slider and runs min to max; the board's gamma 2.2
         // would keep a straight ramp dark most of the time, so it is undone here.
         val v2 = if (look.pulse2) {
