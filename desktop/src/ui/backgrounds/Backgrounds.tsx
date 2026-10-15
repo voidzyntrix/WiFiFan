@@ -208,6 +208,8 @@ const MOUSE_PUSH = 0.12
 const STIR_RADIUS = 3
 /** With "near the mouse" only fluid within this many radii of the pointer moves. */
 const NEAR_RADIUS = 6
+/** The steady push away from the pointer, radii/s² right at the pointer, scaled by the mouse slider (gravity is about 50). */
+const HOLD = 260
 
 /** The fluid box for the window: square cells, SIM_WIDTH radii across a portrait window. */
 function simSize() {
@@ -322,6 +324,24 @@ function Fluid({ tint, netTint }: { tint: string; netTint: string }) {
       }
     }
     m.dx = 0; m.dy = 0
+
+    // The pointer also holds the fluid off it all the time, moving or not: a steady push outwards
+    // that is strongest right at the pointer (it takes the same slider as the movement does).
+    if (m.x >= 0 && stir > 0) {
+      const hold = HOLD * Math.min(stir, 4) * frameS
+      const hx = m.x / cellPx, hy = m.y / cellPx
+      const r2max = NEAR_RADIUS * NEAR_RADIUS
+      for (let i = 0; i < s.count; i++) {
+        const dx = s.x[i] - hx, dy = s.y[i] - hy
+        const d2 = dx * dx + dy * dy
+        if (d2 >= r2max) continue
+        const d = Math.sqrt(d2) || 0.001
+        const f = 1 - d / NEAR_RADIUS
+        const push = hold * f * f
+        s.vx[i] += (dx / d) * push
+        s.vy[i] += (dy / d) * push
+      }
+    }
 
     // Window: its change of speed pushes the liquid the other way (inertia), in radii/s.
     // The window's speed is smoothed first: while it is dragged, frames come unevenly and the

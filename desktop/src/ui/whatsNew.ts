@@ -2,6 +2,12 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '1.9.0',
+    notes: [
+      'The mouse pushes the fluid away all the time, not only while it moves: a steady force outwards, strongest right at the pointer.',
+    ],
+  },
+  {
     version: '1.8.1',
     notes: [
       'Mouse movement at 100 % is a lot faster: the fluid near the pointer is dragged along at the speed of the pointer.',
