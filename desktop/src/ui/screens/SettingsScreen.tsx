@@ -113,7 +113,7 @@ export function SettingsScreen({ onBack, onWhatsNew }: { onBack: () => void; onW
             </Presence>
             <Presence show={p.background === 'FLUID'}>
               <div className="stack">
-                <SettingHeading title="Fluid style" subtitle={p.fluidStyle === 'GRID' ? 'Water made of cells that falls, spreads and levels out' : 'A smooth particle fluid that splashes'} />
+                <SettingHeading title="Fluid style" subtitle={p.fluidStyle === 'GRID' ? 'The same fluid, drawn as cells of water on the grid' : 'A smooth particle fluid that splashes'} />
                 <SegmentedPill options={['Particles', 'Grid']} selected={p.fluidStyle === 'GRID' ? 1 : 0} onSelect={(i) => set({ fluidStyle: i === 1 ? 'GRID' : 'PARTICLES' })} />
               </div>
             </Presence>

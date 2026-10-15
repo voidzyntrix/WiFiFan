@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '1.13.1',
+    notes: [
+      'Grid fluid is now the very same fluid as the particle one (same splashes, viscosity, mouse force and window sloshing), drawn as cells of water.',
+      'Every grid sits on whole rows: the cells are square and an exact number of them fills the window height, so the bottom is a cell edge.',
+    ],
+  },
+  {
     version: '1.13.0',
     notes: [
       'Grid fluid: a new Fluid style made of cells of water that fall, spread and level out. The pointer pushes (or with Ctrl pulls) the water between cells.',

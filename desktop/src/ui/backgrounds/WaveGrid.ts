@@ -15,7 +15,6 @@
 // Units are CSS px and seconds; drawing scales to the canvas.
 
 import type { FluidSim } from './FluidSim'
-import type { GridFluid } from './GridFluid'
 import { gridCell } from './gridSize'
 
 /** Cell size in CSS px (bigger on very large windows so there are never more than about 3000). */
@@ -74,26 +73,13 @@ export class WaveGrid {
   private build(cell = this.cell) {
     const w = window.innerWidth, hgt = window.innerHeight
     this.cell = cell
-    this.cols = Math.ceil(w / this.cell) + 1
-    this.rows = Math.ceil(hgt / this.cell) + 1
+    this.cols = Math.ceil(w / this.cell)
+    this.rows = Math.max(1, Math.round(hgt / this.cell))
     const n = this.cols * this.rows
     for (const k of ['h', 'v', 'tmpH', 'tmpV', 'flowX', 'flowY', 'count', 'cover', 'lastCover'] as const) this[k] = new Float32Array(n)
     this.glow = new Float32Array(n * 4)
     this.soft = new Float32Array(n * 4)
     this.seenFluid = false
-  }
-
-  /** Reads the Grid fluid: its cells are this grid's cells (same size), so it is a straight copy. */
-  private readGrid(grid: GridFluid) {
-    const { cols, rows, count, flowX, flowY, cover } = this
-    if (grid.cols !== cols || grid.rows !== rows) { count.fill(0); flowX.fill(0); flowY.fill(0); cover.fill(0); return }
-    for (let i = 0; i < cols * rows; i++) {
-      const wet = grid.mass[i] >= 0.05
-      count[i] = wet ? 1 : 0
-      flowX[i] = wet ? grid.flowX[i] : 0
-      flowY[i] = wet ? grid.flowY[i] : 0
-      cover[i] = Math.min(1, grid.mass[i])
-    }
   }
 
   /** Reads the fluid: where it is (cover) and how it moves (flow), per cell. */
@@ -163,7 +149,7 @@ export class WaveGrid {
    */
   frame(
     g: CanvasRenderingContext2D, dt: number, scale: number, color: string, stiffness: number, opacity: number,
-    fluid?: { sim: FluidSim; cellPx: number } | { grid: GridFluid }, resolution = 0.5,
+    fluid?: { sim: FluidSim; cellPx: number }, resolution = 0.5,
   ) {
     const cell = gridCell(resolution)
     if (Math.abs(cell - this.cell) > 0.01) this.build(cell)
@@ -174,8 +160,7 @@ export class WaveGrid {
     const al = (a: number) => Math.min(1, a * k)
 
     if (fluid) {
-      if ('grid' in fluid) this.readGrid(fluid.grid)
-      else this.readFluid(fluid.sim, fluid.cellPx)
+      this.readFluid(fluid.sim, fluid.cellPx)
       // fluid arriving in a cell or leaving it kicks it
       const { cover, lastCover, v, cols, rows } = this
       for (let i = 0; i < cols * rows; i++) {

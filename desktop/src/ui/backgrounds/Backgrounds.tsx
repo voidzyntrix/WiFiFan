@@ -4,8 +4,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { DotNet } from './DotNet'
 import { WaveGrid } from './WaveGrid'
-import { GridFluid } from './GridFluid'
-import { gridCell } from './gridSize'
+import { GridWater } from './GridWater'
 import { FluidRenderer } from './FluidRenderer'
 import { FluidSim } from './FluidSim'
 import { setBackdropFade, setBackdropSource } from './source'
@@ -74,7 +73,7 @@ function useNet() {
 /** Draws the net in the style chosen in Settings (nothing when it is off). `fluid` lets the cells feel the liquid. */
 function drawNet(
   net: { dots: DotNet; cells: WaveGrid } | null, g: CanvasRenderingContext2D, dt: number, scale: number, color: string,
-  fluid?: { sim: FluidSim; cellPx: number } | { grid: GridFluid },
+  fluid?: { sim: FluidSim; cellPx: number },
 ) {
   const st = settings.get()
   if (!st.dotNet || !net) return
@@ -254,29 +253,7 @@ function Fluid({ tint, netTint }: { tint: string; netTint: string }) {
   const smoothNet = useSmoothColor(netTint)
   const shader = useRef<FluidRenderer | null | undefined>(undefined)
   const net = useNet()
-  const grid = useRef<GridFluid | null>(null)
-  useEffect(() => () => { grid.current?.dispose(); grid.current = null }, [])
-
-  /** The Grid fluid (GridFluid.ts): cells of water, drawn in the two tones, over the net. */
-  const gridFrame = (c: HTMLCanvasElement, dt: number) => {
-    const st = settings.get()
-    if (!grid.current) grid.current = new GridFluid(gridCell(st.gridResolution))
-    const gf = grid.current
-    gf.fit(st.gridResolution)
-    const raw = st.fluidStir
-    const stir = raw + Math.max(0, raw - 0.6) * 17.5
-    const unitPx = window.innerWidth / simSize().simW
-    const reach = (st.fluidNearMouse ? NEAR_RADIUS : WHOLE_RADIUS) * unitPx
-    const m = mouse.current
-    gf.frame(dt, m.x >= 0 && stir > 0 ? { x: m.x, y: m.y, reach, rate: 7 * stir, pull: pull.current } : null)
-    const cg = c.getContext('2d')!
-    cg.clearRect(0, 0, c.width, c.height)
-    const scale = c.width / window.innerWidth
-    drawNet(net.current, cg, dt, scale, smoothNet(dt), { grid: gf })
-    const color = smooth(dt)
-    const [r, g2, b] = (color.match(/\d+/g) ?? ['255', '255', '255']).map(Number)
-    gf.draw(cg, scale, `rgb(${Math.round(r * 0.26)} ${Math.round(g2 * 0.26)} ${Math.round(b * 0.26)})`, color)
-  }
+  const gridWater = useRef(new GridWater())
 
   useEffect(() => {
     const make = () => {
@@ -316,7 +293,6 @@ function Fluid({ tint, netTint }: { tint: string; netTint: string }) {
   useFrames((_t, dt) => {
     const s = sim.current, c = ref.current
     if (!s || !c) return
-    if (settings.get().fluidStyle === 'GRID') { gridFrame(c, dt); return }
     const steps = Math.min(2, Math.max(1, Math.round(dt / STEP)))
     const cellPx = window.innerWidth / s.width          // CSS px per radius
     // viscosity: from watery (a hundredth of the default stickiness) to syrup (fifteen times it)
@@ -376,7 +352,14 @@ function Fluid({ tint, netTint }: { tint: string; netTint: string }) {
     // the net goes down first: the liquid is drawn over it and hides it
     const netColor = smoothNet(dt)
     const drawNetNow = () => drawNet(net.current, cg, dt, c.width / window.innerWidth, netColor, { sim: s, cellPx })
-    if (shader.current) {
+    if (settings.get().fluidStyle === 'GRID') {
+      // the same fluid, drawn as cells of water on the grid (GridWater.ts)
+      const [r, g2, b] = (color.match(/\d+/g) ?? ['255', '255', '255']).map(Number)
+      cg.clearRect(0, 0, c.width, c.height)
+      drawNetNow()
+      gridWater.current.frame(cg, dt, s, window.innerWidth / s.width, c.width / window.innerWidth, settings.get().gridResolution,
+        `rgb(${Math.round(r * 0.26)} ${Math.round(g2 * 0.26)} ${Math.round(b * 0.26)})`, color)
+    } else if (shader.current) {
       // glossy water (FluidRenderer.ts)
       const [r, g2, b] = (color.match(/\d+/g) ?? ['255', '255', '255']).map(Number)
       const drawn = shader.current.render(s, c.width, c.height, cell, [r, g2, b], settings.get().fluidMotionBlur)
