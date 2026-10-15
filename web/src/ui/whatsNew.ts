@@ -2,6 +2,12 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.1.2',
+    notes: [
+      'Settings fill the window: four cards (Design & colour, Shape & surface, Behaviour, Updates) flow over two columns on wide windows instead of leaving half of it empty.',
+    ],
+  },
+  {
     version: '2.1.1',
     notes: [
       'The two LED previews are circles again (they were squeezed into ovals).',

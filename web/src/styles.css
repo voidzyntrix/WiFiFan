@@ -158,11 +158,11 @@ code { font-family: 'JetBrains Mono', monospace; font-size: 0.9em; }
 .screen.scrolls { height: auto; min-height: 100%; padding-bottom: calc(32px + var(--inset-bottom, 0px)); }
 @media (max-width: 420px) { :root { --pad: 14px; } }
 
-.settings-grid { display: grid; gap: 14px; grid-template-columns: 1fr; align-items: start; }
-.settings-col { --gap: 14px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+/* the cards flow down one column on a phone and balance over two on a wide window */
+.settings-grid > .panel { margin-bottom: 14px; }
 @media (min-width: 900px) {
-  .settings-grid { grid-template-columns: 1fr 1fr; gap: 16px; }
-  .settings-col { --gap: 16px; gap: 16px; }
+  .settings-grid { columns: 2; column-gap: 16px; }
+  .settings-grid > .panel { break-inside: avoid; margin-bottom: 16px; }
 }
 
 /* a Swap or area that takes the rest of its column */
