@@ -82,10 +82,28 @@ class SolarSyncService : Service() {
         val s = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         scope = s
         val main = Handler(Looper.getMainLooper())
-        // Without the board there is nothing to drive.
+        // Without the board there is nothing to drive. A dropped link (the phone locked, the radio
+        // slept) is retried for a while before Solar gives up, so it keeps following when it returns.
         s.launch {
+            var lost = 0
             ble.connectionState.collect {
-                if (it != BluetoothProfile.STATE_CONNECTED) main.post { stopSelf() }
+                when (it) {
+                    BluetoothProfile.STATE_CONNECTED -> {
+                        lost = 0
+                        l.setFade(FADE_MS)
+                    }
+                    BluetoothProfile.STATE_DISCONNECTED -> {
+                        val address = ble.deviceAddress.value
+                        if (address == null || ++lost > RECONNECT_TRIES) {
+                            main.post { stopSelf() }
+                        } else {
+                            delay(RECONNECT_WAIT_MS)
+                            main.post {
+                                if (ble.connectionState.value == BluetoothProfile.STATE_DISCONNECTED) ble.connect(address)
+                            }
+                        }
+                    }
+                }
             }
         }
         s.launch(Dispatchers.IO) {
@@ -206,6 +224,8 @@ class SolarSyncService : Service() {
         private const val FAST_BREATH_MS = 800L
         private const val RETRY_MS = 60_000L
         private const val DEMO_EVERY_MS = 10_000L
+        private const val RECONNECT_TRIES = 5
+        private const val RECONNECT_WAIT_MS = 5_000L
 
         /** Starts following the inverter. The app must be visible, and a board connected. */
         fun start(context: Context) {
