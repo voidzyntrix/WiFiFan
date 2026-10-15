@@ -94,7 +94,7 @@ internal data class Scene(
         )
 
         /** The modes a scene can hold. */
-        fun canSave(mode: Int) = mode != LED_MODE_MUSIC && mode != LED_MODE_VISUALIZER && mode != LED_MODE_SCREEN
+        fun canSave(mode: Int) = mode != LED_MODE_MUSIC && mode != LED_MODE_VISUALIZER && mode != LED_MODE_SCREEN && mode != LED_MODE_SOLAR
 
         private fun hueClose(a: Float, b: Float): Boolean {
             val d = abs(a - b) % 360f

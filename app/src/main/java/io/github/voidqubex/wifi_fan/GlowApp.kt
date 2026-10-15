@@ -1,6 +1,8 @@
 package io.github.voidqubex.wifi_fan
 
+import io.github.voidqubex.wifi_fan.sync.AlertCenter
 import android.app.Application
+import io.github.voidqubex.wifi_fan.battery.BatteryAlert
 import io.github.voidqubex.wifi_fan.bluetooth.BleManager
 
 class GlowApp : Application() {
@@ -9,4 +11,10 @@ class GlowApp : Application() {
      * stays connected and driven when the activity is gone.
      */
     val bleManager: BleManager by lazy { BleManager(this) }
+
+    override fun onCreate() {
+        super.onCreate()
+        AlertCenter.start(this)
+        BatteryAlert.start(this)
+    }
 }

@@ -11,6 +11,19 @@ enum class AppColorScheme { MONOCHROME, TINTED, COLORED }
 /** What sits behind the UI. SIMPLE is the particles (the name is what older versions saved). */
 enum class AppBackground { SIMPLE, IMAGE, AURORA, FLUID, PLAIN }
 
+/**
+ * Secrets, kept in their own preferences file so Android backups can leave them out
+ * (see res/xml/backup_rules.xml and data_extraction_rules.xml).
+ */
+class SecretStore(context: Context) {
+    private val prefs = context.getSharedPreferences("glow_secrets", Context.MODE_PRIVATE)
+
+    /** The FoxESS Cloud API key. */
+    var foxApiKey: String
+        get() = prefs.getString("fox_api_key", "") ?: ""
+        set(value) { prefs.edit().putString("fox_api_key", value.trim()).apply() }
+}
+
 /** A board the app has connected to: its Bluetooth MAC address and the name it advertises. */
 data class PairedBoard(val address: String, val bleName: String?)
 
@@ -162,6 +175,31 @@ class SettingsStore(context: Context) {
         get() = prefs.getBoolean("haptics", true)
         set(value) { prefs.edit().putBoolean("haptics", value).apply() }
     /** How strong the haptics are, 0.1 (faint) to 1 (full). */
+    /** Board blinks for the phone's battery: red when below 20 %, green when full (10 minutes). */
+    var batteryLowAlert: Boolean
+        get() = prefs.getBoolean("battery_low_alert", false)
+        set(value) { prefs.edit().putBoolean("battery_low_alert", value).apply() }
+    /** The low-battery alert starts below this many percent (5-50). */
+    var batteryLowPercent: Int
+        get() = prefs.getInt("battery_low_percent", 20).coerceIn(5, 50)
+        set(value) { prefs.edit().putInt("battery_low_percent", value).apply() }
+    var batteryFullAlert: Boolean
+        get() = prefs.getBoolean("battery_full_alert", false)
+        set(value) { prefs.edit().putBoolean("battery_full_alert", value).apply() }
+    /** Solar (FoxESS): the inverter's serial number, how often to ask (minutes), the low-battery level. */
+    var foxSerial: String
+        get() = prefs.getString("fox_serial", "") ?: ""
+        set(value) { prefs.edit().putString("fox_serial", value).apply() }
+    var foxPollMinutes: Int
+        get() = prefs.getInt("fox_poll_minutes", 2).coerceIn(1, 5)
+        set(value) { prefs.edit().putInt("fox_poll_minutes", value).apply() }
+    var solarLowPercent: Int
+        get() = prefs.getInt("solar_low_percent", 20).coerceIn(5, 50)
+        set(value) { prefs.edit().putInt("solar_low_percent", value).apply() }
+    /** Made-up readings instead of the inverter's, to try the LEDs. */
+    var solarDemo: Boolean
+        get() = prefs.getBoolean("solar_demo", false)
+        set(value) { prefs.edit().putBoolean("solar_demo", value).apply() }
     /** Light or dark: 0 follows the phone, 1 always light, 2 always dark. */
     var themeMode: Int
         get() = prefs.getInt("theme_mode", 0).coerceIn(0, 2)

@@ -1,5 +1,7 @@
 package io.github.voidqubex.wifi_fan.ui.home
 
+import io.github.voidqubex.wifi_fan.solar.SolarState
+import io.github.voidqubex.wifi_fan.solar.SolarPolicy
 import io.github.voidqubex.wifi_fan.ui.components.glass
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -165,6 +167,55 @@ internal fun VisualizerPanel(
 }
 
 /** Screen sync status, with a button to stop it. */
+@Composable
+internal fun SolarPanel(state: SolarState, running: Boolean, onStop: () -> Unit, modifier: Modifier = Modifier) {
+    val onBg = MaterialTheme.colorScheme.onBackground
+    PanelCard(modifier) {
+        Text(
+            "Solar",
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = onBg
+        )
+        Spacer(Modifier.height(4.dp))
+        val reading = state.reading
+        PanelHint(
+            when {
+                reading != null -> SolarPolicy.describe(reading) + if (state.demo) "  (demo values)" else ""
+                state.error != null -> state.error
+                running -> "Asking FoxESS for the first reading…"
+                else -> "Starting…"
+            }
+        )
+        if (reading != null && state.error != null) {
+            Spacer(Modifier.height(4.dp))
+            PanelHint("Last try failed: ${state.error}")
+        }
+        Spacer(Modifier.height(12.dp))
+        Text(
+            "What the LEDs show",
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = onBg
+        )
+        Spacer(Modifier.height(4.dp))
+        PanelHint(
+            "LED1, grid: green = exporting · lime = balanced · yellow to red = importing " +
+                "(red from 1.5 kW) · orange-red pulsing = importing over 1 kW · cyan = exporting over 4 kW · " +
+                "blue = grid down"
+        )
+        Spacer(Modifier.height(4.dp))
+        PanelHint(
+            "LED2, battery: red below 30 % · yellow 30 to 75 % · green above 75 % · " +
+                "breathing = running on battery, grid and sun both off (fast below 20 %)"
+        )
+        Spacer(Modifier.height(4.dp))
+        PanelHint("Blinks: red = low battery, fault or offline · green = battery full with sun to spare")
+        Spacer(Modifier.height(16.dp))
+        PillButton("Stop solar", highlighted = false, onClick = onStop)
+    }
+}
+
 @Composable
 internal fun ScreenSyncPanel(running: Boolean, onStop: () -> Unit, modifier: Modifier = Modifier) {
     val onBg = MaterialTheme.colorScheme.onBackground

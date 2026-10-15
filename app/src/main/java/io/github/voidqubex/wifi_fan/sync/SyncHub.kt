@@ -3,14 +3,16 @@ package io.github.voidqubex.wifi_fan.sync
 import kotlinx.coroutines.flow.MutableStateFlow
 
 /** What the background sync services (music, visualizer, screen) can be doing. */
-enum class SyncKind { NONE, MUSIC, VISUALIZER, SCREEN }
+enum class SyncKind { NONE, MUSIC, VISUALIZER, SCREEN, SOLAR }
 
 /**
  * Music and Visualizer run in one service, which restarts when the other one is picked; Screen
- * sync is a service of its own. A kind is always the same service as itself.
+ * sync and Solar are services of their own. A kind is always the same service as itself.
  */
 fun SyncKind.sharesServiceWith(other: SyncKind): Boolean =
-    this == other || (this != SyncKind.SCREEN && other != SyncKind.SCREEN)
+    this == other || (this.isAudio() && other.isAudio())
+
+private fun SyncKind.isAudio() = this == SyncKind.MUSIC || this == SyncKind.VISUALIZER
 
 /**
  * Process-wide state shared by the home screen and the sync services. The services keep

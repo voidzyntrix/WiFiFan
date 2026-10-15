@@ -6,8 +6,6 @@
    See https://developer.android.com/about/versions/12/backup-restore
 -->
 <full-backup-content>
-    <!--
-   <include domain="sharedpref" path="."/>
-   <exclude domain="sharedpref" path="device.xml"/>
--->
+    <!-- The FoxESS API key never leaves the phone. -->
+    <exclude domain="sharedpref" path="glow_secrets.xml"/>
 </full-backup-content>

@@ -1,5 +1,6 @@
 package io.github.voidqubex.wifi_fan.auto
 
+import io.github.voidqubex.wifi_fan.ui.home.LED_MODE_SOLAR
 import android.app.KeyguardManager
 import android.app.Notification
 import android.app.NotificationChannel
@@ -334,7 +335,7 @@ class AutoLightService : Service(), SensorEventListener {
         private const val NOTIFICATION_ID = 10
         /** Room light: how long the light readings keep coming after the screen goes off. */
         private const val ROOM_AWAKE_MS = 10_000L
-        private val SYNC_MODES = listOf(LED_MODE_MUSIC, LED_MODE_VISUALIZER, LED_MODE_SCREEN)
+        private val SYNC_MODES = listOf(LED_MODE_MUSIC, LED_MODE_VISUALIZER, LED_MODE_SCREEN, LED_MODE_SOLAR)
 
         /** Starts watching. The app must be visible, and a board connected. */
         fun start(context: Context) {

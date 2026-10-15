@@ -134,7 +134,7 @@ internal object SceneApplier {
             )
             LED_MODE_BREATHE, LED_MODE_CHASE -> listOf(colour(), effect(state.mode))
             LED_MODE_OCEAN, LED_MODE_PARTY, LED_MODE_AURORA -> listOf(effect(state.mode))
-            LED_MODE_MUSIC, LED_MODE_VISUALIZER, LED_MODE_SCREEN -> emptyList()
+            LED_MODE_MUSIC, LED_MODE_VISUALIZER, LED_MODE_SCREEN, LED_MODE_SOLAR -> emptyList()
             else -> listOf(colour())
         }
         return (if (caps.split && layoutChanged) listOf(LedCommands.split(state.separate)) else emptyList()) + mode

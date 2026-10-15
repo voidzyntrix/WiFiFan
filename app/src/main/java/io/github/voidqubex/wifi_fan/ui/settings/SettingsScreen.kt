@@ -1,5 +1,6 @@
 package io.github.voidqubex.wifi_fan.ui.settings
 
+import io.github.voidqubex.wifi_fan.battery.BatteryAlert
 import io.github.voidqubex.wifi_fan.ui.components.glass
 import android.content.Intent
 import android.net.Uri
@@ -123,6 +124,7 @@ internal fun SettingsScreen(
     var uiOpen by remember { mutableStateOf(!store.categoryCollapsed("ui")) }
     var firmwareOpen by remember { mutableStateOf(!store.categoryCollapsed("firmware")) }
     var autoOpen by remember { mutableStateOf(!store.categoryCollapsed("auto")) }
+    var solarOpen by remember { mutableStateOf(!store.categoryCollapsed("solar")) }
     var cornerStyle by remember { mutableIntStateOf(store.cornerStyle) }
     var customCorner by remember { mutableFloatStateOf(store.customCorner) }
     val onBg = MaterialTheme.colorScheme.onBackground
@@ -218,12 +220,67 @@ internal fun SettingsScreen(
             SegmentedPill(listOf("Quick", "Normal", "Slow"), fades.indexOf(fadeMs)) {
                 onFadeMsChange(fades[it])
             }
+            SettingSection("Battery alerts")
+            var batteryLow by remember { mutableStateOf(store.batteryLowAlert) }
+            var batteryFull by remember { mutableStateOf(store.batteryFullAlert) }
+            var lowPercent by remember { mutableIntStateOf(store.batteryLowPercent) }
+            SettingSwitch(
+                "Low battery", "Two red blinks a minute while the phone is low and not charging",
+                batteryLow
+            ) { batteryLow = it; store.batteryLowAlert = it; BatteryAlert.refresh() }
+            androidx.compose.animation.AnimatedVisibility(
+                visible = batteryLow,
+                enter = fadeIn(tween(200)) + androidx.compose.animation.expandVertically(tween(280)),
+                exit = fadeOut(tween(150)) + androidx.compose.animation.shrinkVertically(tween(240))
+            ) {
+                Column {
+                    Spacer(Modifier.height(14.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "Blink below",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = onBg.copy(alpha = 0.6f),
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text("$lowPercent %", style = MaterialTheme.typography.labelLarge, color = onBg)
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    GradientBar(
+                        fraction = (lowPercent - 5) / 45f,
+                        stops = listOf(onBg.copy(alpha = 0.12f), onBg.copy(alpha = 0.55f)),
+                        thumbColor = MaterialTheme.colorScheme.primary,
+                        onFraction = { lowPercent = (5 + it * 45f).roundToInt() },
+                        onFinished = { store.batteryLowPercent = lowPercent; BatteryAlert.refresh() }
+                    )
+                }
+            }
+            SwitchGap()
+            SettingSwitch(
+                "Full battery", "Two green blinks a minute for 10 minutes when the phone is fully charged",
+                batteryFull
+            ) { batteryFull = it; store.batteryFullAlert = it; BatteryAlert.refresh() }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = "The board blinks over whatever it shows and stops by itself when Bluetooth drops, " +
+                    "so the board has to stay connected. Needs board firmware 1.8.0.",
+                style = MaterialTheme.typography.bodySmall,
+                color = onBg.copy(alpha = 0.45f)
+            )
             Spacer(Modifier.height(16.dp))
             Text(
                 text = "Candle options, rainbow speed and fade need board firmware 1.3.0 or newer.",
                 style = MaterialTheme.typography.bodySmall,
                 color = onBg.copy(alpha = 0.45f)
             )
+        }
+
+        Spacer(Modifier.height(12.dp))
+
+        // ── Solar (FoxESS) ──
+        SettingsCard("Solar (FoxESS)", solarOpen, Modifier.entrance(2), {
+            solarOpen = !solarOpen; store.setCategoryCollapsed("solar", !solarOpen)
+        }) {
+            SolarSettings(store)
         }
 
         Spacer(Modifier.height(12.dp))
