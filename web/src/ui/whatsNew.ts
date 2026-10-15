@@ -2,6 +2,12 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.1.3',
+    notes: [
+      'Settings cards stay where they are: two fixed columns, so opening or closing one never moves the others.',
+    ],
+  },
+  {
     version: '2.1.2',
     notes: [
       'Settings fill the window: four cards (Design & colour, Shape & surface, Behaviour, Updates) flow over two columns on wide windows instead of leaving half of it empty.',

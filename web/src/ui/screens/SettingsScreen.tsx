@@ -45,6 +45,7 @@ export function SettingsScreen({ onBack, onWhatsNew }: { onBack: () => void; onW
       </header>
 
       <div className="settings-grid">
+        <div className="settings-col">
           <SettingsCard id="ui" title="Design & colour" i={1}>
             <SettingHeading title="Design" subtitle={material
               ? 'Material You: solid Material 3 surfaces and widgets. The lightest on the GPU'
@@ -83,35 +84,6 @@ export function SettingsScreen({ onBack, onWhatsNew }: { onBack: () => void; onW
             </Presence>
           </SettingsCard>
 
-          <SettingsCard id="shape" title="Shape & surface" i={2}>
-            {!material && <SettingSwitch title="Light effects" subtitle="No blur and no WebGL, a slower background: much smoother on a phone" checked={p.lightEffects} onChange={(v) => set({ lightEffects: v })} />}
-            {!material && (
-              <Presence show={!p.lightEffects}>
-                <SettingSwitch title="Refractive glass" subtitle="Clear glass that bends the background at its edges, instead of frosted glass that blurs it" checked={p.refractiveGlass} onChange={(v) => set({ refractiveGlass: v })} />
-              </Presence>
-            )}
-            <SettingHeading title="Corners" subtitle="Everything scales with it: cards, buttons, chips, switches, dots" />
-            <SegmentedPill options={['Square', 'Small', 'Medium', 'Large', 'Custom']} selected={p.cornerStyle} onSelect={(i) => set({ cornerStyle: i })} />
-            <Presence show={p.cornerStyle === 4}>
-              <LevelSlider label="Radius" value={cornerUnit(p) / MAX_CORNER_UNIT} text={`${Math.round(cornerUnit(p) * 12)} px`}
-                onChange={(f) => set({ customCorner: Math.round(f * MAX_CORNER_UNIT * 20) / 20 })}
-                hint="0 is square. A card has 12 px at 12; buttons and chips are fully round from about 12 px up." />
-            </Presence>
-            <SettingSwitch title="Round LED preview" subtitle="Keep the LED preview a perfect circle whatever the corners" checked={p.roundLedPreview} onChange={(v) => set({ roundLedPreview: v })} />
-            <SettingHeading title="Font" subtitle="Used for all text in the app" />
-            <SegmentedPill options={['System', 'JetBrains Mono']} selected={p.monoFont ? 1 : 0} onSelect={(i) => set({ monoFont: i === 1 })} />
-          </SettingsCard>
-
-          <SettingsCard id="behaviour" title="Behaviour" i={3}>
-            <SettingSwitch title={phone ? 'Haptics' : 'Sounds'} subtitle={phone ? 'A light tick on sliders and buttons' : 'Soft clicks on sliders and buttons'}
-              checked={p.sounds} onChange={(v) => set({ sounds: v })} />
-            <Presence show={p.sounds && !phone}>
-              <LevelSlider label="Volume" value={p.soundVolume} text={`${Math.round(p.soundVolume * 100)} %`}
-                onChange={(f) => set({ soundVolume: Math.max(0.05, f) })} onDone={() => sound.confirm()} />
-            </Presence>
-            <SettingSwitch title="Keep screen on" subtitle="The display doesn't sleep while Glow is open" checked={p.keepScreenOn} onChange={(v) => set({ keepScreenOn: v })} />
-            <SettingSwitch title="Update prompts" subtitle="Ask at launch when an update is available" checked={p.updatePrompts} onChange={(v) => set({ updatePrompts: v })} />
-          </SettingsCard>
 
           <SettingsCard id="app" title="Updates" i={4} badge={app.kind === 'available'}>
             <div className="update-block">
@@ -143,7 +115,40 @@ export function SettingsScreen({ onBack, onWhatsNew }: { onBack: () => void; onW
               <PillButton text="All releases" onClick={() => openLink(RELEASES_PAGE)} />
             </div>
           </SettingsCard>
+        </div>
+        <div className="settings-col">
+          <SettingsCard id="shape" title="Shape & surface" i={2}>
+            {!material && <SettingSwitch title="Light effects" subtitle="No blur and no WebGL, a slower background: much smoother on a phone" checked={p.lightEffects} onChange={(v) => set({ lightEffects: v })} />}
+            {!material && (
+              <Presence show={!p.lightEffects}>
+                <SettingSwitch title="Refractive glass" subtitle="Clear glass that bends the background at its edges, instead of frosted glass that blurs it" checked={p.refractiveGlass} onChange={(v) => set({ refractiveGlass: v })} />
+              </Presence>
+            )}
+            <SettingHeading title="Corners" subtitle="Everything scales with it: cards, buttons, chips, switches, dots" />
+            <SegmentedPill options={['Square', 'Small', 'Medium', 'Large', 'Custom']} selected={p.cornerStyle} onSelect={(i) => set({ cornerStyle: i })} />
+            <Presence show={p.cornerStyle === 4}>
+              <LevelSlider label="Radius" value={cornerUnit(p) / MAX_CORNER_UNIT} text={`${Math.round(cornerUnit(p) * 12)} px`}
+                onChange={(f) => set({ customCorner: Math.round(f * MAX_CORNER_UNIT * 20) / 20 })}
+                hint="0 is square. A card has 12 px at 12; buttons and chips are fully round from about 12 px up." />
+            </Presence>
+            <SettingSwitch title="Round LED preview" subtitle="Keep the LED preview a perfect circle whatever the corners" checked={p.roundLedPreview} onChange={(v) => set({ roundLedPreview: v })} />
+            <SettingHeading title="Font" subtitle="Used for all text in the app" />
+            <SegmentedPill options={['System', 'JetBrains Mono']} selected={p.monoFont ? 1 : 0} onSelect={(i) => set({ monoFont: i === 1 })} />
+          </SettingsCard>
+
+          <SettingsCard id="behaviour" title="Behaviour" i={3}>
+            <SettingSwitch title={phone ? 'Haptics' : 'Sounds'} subtitle={phone ? 'A light tick on sliders and buttons' : 'Soft clicks on sliders and buttons'}
+              checked={p.sounds} onChange={(v) => set({ sounds: v })} />
+            <Presence show={p.sounds && !phone}>
+              <LevelSlider label="Volume" value={p.soundVolume} text={`${Math.round(p.soundVolume * 100)} %`}
+                onChange={(f) => set({ soundVolume: Math.max(0.05, f) })} onDone={() => sound.confirm()} />
+            </Presence>
+            <SettingSwitch title="Keep screen on" subtitle="The display doesn't sleep while Glow is open" checked={p.keepScreenOn} onChange={(v) => set({ keepScreenOn: v })} />
+            <SettingSwitch title="Update prompts" subtitle="Ask at launch when an update is available" checked={p.updatePrompts} onChange={(v) => set({ updatePrompts: v })} />
+          </SettingsCard>
+
         {types.map((t) => { const Section = t.SettingsSection!; return <Section key={t.id} /> })}
+        </div>
       </div>
       {picking && (
         <ColourPickerDialog
