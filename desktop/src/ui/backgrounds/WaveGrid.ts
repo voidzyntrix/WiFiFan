@@ -9,7 +9,9 @@
 //    pointer shoving it about) the cell is kicked, so the moving surface sends waves across the
 //    grid. And the waves ride along with the fluid: inside it, the heights are carried by the
 //    fluid's own velocity.
-// Cells light up with their height (up bright, down dim); faint lines show the grid itself.
+// Cells are black where the grid is at rest. Where a wave passes, a cell glows red if the wave is
+// travelling to the left and blue if it is travelling to the right (the sideways flow of the
+// wave's energy), brighter the stronger the wave; faint lines show the grid itself.
 // Units are CSS px and seconds; drawing scales to the canvas.
 
 import type { FluidSim } from './FluidSim'
@@ -19,12 +21,12 @@ const CELL = 26
 /** Wave speed in cells per second at the default stiffness. */
 const SPEED = 30
 /** How fast waves die out (per second). */
-const DAMPING = 1.4
+const DAMPING = 3.6
 /** The mouse's reach in cells, and its push (height-speed per second at the middle). */
 const REACH = 5
-const MOUSE_KICK = 26
+const MOUSE_KICK = 70
 /** A cell's change in fluid cover kicks its height by this much. */
-const FLUID_KICK = 4
+const FLUID_KICK = 6
 const STEP = 1 / 120
 const LIMIT = 2
 
@@ -194,31 +196,41 @@ export class WaveGrid {
     this.left += Math.min(0.05, dt)
     while (this.left >= STEP) { this.step(STEP, c2, MOUSE_KICK * mouse, !!fluid); this.left -= STEP }
 
-    const { cols, rows, h } = this
+    const { cols, rows, h, v } = this
     const cs = this.cell * scale
     g.save()
-    g.strokeStyle = color
-    g.fillStyle = color
     g.lineWidth = Math.max(1, scale)
+    const inset = Math.max(1, scale)
+    const side = cs - inset * 2
+
+    // black where nothing happens
+    g.globalAlpha = al(0.55)
+    g.fillStyle = '#000'
+    g.beginPath()
+    for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) g.rect(x * cs + inset, y * cs + inset, side, side)
+    g.fill()
+
+    // red: a wave going left, blue: a wave going right. The energy of a wave flows with -v * dh/dx.
+    for (let y = 0; y < rows; y++) {
+      for (let x = 0; x < cols; x++) {
+        const i = y * cols + x
+        const dhdx = ((x < cols - 1 ? h[i + 1] : h[i]) - (x > 0 ? h[i - 1] : h[i])) * 0.5
+        const flow = -v[i] * dhdx
+        const m = Math.abs(flow)
+        if (m < 0.002) continue
+        g.globalAlpha = al(0.9 * (1 - Math.exp(-14 * m)))
+        g.fillStyle = flow > 0 ? '#2f6bff' : '#ff3b3b'
+        g.fillRect(x * cs + inset, y * cs + inset, side, side)
+      }
+    }
 
     // the grid itself, faint
-    g.globalAlpha = al(0.07)
+    g.globalAlpha = al(0.08)
+    g.strokeStyle = color
     g.beginPath()
     for (let x = 0; x <= cols; x++) { g.moveTo(x * cs, 0); g.lineTo(x * cs, rows * cs) }
     for (let y = 0; y <= rows; y++) { g.moveTo(0, y * cs); g.lineTo(cols * cs, y * cs) }
     g.stroke()
-
-    // cells light up with their height: up bright, down dim
-    const inset = Math.max(1, scale)
-    for (let y = 0; y < rows; y++) {
-      for (let x = 0; x < cols; x++) {
-        const a = h[y * cols + x]
-        const m = Math.abs(a)
-        if (m < 0.03) continue
-        g.globalAlpha = al(0.6 * (1 - Math.exp(-1.2 * m)) * (a > 0 ? 1 : 0.55))
-        g.fillRect(x * cs + inset, y * cs + inset, cs - inset * 2, cs - inset * 2)
-      }
-    }
     g.restore()
   }
 }

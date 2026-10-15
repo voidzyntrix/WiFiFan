@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '1.12.1',
+    notes: [
+      'Cells net: black where nothing moves, red where a wave travels left, blue where it travels right.',
+      'Waves fade out faster.',
+    ],
+  },
+  {
     version: '1.12.0',
     notes: [
       'Net style: choose between the Dots net and a new Cells net, a grid of cells that carries waves.',
