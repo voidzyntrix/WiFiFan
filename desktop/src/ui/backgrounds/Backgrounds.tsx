@@ -206,6 +206,8 @@ const MAX_PARTICLES = 3000
 const MOUSE_PUSH = 0.12
 /** ...and a bit harder right around the pointer, within this many radii. */
 const STIR_RADIUS = 3
+/** With "near the mouse" only fluid within this many radii of the pointer moves. */
+const NEAR_RADIUS = 6
 
 /** The fluid box for the window: square cells, SIM_WIDTH radii across a portrait window. */
 function simSize() {
@@ -280,13 +282,18 @@ function Fluid({ tint, netTint }: { tint: string; netTint: string }) {
       const pushX = lim((m.dx / cellPx) * MOUSE_PUSH * stir * 4)
       const pushY = lim((m.dy / cellPx) * MOUSE_PUSH * stir * 4)
       const mx = m.x / cellPx, my = m.y / cellPx
+      const near = settings.get().fluidNearMouse
       for (let i = 0; i < s.count; i++) {
-        let k = 1
+        let k = near ? 0 : 1
         if (m.x >= 0) {
           const dx = s.x[i] - mx, dy = s.y[i] - my
           const d2 = dx * dx + dy * dy
-          if (d2 < STIR_RADIUS * STIR_RADIUS) k += 0.8 * (1 - Math.sqrt(d2) / STIR_RADIUS)
+          if (near) {
+            // only the fluid close to the pointer moves, most of all right under it
+            if (d2 < NEAR_RADIUS * NEAR_RADIUS) { const f = 1 - Math.sqrt(d2) / NEAR_RADIUS; k = 2.2 * f * f + 0.3 * f }
+          } else if (d2 < STIR_RADIUS * STIR_RADIUS) k += 0.8 * (1 - Math.sqrt(d2) / STIR_RADIUS)
         }
+        if (k === 0) continue
         s.vx[i] += pushX * k
         s.vy[i] += pushY * k
       }

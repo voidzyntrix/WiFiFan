@@ -114,6 +114,12 @@ export function SettingsScreen({ onBack, onWhatsNew }: { onBack: () => void; onW
             <Presence show={p.background === 'FLUID'}>
               <LevelSlider label="Mouse movement" value={p.fluidStir} text={p.fluidStir === 0 ? 'Off' : `${Math.round(p.fluidStir * 100)} %`} onChange={(f) => set({ fluidStir: f })} />
             </Presence>
+            <Presence show={p.background === 'FLUID'}>
+              <div className="stack">
+                <SettingHeading title="Mouse reach" subtitle={p.fluidNearMouse ? 'Only the fluid near the pointer moves' : 'Moving the mouse anywhere moves all the fluid'} />
+                <SegmentedPill options={['Whole screen', 'Nearby fluid']} selected={p.fluidNearMouse ? 1 : 0} onSelect={(i) => set({ fluidNearMouse: i === 1 })} />
+              </div>
+            </Presence>
             <Presence show={p.background === 'SIMPLE' || p.background === 'FLUID'}>
               <SettingSwitch title="Dot net" subtitle="A net of dots the mouse pushes around; a push travels through the whole net" checked={p.dotNet} onChange={(v) => set({ dotNet: v })} />
             </Presence>

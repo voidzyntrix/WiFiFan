@@ -2,6 +2,12 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '1.7.0',
+    notes: [
+      'Mouse reach: choose in Settings whether moving the mouse moves all the fluid on screen or only the fluid near the pointer.',
+    ],
+  },
+  {
     version: '1.6.1',
     notes: [
       'Fluid: the outline is the full-brightness colour and the fluid itself is a lot darker.',
