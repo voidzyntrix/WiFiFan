@@ -1,10 +1,12 @@
 // The LED board's control screen. It fills the window and nothing on it scrolls:
 //  - the header (back to the device list, the board's name, settings, power),
-//  - the live LED preview, which takes whatever height is left (and shrinks first on short screens),
+//  - the live LED preview, which takes whatever height is left and clips inside its own box,
 //  - brightness, always there,
-//  - a deck with tabs: Colour (hue / saturation or kelvin, presets), Modes, Scenes (paged), and the
-//    running sync (Music, Visualizer, Screen) when one runs.
-// Wide windows put the preview on the left and the controls on the right.
+//  - a deck with tabs: Colour, Modes, Scenes (paged), and Tune: the options of the mode that runs.
+// Wide windows put the preview on the left and the controls, centred, on the right.
+//
+// The preview's clock lives in the preview (and the rainbow sliders'), so an animating LED redraws
+// those two, not the whole screen.
 //
 // Right-click (a long press on a phone) does more: power -> sleep timer, a scene -> rename / update /
 // delete. Keyboard: Space power · 1-9 scenes · [ ] brightness · M modes · , settings
@@ -12,47 +14,38 @@
 import { useEffect, useRef, useState } from 'react'
 import { platform } from '../../platform'
 import { hexOf, hsvCss, kelvinScreenColor, KELVIN_MAX, KELVIN_MIN } from '../../lib/color'
-import { settings } from '../../settings/store'
 import { setAmbient } from '../../ui/ambient'
 import {
-  ActionsDialog, CircleIconButton, GradientBar, Hint, NameDialog, PillButton, SegmentedPill, SettingSwitch, SliderLabel,
+  ActionsDialog, Chip, CircleIconButton, GradientBar, LevelBar, NameDialog, SegmentedPill, SliderLabel, TabBar,
 } from '../../ui/components/Controls'
 import { AddIcon, BackIcon, EditIcon, PowerIcon, SettingsIcon } from '../../ui/components/Icons'
 import { Pager } from '../../ui/components/Pager'
-import { FilterChip, Tabs } from '../../ui/md'
 import { Presence, Swap, Txt } from '../../ui/motion'
 import { sound } from '../../ui/sound'
 import { toast } from '../../ui/toast'
 import type { ControlScreenProps } from '../types'
 import { displayName } from '../connection'
+import { FirmwareDialog } from './Firmware'
 import { LedPreview, LedPreviewPair } from './LedPreview'
 import { KELVIN_PRESETS, LED_CHASE, LED_EFFECTS, LED_PRESETS, MODE, modeLabel } from './modes'
 import { previewOf } from './preview'
 import { sceneSwatch, type Scene } from './scenes'
-import { useLed } from './useLed'
+import { hasTune, TuneTab, tuneLabel } from './Tune'
 import { checkFirmware, useOta } from './ota'
+import { type LedController, useLed } from './useLed'
 
-/** Modes whose preview moves, so the clock only ticks when something animates. */
 const ANIMATED = [MODE.RAINBOW, MODE.CANDLE, MODE.BREATHE, MODE.OCEAN, MODE.PARTY, MODE.AURORA, MODE.CHASE]
 
-type Tab = 'colour' | 'modes' | 'scenes' | 'sync'
-type Dialog = { kind: 'sleep' } | { kind: 'addScene' } | { kind: 'sceneMenu'; scene: Scene } | { kind: 'renameScene'; scene: Scene } | null
+type Tab = 'colour' | 'modes' | 'scenes' | 'tune'
+type Dialog =
+  | { kind: 'sleep' } | { kind: 'addScene' } | { kind: 'sceneMenu'; scene: Scene } | { kind: 'renameScene'; scene: Scene }
+  | { kind: 'firmware' } | null
 
-export function ControlScreen(props: ControlScreenProps) {
-  const c = useLed()
-  const { s, prefs, caps } = c
-  const [tab, setTab] = useState<Tab>('colour')
-  const [dialog, setDialog] = useState<Dialog>(null)
-  const ota = useOta()
-
-  // New board firmware: looked for on connect (quietly); a dot on Settings says there is one.
-  useEffect(() => { if (c.connected && c.fwVersion && !c.isDemo) void checkFirmware(c.fwVersion, true) }, [c.connected, c.fwVersion])
-
-  // The preview clock (and the rainbow sliders): ~30 fps while something animates.
+/** A ~30 fps clock in seconds while `on` (the LED preview and rainbow sliders animate with it). */
+function useClock(on: boolean) {
   const [t, setT] = useState(0)
-  const animating = c.connected && c.ledOn && (ANIMATED.includes(s.mode as 1) || c.sync.active !== 'NONE')
   useEffect(() => {
-    if (!animating) return
+    if (!on) return
     let raf = 0, last = 0
     const loop = (now: number) => {
       if (now - last > 33) { last = now; setT(now / 1000) }
@@ -60,37 +53,32 @@ export function ControlScreen(props: ControlScreenProps) {
     }
     raf = requestAnimationFrame(loop)
     return () => cancelAnimationFrame(raf)
-  }, [animating])
-  const preview = previewOf(c, t)
-  const rainbowHue = ((t / 4) % 1) * 360
+  }, [on])
+  return t
+}
 
-  // The background follows the light.
-  useEffect(() => { setAmbient({ active: c.connected && c.ledOn, hue: preview.hue, sat: Math.min(1, Math.max(0, preview.sat)) }) })
-  useEffect(() => () => setAmbient(null), [])
+export function ControlScreen(props: ControlScreenProps) {
+  const c = useLed()
+  const { s, prefs } = c
+  const [tab, setTab] = useState<Tab>('colour')
+  const [dialog, setDialog] = useState<Dialog>(null)
+  const ota = useOta()
 
-  // A sync that starts shows its tab; one that ends goes back to Modes.
+  // New board firmware: looked for on connect (quietly); a dot on Firmware says there is one.
+  useEffect(() => { if (c.connected && c.fwVersion && !c.isDemo) void checkFirmware(c.fwVersion, true) }, [c.connected, c.fwVersion])
+
+  // A sync that starts shows its tab; a mode without options takes the tune tab away.
   const isSync = s.mode === MODE.MUSIC || s.mode === MODE.VISUALIZER || s.mode === MODE.SCREEN
-  useEffect(() => { if (isSync) setTab('sync'); else setTab((x) => (x === 'sync' ? 'modes' : x)) }, [isSync])
+  const tunable = hasTune(s.mode)
+  useEffect(() => { if (isSync) setTab('tune') }, [isSync])
+  useEffect(() => { if (!tunable) setTab((x) => (x === 'tune' ? 'modes' : x)) }, [tunable])
 
   // Desktop: keep running in the tray while a sync drives the LED.
   useEffect(() => { platform.keepRunning(c.connected && c.sync.active !== 'NONE') }, [c.connected, c.sync.active])
 
-  const cycling = s.mode === MODE.RAINBOW && prefs.rainbowSync
-  const shownHue = cycling ? rainbowHue : s.hue
-  const eKelvinMode = c.editsLed2 ? s.kelvinMode2 : s.kelvinMode
-  const eKelvin = c.editsLed2 ? s.kelvin2 : s.kelvin
-  const eSat = c.editsLed2 ? s.sat2 : s.sat
-  const eHue = !c.editsLed2 ? shownHue : cycling ? (rainbowHue + 180) % 360 : s.hue2
-  const briTop = eKelvinMode ? kelvinScreenColor(eKelvin) : hsvCss(eHue, eSat)
-
-  const label = (kel: boolean, k: number, h: number, sat: number) => kel ? `${Math.round(k / 50) * 50} K` : hexOf(h, sat)
-  const modeName = !c.ledOn ? 'Off'
-    : s.mode === MODE.SOLID ? label(s.kelvinMode, s.kelvin, shownHue, s.sat) + (c.twoLeds ? '  ·  ' + label(s.kelvinMode2, s.kelvin2, s.hue2, s.sat2) : '')
-      : s.mode === MODE.SCREEN ? 'Screen sync' : modeLabel(s.mode)
-
   const modeGroups: [string, [number, string, boolean][]][] = [
-    ['Light', [[MODE.SOLID, 'Solid', true], [MODE.RAINBOW, 'Rainbow', true], [MODE.CANDLE, 'Candle', caps.candle]]],
-    ['Board effects', [...LED_EFFECTS.map(([m, l]) => [m, l, caps.effects] as [number, string, boolean]), [LED_CHASE[0], LED_CHASE[1], caps.split]]],
+    ['Light', [[MODE.SOLID, 'Solid', true], [MODE.RAINBOW, 'Rainbow', true], [MODE.CANDLE, 'Candle', c.caps.candle]]],
+    ['Board effects', [...LED_EFFECTS.map(([m, l]) => [m, l, c.caps.effects] as [number, string, boolean]), [LED_CHASE[0], LED_CHASE[1], c.caps.split]]],
     ['Reactive', [
       [MODE.MUSIC, 'Music', platform.capture.microphone],
       [MODE.VISUALIZER, 'Visualizer', platform.capture.systemAudio],
@@ -104,7 +92,7 @@ export function ControlScreen(props: ControlScreenProps) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement
-      if (el.closest?.('input, textarea, [role=slider], .scrim') || e.ctrlKey || e.altKey || e.metaKey) return
+      if (el.closest?.('input, textarea, [role=slider], .scrim, md-dialog, md-outlined-text-field') || e.ctrlKey || e.altKey || e.metaKey) return
       const cc = live.current.c
       if (e.key === ' ') { e.preventDefault(); sound.confirm(); cc.togglePower() }
       else if (/^[1-9]$/.test(e.key)) { const sc = cc.s.scenes[+e.key - 1]; if (sc) { sound.tap(); cc.applyScene(sc) } }
@@ -119,8 +107,8 @@ export function ControlScreen(props: ControlScreenProps) {
   }, [])
 
   const tabs: [Tab, string][] = [['colour', 'Colour'], ['modes', 'Modes'], ['scenes', 'Scenes']]
-  if (isSync) tabs.push(['sync', s.mode === MODE.MUSIC ? 'Music' : s.mode === MODE.VISUALIZER ? 'Visualizer' : 'Screen'])
-  const levelPct = Math.round((c.sync.active === 'NONE' ? 0 : c.sync.level) * 100)
+  if (tunable) tabs.push(['tune', tuneLabel(s.mode)])
+  const briTop = c.s.kelvinMode ? kelvinScreenColor(s.kelvin) : hsvCss(s.hue, s.sat)
 
   return (
     <div className="screen control">
@@ -135,10 +123,7 @@ export function ControlScreen(props: ControlScreenProps) {
             <EditIcon />
           </button>
         </div>
-        <CircleIconButton label="Settings" title={ota.kind === 'available' ? `Settings (,) · board firmware v${ota.release.version} is available` : 'Settings (,)'} onClick={props.onSettings}>
-          <SettingsIcon />
-          <Presence show={ota.kind === 'available'} className="inline badge"><span className="update-dot" /></Presence>
-        </CircleIconButton>
+        <CircleIconButton label="Settings" title="Settings (,)" onClick={props.onSettings}><SettingsIcon /></CircleIconButton>
         <CircleIconButton
           label={c.ledOn ? 'Turn off' : 'Turn on'}
           title={(c.ledOn ? 'Turn off' : 'Turn on') + ' (Space) · right-click / long press: sleep timer'}
@@ -151,101 +136,34 @@ export function ControlScreen(props: ControlScreenProps) {
       </header>
 
       <div className="control-body">
-        <div className="control-preview entrance" style={{ ['--i' as string]: 1 }}>
-          <Swap k={c.twoLeds ? 'pair' : 'one'} className="fill">
-            {c.twoLeds ? (
-              <LedPreviewPair
-                hue1={preview.hue} sat1={preview.sat} value1={preview.val}
-                hue2={preview.hue2} sat2={preview.sat2} value2={preview.val2}
-                editing={s.editLed}
-                onTap={(i) => { sound.tap(); c.setEditLed(i) }}
-              />
-            ) : (
-              <LedPreview hue={preview.hue} sat={preview.sat} value={preview.val} />
-            )}
-          </Swap>
-          <div className="mode-name" key={modeName}>{modeName}</div>
-          <button className="quiet-link small" onClick={() => { sound.tap(); props.onDisconnect() }}>Disconnect</button>
-        </div>
+        <Preview
+          c={c}
+          firmwareDot={ota.kind === 'available'}
+          onDisconnect={props.onDisconnect}
+          onFirmware={() => setDialog({ kind: 'firmware' })}
+        />
 
         <div className="control-deck entrance" style={{ ['--i' as string]: 2 }}>
           <div className="panel brightness-panel">
             <SliderLabel text="Brightness" value={`${Math.round(s.bri * 100)} %`} />
-            <GradientBar label="Brightness" fraction={s.bri} stops={['#000', briTop]} thumbColor={briTop}
+            <LevelBar label="Brightness" fraction={s.bri} stops={['#000', briTop]} thumbColor={briTop}
               onFraction={c.setBrightness} onFinished={c.sendCurrent} />
           </div>
 
-          <Tabs tabs={tabs.map(([, l]) => l)} active={tabs.findIndex(([k]) => k === tab)} onChange={(i) => { sound.tap(); setTab(tabs[i][0]) }} />
+          <TabBar tabs={tabs.map(([, l]) => l)} active={tabs.findIndex(([k]) => k === tab)} onChange={(i) => setTab(tabs[i][0])} />
 
           <div className="panel deck-panel">
-            <Swap k={tab} className="fill">
+            <Swap k={tab === 'tune' ? 'tune' + s.mode : tab} className="fill">
               {tab === 'colour' ? (
-                <div className="deck">
-                  <Presence show={c.twoLeds}>
-                    <SegmentedPill options={['LED 1', 'LED 2', 'Both']} selected={s.editLed} onSelect={c.setEditLed} />
-                  </Presence>
-                  <SegmentedPill
-                    options={['Color', 'Kelvin']}
-                    selected={eKelvinMode ? 1 : 0}
-                    onSelect={(i) => { c.editKelvinMode(i === 1); if (i === 1) { c.editKelvin(eKelvin); c.sendCurrent() } }}
-                  />
-                  <Swap k={eKelvinMode ? 'kelvin' : 'color'} className="stack">
-                    {eKelvinMode ? (
-                      <>
-                        <SliderLabel text="Temperature" value={`${Math.round(eKelvin / 50) * 50} K`} />
-                        <GradientBar
-                          label="Temperature"
-                          fraction={(eKelvin - KELVIN_MIN) / (KELVIN_MAX - KELVIN_MIN)}
-                          stops={Array.from({ length: 9 }, (_, i) => kelvinScreenColor(KELVIN_MIN + (i / 8) * (KELVIN_MAX - KELVIN_MIN)))}
-                          thumbColor={kelvinScreenColor(eKelvin)}
-                          onFraction={(f) => { c.editKelvin(KELVIN_MIN + f * (KELVIN_MAX - KELVIN_MIN)); c.sendThrottled() }}
-                          onFinished={c.sendCurrent}
-                        />
-                        <div className="presets">
-                          {KELVIN_PRESETS.map((k) => (
-                            <button key={k} className="preset" title={`${k} K`} style={{ background: kelvinScreenColor(k) }}
-                              onClick={() => { sound.tap(); c.pickKelvinPreset(k) }} />
-                          ))}
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <SliderLabel text="Hue" value={`${Math.round(eHue)}°`} />
-                        <GradientBar
-                          label="Hue"
-                          fraction={eHue / 360}
-                          stops={[0, 60, 120, 180, 240, 300, 360].map((h) => hsvCss(h, 1))}
-                          thumbColor={hsvCss(eHue, 1)}
-                          onFraction={(f) => { c.editHue(f * 360); c.sendThrottled() }}
-                          onFinished={c.sendCurrent}
-                        />
-                        <SliderLabel text="Saturation" value={`${Math.round(eSat * 100)} %`} />
-                        <GradientBar
-                          label="Saturation"
-                          fraction={eSat}
-                          stops={[hsvCss(eHue, 0), hsvCss(eHue, 1)]}
-                          thumbColor={hsvCss(eHue, eSat)}
-                          onFraction={(f) => { c.editSat(f); c.sendThrottled() }}
-                          onFinished={c.sendCurrent}
-                        />
-                        <div className="presets">
-                          {LED_PRESETS.map((p) => (
-                            <button key={p} className="preset" title={p} style={{ background: p }}
-                              onClick={() => { sound.tap(); c.pickPreset(p) }} />
-                          ))}
-                        </div>
-                      </>
-                    )}
-                  </Swap>
-                </div>
+                <ColourTab c={c} />
               ) : tab === 'modes' ? (
                 <div className="deck modes">
                   {modeGroups.map(([title, modes]) => (
-                    <div key={title}>
+                    <div key={title} className="mode-group" style={{ ['--rows' as string]: Math.ceil(modes.length / 3) }}>
                       <div className="menu-title">{title}</div>
                       <div className="menu-grid">
                         {modes.map(([m, l, enabled]) => (
-                          <FilterChip
+                          <Chip
                             key={m}
                             label={l}
                             disabled={!enabled}
@@ -257,17 +175,16 @@ export function ControlScreen(props: ControlScreenProps) {
                       </div>
                     </div>
                   ))}
-                  {!caps.effects && <Hint>Update the board firmware (Settings) for all modes.</Hint>}
                 </div>
               ) : tab === 'scenes' ? (
                 <div className="deck scenes">
                   <Pager
                     items={s.scenes}
                     itemWidth={128}
-                    itemHeight={40}
+                    itemHeight={44}
                     gap={8}
                     render={(sc) => (
-                      <FilterChip
+                      <Chip
                         key={sc.id}
                         className="chip scene"
                         label={sc.name}
@@ -279,46 +196,22 @@ export function ControlScreen(props: ControlScreenProps) {
                       />
                     )}
                     tail={
-                      <md-assist-chip class={'chip add' + (c.canSaveScene ? '' : ' disabled')} label="Save" title="Save the current light as a scene"
+                      <Chip
+                        assist
+                        className={'chip add' + (c.canSaveScene ? '' : ' disabled')}
+                        label="Save"
+                        title="Save the current light as a scene"
+                        icon={<AddIcon />}
                         onClick={() => {
                           if (c.canSaveScene) setDialog({ kind: 'addScene' })
                           else toast("Music, Visualizer and Screen sync can't be saved as scenes.")
-                        }}>
-                        <span slot="icon" className="chip-icon"><AddIcon /></span>
-                      </md-assist-chip>
+                        }}
+                      />
                     }
                   />
                 </div>
               ) : (
-                <div className="deck sync">
-                  <div className="panel-head">
-                    <span><Txt>{s.mode === MODE.MUSIC ? 'Music' : s.mode === MODE.VISUALIZER ? 'Visualizer' : 'Screen sync'}</Txt></span>
-                    <span className="panel-state">
-                      <Txt>
-                        {c.sync.active === 'NONE' ? 'Starting…'
-                          : s.mode === MODE.MUSIC ? 'Listening' : s.mode === MODE.VISUALIZER ? 'Listening to your PC' : 'Watching the screen'}
-                      </Txt>
-                    </span>
-                  </div>
-                  {s.mode !== MODE.SCREEN && (
-                    <>
-                      <div className="level-meter"><div style={{ width: `${levelPct}%` }} /></div>
-                      <SliderLabel text="Sensitivity" />
-                      <GradientBar label="Sensitivity" fraction={prefs.musicSensitivity} stops={['var(--on-bg-12)', 'var(--on-bg-55)']}
-                        thumbColor="var(--primary)" onFraction={(f) => settings.set({ musicSensitivity: f })} onFinished={() => {}} />
-                    </>
-                  )}
-                  {s.mode === MODE.MUSIC && (
-                    <SegmentedPill options={['Beat colours', 'My colour']} selected={prefs.musicKeepColour ? 1 : 0}
-                      onSelect={(i) => settings.set({ musicKeepColour: i === 1 })} />
-                  )}
-                  {s.mode !== MODE.SCREEN && (
-                    <SettingSwitch title="Beat flash" subtitle="A quick burst of brightness on every beat"
-                      checked={prefs.beatFlash} onChange={(v) => settings.set({ beatFlash: v })} />
-                  )}
-                  <PillButton text={`Stop ${s.mode === MODE.MUSIC ? 'music' : s.mode === MODE.VISUALIZER ? 'visualizer' : 'screen sync'}`}
-                    onClick={() => void c.startMode(MODE.SOLID)} />
-                </div>
+                <TuneTab c={c} />
               )}
             </Swap>
           </div>
@@ -337,6 +230,7 @@ export function ControlScreen(props: ControlScreenProps) {
           onDismiss={() => setDialog(null)}
         />
       )}
+      {dialog?.kind === 'firmware' && <FirmwareDialog onDismiss={() => setDialog(null)} />}
       {dialog?.kind === 'addScene' && (
         <NameDialog
           title="Save scene"
@@ -369,6 +263,128 @@ export function ControlScreen(props: ControlScreenProps) {
           onSave={(n) => { c.renameScene(dialog.scene, n); setDialog(null) }}
         />
       )}
+    </div>
+  )
+}
+
+/** The LED preview, its name, and the background colour that follows it: this is what animates. */
+function Preview({ c, firmwareDot, onDisconnect, onFirmware }: { c: LedController; firmwareDot: boolean; onDisconnect: () => void; onFirmware: () => void }) {
+  const { s } = c
+  const t = useClock(c.connected && c.ledOn && (ANIMATED.includes(s.mode as 1) || c.sync.active !== 'NONE'))
+  const preview = previewOf(c, t)
+
+  // The background follows the light.
+  useEffect(() => { setAmbient({ active: c.connected && c.ledOn, hue: preview.hue, sat: Math.min(1, Math.max(0, preview.sat)) }) })
+  useEffect(() => () => setAmbient(null), [])
+
+  const label = (kel: boolean, k: number, h: number, sat: number) => kel ? `${Math.round(k / 50) * 50} K` : hexOf(h, sat)
+  const modeName = !c.ledOn ? 'Off'
+    : s.mode === MODE.SOLID ? label(s.kelvinMode, s.kelvin, s.hue, s.sat) + (c.twoLeds ? '  ·  ' + label(s.kelvinMode2, s.kelvin2, s.hue2, s.sat2) : '')
+      : s.mode === MODE.SCREEN ? 'Screen sync' : modeLabel(s.mode)
+
+  return (
+    <div className="control-preview entrance" style={{ ['--i' as string]: 1 }}>
+      <Swap k={c.twoLeds ? 'pair' : 'one'} className="fill">
+        {c.twoLeds ? (
+          <LedPreviewPair
+            hue1={preview.hue} sat1={preview.sat} value1={preview.val}
+            hue2={preview.hue2} sat2={preview.sat2} value2={preview.val2}
+            editing={s.editLed}
+            onTap={(i) => { sound.tap(); c.setEditLed(i) }}
+          />
+        ) : (
+          <LedPreview hue={preview.hue} sat={preview.sat} value={preview.val} />
+        )}
+      </Swap>
+      <div className="mode-name">{modeName}</div>
+      <div className="preview-links">
+        <button className="quiet-link small" onClick={() => { sound.tap(); onDisconnect() }}>Disconnect</button>
+        {!c.isDemo && (
+          <button className="quiet-link small" onClick={() => { sound.tap(); onFirmware() }}>
+            Firmware
+            <Presence show={firmwareDot} className="inline badge"><span className="update-dot" /></Presence>
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/** Colour: which LED, colour or kelvin, the sliders and presets. Animates with the rainbow here. */
+function ColourTab({ c }: { c: LedController }) {
+  const { s, prefs } = c
+  const cycling = s.mode === MODE.RAINBOW && prefs.rainbowSync
+  const t = useClock(cycling && c.connected && c.ledOn)
+  const rainbowHue = ((t / 4) % 1) * 360
+  const shownHue = cycling ? rainbowHue : s.hue
+  const eKelvinMode = c.editsLed2 ? s.kelvinMode2 : s.kelvinMode
+  const eKelvin = c.editsLed2 ? s.kelvin2 : s.kelvin
+  const eSat = c.editsLed2 ? s.sat2 : s.sat
+  const eHue = !c.editsLed2 ? shownHue : cycling ? (rainbowHue + 180) % 360 : s.hue2
+  const ledChoice = !s.separate || !c.caps.split ? 0 : 1 + s.editLed
+
+  return (
+    <div className="deck colour">
+      {c.caps.split && (
+        <SegmentedPill
+          options={['Linked', 'LED 1', 'LED 2', 'Both']}
+          selected={ledChoice}
+          onSelect={(i) => c.setLedLayout(i > 0, i > 0 ? i - 1 : 0)}
+        />
+      )}
+      <SegmentedPill
+        options={['Color', 'Kelvin']}
+        selected={eKelvinMode ? 1 : 0}
+        onSelect={(i) => { c.editKelvinMode(i === 1); if (i === 1) { c.editKelvin(eKelvin); c.sendCurrent() } }}
+      />
+      <Swap k={eKelvinMode ? 'kelvin' : 'color'} className="stack">
+        {eKelvinMode ? (
+          <>
+            <SliderLabel text="Temperature" value={`${Math.round(eKelvin / 50) * 50} K`} />
+            <GradientBar
+              label="Temperature"
+              fraction={(eKelvin - KELVIN_MIN) / (KELVIN_MAX - KELVIN_MIN)}
+              stops={Array.from({ length: 9 }, (_, i) => kelvinScreenColor(KELVIN_MIN + (i / 8) * (KELVIN_MAX - KELVIN_MIN)))}
+              thumbColor={kelvinScreenColor(eKelvin)}
+              onFraction={(f) => { c.editKelvin(KELVIN_MIN + f * (KELVIN_MAX - KELVIN_MIN)); c.sendThrottled() }}
+              onFinished={c.sendCurrent}
+            />
+            <div className="presets">
+              {KELVIN_PRESETS.map((k) => (
+                <button key={k} className="preset" title={`${k} K`} style={{ background: kelvinScreenColor(k) }}
+                  onClick={() => { sound.tap(); c.pickKelvinPreset(k) }} />
+              ))}
+            </div>
+          </>
+        ) : (
+          <>
+            <SliderLabel text="Hue" value={`${Math.round(eHue)}°`} />
+            <GradientBar
+              label="Hue"
+              fraction={eHue / 360}
+              stops={[0, 60, 120, 180, 240, 300, 360].map((h) => hsvCss(h, 1))}
+              thumbColor={hsvCss(eHue, 1)}
+              onFraction={(f) => { c.editHue(f * 360); c.sendThrottled() }}
+              onFinished={c.sendCurrent}
+            />
+            <SliderLabel text="Saturation" value={`${Math.round(eSat * 100)} %`} />
+            <GradientBar
+              label="Saturation"
+              fraction={eSat}
+              stops={[hsvCss(eHue, 0), hsvCss(eHue, 1)]}
+              thumbColor={hsvCss(eHue, eSat)}
+              onFraction={(f) => { c.editSat(f); c.sendThrottled() }}
+              onFinished={c.sendCurrent}
+            />
+            <div className="presets">
+              {LED_PRESETS.map((p) => (
+                <button key={p} className="preset" title={p} style={{ background: p }}
+                  onClick={() => { sound.tap(); c.pickPreset(p) }} />
+              ))}
+            </div>
+          </>
+        )}
+      </Swap>
     </div>
   )
 }

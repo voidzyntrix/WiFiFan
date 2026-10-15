@@ -398,6 +398,7 @@ export function useLed() {
     s, caps, fwVersion, connected, isDemo: board.isDemo, ledOn, twoLeds: twoLeds(), sync, prefs,
     editsLed2: editsLed2(), selectedSceneId, sceneSuggestion, canSaveScene: canSaveScene(s.mode),
     setEditLed: (i: number) => update({ editLed: i }),
+    setLedLayout: (separate: boolean, edit: number) => update({ separate, editLed: edit }),
     editHue, editSat, editKelvin, editKelvinMode, pickPreset, pickKelvinPreset, setBrightness,
     sendCurrent, sendThrottled, startMode, togglePower, startSleep,
     applyScene, addScene, updateSceneToCurrent, renameScene, deleteScene,

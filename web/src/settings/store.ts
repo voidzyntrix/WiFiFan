@@ -12,8 +12,17 @@ import type { SavedDevice } from '../devices/types'
 export type ColorSource = 'SYSTEM' | 'CUSTOM' | 'MONOCHROME'
 /** SIMPLE is the particles. */
 export type Background = 'SIMPLE' | 'AURORA' | 'IMAGE' | 'PLAIN'
+/**
+ * The look of the whole app. GLASS: translucent glass cards over a background, our own controls.
+ * MATERIAL: Material 3, solid tonal surfaces and Google's widgets. Colours (Material You or not)
+ * are chosen separately (colorSource).
+ */
+export type Design = 'GLASS' | 'MATERIAL'
 
 export interface Settings {
+  design: Design
+  /** Glass without blur or WebGL: much lighter on phones. */
+  lightEffects: boolean
   colorSource: ColorSource
   accentColor: string
   background: Background
@@ -23,6 +32,7 @@ export interface Settings {
   monoFont: boolean
   /** 0 Square, 1 Small, 2 Medium, 3 Large, 4 Custom. */
   cornerStyle: number
+  /** Custom corner size: 0 (square) to 2.5, in units where 1 is Material's medium (12 px cards). */
   customCorner: number
   refractiveGlass: boolean
   imageDim: number
@@ -67,7 +77,12 @@ export interface Settings {
 
 export const DEFAULT_ACCENT = '#7e57c2'
 
+const ON_PHONE = typeof window !== 'undefined' && !!(window as unknown as { GlowAndroid?: unknown }).GlowAndroid
+
 const DEFAULTS: Settings = {
+  // phones start with Material You (it is their own look and the lightest); PCs with glass
+  design: ON_PHONE ? 'MATERIAL' : 'GLASS',
+  lightEffects: ON_PHONE,
   colorSource: 'SYSTEM',
   accentColor: DEFAULT_ACCENT,
   background: 'SIMPLE',
@@ -141,11 +156,23 @@ function load(): Settings {
 let current = load()
 const listeners = new Set<() => void>()
 
+// Saved a moment after the last change: a slider drag changes settings every frame.
+let persistTimer = 0
+function persistSoon() {
+  window.clearTimeout(persistTimer)
+  persistTimer = window.setTimeout(() => {
+    try { localStorage.setItem(KEY, JSON.stringify(current)) } catch { /* storage full or blocked */ }
+  }, 250)
+}
+window.addEventListener('pagehide', () => {
+  try { localStorage.setItem(KEY, JSON.stringify(current)) } catch { /* ignore */ }
+})
+
 export const settings = {
   get: (): Settings => current,
   set(patch: Partial<Settings>) {
     current = { ...current, ...patch }
-    try { localStorage.setItem(KEY, JSON.stringify(current)) } catch { /* storage full or blocked */ }
+    persistSoon()
     listeners.forEach((l) => l())
   },
   subscribe(l: () => void) {
@@ -158,7 +185,14 @@ export function useSettings(): Settings {
   return useSyncExternalStore(settings.subscribe, settings.get)
 }
 
-export const CORNER_SCALES = [0, 0.5, 1, 1.6]
-export function cornerScale(s: Settings) {
-  return s.cornerStyle === 4 ? s.customCorner : CORNER_SCALES[s.cornerStyle] ?? 1
+/** One unit is Material's medium shape (cards 12 px, ...); every radius in the app is a multiple of it. */
+export const CORNER_UNITS = [0, 0.4, 1, 1.7]
+export const MAX_CORNER_UNIT = 2.5
+export function cornerUnit(s: Settings) {
+  return s.cornerStyle === 4 ? Math.min(MAX_CORNER_UNIT, Math.max(0, s.customCorner)) : CORNER_UNITS[s.cornerStyle] ?? 1
+}
+
+/** A small hook for one value, so a component re-renders only when that value changes. */
+export function useSetting<K extends keyof Settings>(key: K): Settings[K] {
+  return useSyncExternalStore(settings.subscribe, () => settings.get()[key])
 }

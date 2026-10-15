@@ -8,7 +8,7 @@ import { deviceType } from './devices/registry'
 import type { SavedDevice } from './devices/types'
 import { APP_VERSION, platform } from './platform'
 import { compareVersions } from './lib/color'
-import { settings, useSettings } from './settings/store'
+import { settings, useSettings, type Background } from './settings/store'
 import { checkAppUpdate, installAppUpdate, useAppUpdate, type AppUpdateState } from './ui/appUpdate'
 import { useAmbient } from './ui/ambient'
 import { BackgroundLayer } from './ui/backgrounds/Backgrounds'
@@ -28,12 +28,17 @@ type DialogState =
   | { kind: 'update' }
   | null
 
+/** The background follows the light; only this component listens to it, so a rainbow redraws the canvas, not the app. */
+function Backdrop(props: { background: Background; tint: string; imageDim: number }) {
+  const ambient = useAmbient()
+  return <BackgroundLayer background={props.background} active={ambient.active} hue={ambient.hue} sat={ambient.sat} tint={props.tint} imageDim={props.imageDim} />
+}
+
 export function App() {
   const prefs = useSettings()
   const systemDark = useSystemDark()
   const systemAccent = useSystemAccent()
   const conn = useConnection()
-  const ambient = useAmbient()
   const app = useAppUpdate()
   const toasts = useToasts()
   const [showSettings, setShowSettings] = useState(false)
@@ -129,23 +134,19 @@ export function App() {
   const toastList = useLeavingList(toasts, (t) => String(t.id))
   const toastBox = useRef<HTMLDivElement>(null)
   useFlip(toastBox)
-  const glass = useExit(prefs.refractiveGlass, 500)
+  const glassOn = prefs.design === 'GLASS' && prefs.refractiveGlass && !prefs.lightEffects
+  const glass = useExit(glassOn, 500)
 
   const type = conn.device ? deviceType(conn.device.type) : undefined
   const Control = type?.ControlScreen
 
   return (
     <>
-      <div className="backdrop">
-        <BackgroundLayer
-          background={prefs.background}
-          active={ambient.active}
-          hue={ambient.hue}
-          sat={ambient.sat}
-          tint={colors.onBg}
-          imageDim={prefs.imageDim}
-        />
-      </div>
+      {prefs.design === 'GLASS' && (
+        <div className="backdrop">
+          <Backdrop background={prefs.background} tint={colors.onBg} imageDim={prefs.imageDim} />
+        </div>
+      )}
       {glass.mounted && <GlassLayer bg={colors.bg} leaving={glass.leaving} />}
       {/* refractive glass without WebGL: a CSS backdrop filter (no rim bend) */}
       <svg width="0" height="0" style={{ position: 'absolute' }} aria-hidden>

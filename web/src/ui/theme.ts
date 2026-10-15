@@ -8,7 +8,7 @@ import {
   argbFromHex, hexFromArgb, Hct, MaterialDynamicColors as C, SchemeMonochrome, SchemeTonalSpot, type DynamicScheme,
 } from '@material/material-color-utilities'
 import { platform } from '../platform'
-import { cornerScale, DEFAULT_ACCENT, type Settings } from '../settings/store'
+import { cornerUnit, DEFAULT_ACCENT, type Settings } from '../settings/store'
 
 export function useSystemDark() {
   const q = window.matchMedia('(prefers-color-scheme: dark)')
@@ -84,13 +84,21 @@ export function applyTheme(s: Settings, systemDark: boolean, systemAccent: strin
   r.setProperty('--md-sys-typescale-body-font', "'Roboto', system-ui, sans-serif")
   r.setProperty('--md-ref-typeface-brand', "'Roboto', system-ui, sans-serif")
   r.setProperty('--md-ref-typeface-plain', "'Roboto', system-ui, sans-serif")
-  r.setProperty('--corner', String(cornerScale(s)))
-  r.setProperty('--circle', String(Math.min(1, cornerScale(s))))
-  r.setProperty('--led-radius', s.roundLedPreview ? '50%' : `${Math.min(50, 50 * cornerScale(s))}%`)
+  // Tonal surfaces for the Material design's cards, sheets and tiles.
+  r.setProperty('--card', hex(C.surfaceContainerLow))
+  r.setProperty('--card-high', hex(C.surfaceContainerHigh))
+  r.setProperty('--card-highest', hex(C.surfaceContainerHighest))
+  r.setProperty('--outline', hex(C.outlineVariant))
+  if (dark && s.pureBlack) { r.setProperty('--card', '#0d0d0d'); r.setProperty('--card-high', '#141414'); r.setProperty('--card-highest', '#1c1c1c') }
+  r.setProperty('--u', String(cornerUnit(s)))
+  r.setProperty('--led-radius', s.roundLedPreview ? '50%' : `${Math.min(50, 50 * cornerUnit(s))}%`)
   r.setProperty('--font', s.monoFont ? "'JetBrains Mono', ui-monospace, monospace" : "'Roboto', system-ui, sans-serif")
   document.documentElement.dataset.theme = dark ? 'dark' : 'light'
   platform.systemBars?.(dark)
-  document.documentElement.dataset.glass = s.refractiveGlass ? 'refractive' : 'frosted'
+  const root = document.documentElement.dataset
+  root.design = s.design === 'MATERIAL' ? 'material' : 'glass'
+  root.glass = s.refractiveGlass && !s.lightEffects ? 'refractive' : 'frosted'
+  root.effects = s.lightEffects || s.design === 'MATERIAL' ? 'light' : 'full'
   document.querySelector('meta[name=theme-color]')?.setAttribute('content', bg)
   return { onBg, primary: hex(C.primary), bg }
 }

@@ -9,7 +9,7 @@ function Disc({ hue, sat, value, onClick, selected }: { hue: number; sat: number
   const [r, g, b] = hsvToRgb(hue, clamp(sat, 0, 1), 1)
   const mix = (0.15 + 0.85 * level) * lit
   const fill = `rgb(${26 + (r - 26) * mix} ${26 + (g - 26) * mix} ${26 + (b - 26) * mix})`
-  const glow = 2 + 34 * lit * (0.35 + 0.65 * level)
+  const glow = 1 + 22 * lit * (0.35 + 0.65 * level)
   return (
     <div
       className={'led-disc' + (onClick ? ' clickable' : '') + (selected ? ' selected' : '')}
@@ -17,7 +17,7 @@ function Disc({ hue, sat, value, onClick, selected }: { hue: number; sat: number
       style={{
         background: fill,
         borderColor: `rgb(${r} ${g} ${b} / ${0.25 + 0.6 * lit})`,
-        boxShadow: `0 0 ${glow * 1.6}px ${glow * 0.4}px rgb(${r} ${g} ${b} / ${0.55 * lit}), 0 0 ${glow * 4}px ${glow}px rgb(${r} ${g} ${b} / ${0.22 * lit})`,
+        boxShadow: `0 0 ${glow * 1.6}px ${glow * 0.3}px rgb(${r} ${g} ${b} / ${0.28 * lit}), 0 0 ${glow * 4}px ${glow * 0.7}px rgb(${r} ${g} ${b} / ${0.1 * lit})`,
       }}
     />
   )

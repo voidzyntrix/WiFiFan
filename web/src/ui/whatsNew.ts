@@ -2,6 +2,18 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.1.0',
+    notes: [
+      'Material You is now its own design (Settings > Design): solid Material 3 surfaces, buttons, tabs, chips, sliders, dialogs and a floating button. Glass stays as the other design. Phones start with Material You.',
+      'Much smoother on phones: the whole screen no longer redraws with the LED animation, and blur and WebGL are off by default there (Light effects).',
+      'Every mode has its own options on the main screen, in a tab named after the mode (Candle, Rainbow, Music, Fade, Screen). The board settings section is gone; firmware moved to a button under the LED.',
+      'Corners are consistent: Square makes everything square, and Small, Medium, Large and the custom size scale every card, button, chip, switch and dot together.',
+      'Your own colour picker and text fields instead of the browser ones.',
+      'Fixed controls overlapping on narrow screens, the desktop controls panel stretching, and the squashed mode buttons.',
+      'Refraction only bends the background now (no highlights); the LED glow is fainter.',
+    ],
+  },
+  {
     version: '2.0.0',
     notes: [
       'One app for Android and Windows: both now run the same code, so every feature lands on both at once.',

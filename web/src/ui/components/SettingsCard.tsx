@@ -5,7 +5,7 @@ import type { ReactNode } from 'react'
 import { settings, useSettings } from '../../settings/store'
 import { Presence } from '../motion'
 import { sound } from '../sound'
-import { GradientBar, Hint } from './Controls'
+import { Hint, LevelBar } from './Controls'
 import { BackIcon } from './Icons'
 
 export function SettingsCard(props: { id: string; title: string; badge?: boolean; children: ReactNode; i: number }) {
@@ -31,8 +31,7 @@ export function LevelSlider(props: { label: string; value: number; text: string;
   return (
     <div className="level-slider">
       <div className="slider-label"><span>{props.label}</span><span className="slider-value">{props.text}</span></div>
-      <GradientBar label={props.label} fraction={props.value} stops={['var(--on-bg-12)', 'var(--on-bg-55)']} thumbColor="var(--primary)"
-        onFraction={props.onChange} onFinished={props.onDone ?? (() => {})} />
+      <LevelBar label={props.label} fraction={props.value} onFraction={props.onChange} onFinished={props.onDone ?? (() => {})} />
       {props.hint && <Hint>{props.hint}</Hint>}
     </div>
   )

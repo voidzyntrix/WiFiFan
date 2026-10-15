@@ -3,7 +3,7 @@
 // and doesn't hear their custom events). Their colours come from the --md-sys-color-* tokens that
 // theme.ts sets from the Material You scheme.
 
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useEffect, useRef } from 'react'
 import '@material/web/button/filled-button.js'
 import '@material/web/button/filled-tonal-button.js'
 import '@material/web/button/text-button.js'
@@ -20,6 +20,7 @@ import '@material/web/dialog/dialog.js'
 import '@material/web/textfield/outlined-text-field.js'
 import '@material/web/progress/linear-progress.js'
 import '@material/web/slider/slider.js'
+import '@material/web/fab/fab.js'
 import '@material/web/list/list.js'
 import '@material/web/list/list-item.js'
 import '@material/web/ripple/ripple.js'
@@ -65,29 +66,5 @@ export function Tabs(props: { tabs: string[]; active: number; onChange: (i: numb
     <md-tabs ref={ref} class="md-tabs">
       {props.tabs.map((t) => <md-primary-tab key={t}>{t}</md-primary-tab>)}
     </md-tabs>
-  )
-}
-
-/** A Material 3 filter chip (selectable), with an optional leading icon. */
-export function FilterChip(props: {
-  label: string; selected?: boolean; disabled?: boolean; icon?: ReactNode; title?: string; className?: string
-  onClick: () => void; onContextMenu?: (e: React.MouseEvent) => void
-}) {
-  // the chip toggles itself on click; the app decides what is selected
-  const ref = useRef<HTMLElement & { selected: boolean }>(null)
-  useEffect(() => { if (ref.current) ref.current.selected = !!props.selected })
-  return (
-    <md-filter-chip
-      ref={ref}
-      class={props.className}
-      label={props.label}
-      title={props.title}
-      disabled={flag(props.disabled)}
-      selected={flag(props.selected)}
-      onClick={(e: React.MouseEvent) => { e.preventDefault(); if (ref.current) ref.current.selected = !!props.selected; props.onClick() }}
-      onContextMenu={props.onContextMenu}
-    >
-      {props.icon && <span slot="icon" className="chip-icon">{props.icon}</span>}
-    </md-filter-chip>
   )
 }

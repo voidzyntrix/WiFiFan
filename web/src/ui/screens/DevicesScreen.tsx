@@ -7,7 +7,7 @@ import { deviceType, guessType } from '../../devices/registry'
 import type { SavedDevice } from '../../devices/types'
 import { platform } from '../../platform'
 import { useSettings } from '../../settings/store'
-import { CircleIconButton, PillButton } from '../components/Controls'
+import { CircleIconButton, PillButton, useDesign } from '../components/Controls'
 import { AddIcon, BulbIcon, SettingsIcon } from '../components/Icons'
 import { Pager } from '../components/Pager'
 import { Swap, Txt } from '../motion'
@@ -16,6 +16,7 @@ import { sound } from '../sound'
 export function DevicesScreen(props: { onSettings: () => void; onOpen: (d: SavedDevice) => void; onMenu: (d: SavedDevice) => void }) {
   const { devices } = useSettings()
   const conn = useConnection()
+  const material = useDesign() === 'MATERIAL'
   const picking = conn.phase === 'scanning' || (conn.phase === 'connecting' && conn.nearby.length > 0)
 
   const status = (d: SavedDevice) =>
@@ -68,14 +69,19 @@ export function DevicesScreen(props: { onSettings: () => void; onOpen: (d: Saved
                   </button>
                 )
               }}
-              tail={
+              tail={material ? undefined : (
                 <button className="board-tile add" onClick={() => { sound.tap(); connection.scan() }}>
                   <span className="tile-icon"><AddIcon size={28} /></span>
                   <span className="tile-name">Add a device</span>
                 </button>
-              }
+              )}
             />
             <p className="hint center">Click a device to control it. Right-click or long press to rename or forget it.</p>
+            {material && (
+              <md-fab class="fab" label="Add a device" onClick={() => { sound.tap(); connection.scan() }}>
+                <span slot="icon" className="chip-icon"><AddIcon size={24} /></span>
+              </md-fab>
+            )}
           </div>
         ) : (
           <div className="beacon-wrap">

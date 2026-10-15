@@ -14,9 +14,11 @@ function useFrames(frame: (t: number, dt: number) => void) {
     let raf = 0, last = performance.now()
     const start = last
     const loop = (now: number) => {
+      raf = requestAnimationFrame(loop)
+      // light effects (phones): the background moves at 30 fps, which is plenty for slow drifting
+      if (document.documentElement.dataset.effects === 'light' && now - last < 30) return
       fn.current((now - start) / 1000, Math.min(0.1, (now - last) / 1000))
       last = now
-      raf = requestAnimationFrame(loop)
     }
     raf = requestAnimationFrame(loop)
     return () => cancelAnimationFrame(raf)

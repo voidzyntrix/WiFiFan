@@ -3,8 +3,8 @@
 // One full-window canvas sits between the background and the UI. Each frame it draws the
 // background (from source.ts) and then, for every glass element on screen (cards, buttons, pills,
 // switches, sliders, dialogs, dots: see GLASS_SELECTOR), a refracted copy of it:
-//  - the Android app's rim bend: a circular bevel along the rounded rectangle's border pulls the
-//    background inwards, with a hint of colour fringing and light catching the top-left rim;
+//  - a rim bend: a circular bevel along the rounded rectangle's border pulls the background
+//    inwards. That is all: no highlights, no fringing, no shading. The depth comes from the bend;
 //  - a soft warp across the inside, like uneven thick glass (it moves with the element).
 // Small things bend less and thinner, in proportion to their size.
 // Elements are measured every frame (position, corner radius, opacity, the box that clips them), so
@@ -15,14 +15,12 @@
 import { useEffect, useRef } from 'react'
 import { backdropFade, backdropSource } from './source'
 
-/**
- * Which elements are glass: the app's own surfaces (cards, tiles, toasts, the colour strips). The
- * Material 3 widgets (buttons, chips, switches, dialogs) are drawn by Material, solid on top.
- */
+/** Which elements are glass: the glass design's surfaces and controls (the Material design has no glass). */
 const GLASS_SELECTOR = [
-  '.panel', '.board-tile', '.toast', '.update-block', '.nearby-row',
-  '.gbar-track', '.gbar-thumb', '.gbar-dot', '.preset', '.level-meter', '.level-meter > div',
-  '.board-pill', '.quiet-link', '.led-disc', '.swatch', '.beacon', '.board-dot', '.auto-mark', '.scan-dots span', '.update-dot',
+  '.panel', '.board-tile', '.toast', '.update-block', '.nearby-row', '.dialog', 'input.text-field', 'button.action-row',
+  'button.circle-btn', '.pill', '.pill-thumb', 'button.pill-button', 'button.switch', '.switch-knob', 'button.chip', 'button.menu-item',
+  '.progress', '.progress-fill', '.gbar-track', '.gbar-thumb', '.gbar-dot', '.preset', '.level-meter', '.level-meter > div',
+  '.board-pill', '.quiet-link', '.led-disc', '.swatch', '.beacon', '.board-dot', '.scan-dots span', '.update-dot',
 ].join(',')
 /** Things that sit above the rest of the UI: their glass is drawn last. */
 const OVERLAY_SELECTOR = '.mode-menu, .scrim, .toasts'
@@ -30,7 +28,7 @@ const OVERLAY_SELECTOR = '.mode-menu, .scrim, .toasts'
 const EDGE = 22
 const STRENGTH = 20
 /** The inside warp: how far (CSS px) and how wide its waves are. */
-const WARP = 9
+const WARP = 4
 const WARP_SIZE = 150
 /** A thing this many CSS px across (its short side) gets the full effect. */
 const FULL_SIZE = 90
@@ -114,12 +112,7 @@ void main() {
   // the soft warp across the inside, fading out where the rim takes over
   off += warp((lp + uMeta.z) / (${WARP_SIZE.toFixed(1)} * uScale)) * (${(WARP * 2).toFixed(1)} * uScale * k) * (1.0 - bend);
 
-  vec3 g;
-  g.g = bgAt(p - off).g;
-  g.r = bgAt(p - off * 1.04).r;
-  g.b = bgAt(p - off * 0.96).b;
-  float light = max(dot(n, vec2(-0.7071, -0.7071)), 0.0) * bend * 0.22;
-  g = min(g + light, 1.0);
+  vec3 g = bgAt(p - off);
 
   float a = clamp(0.5 - d, 0.0, 1.0) * uMeta.y;   // antialiased border, element opacity
   outColor = vec4(g, a);

@@ -1,14 +1,14 @@
 // Settings: the app (look, feedback, updates) and, below it, each device type's own section (only
 // for the types you have devices of). The one screen that scrolls.
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useConnection } from '../../devices/connection'
 import { DEVICE_TYPES } from '../../devices/registry'
 import { APP_VERSION, openLink, platform } from '../../platform'
 import { RELEASES_PAGE } from '../../lib/github'
-import { DEFAULT_ACCENT, settings, useSettings, type Background, type ColorSource } from '../../settings/store'
+import { cornerUnit, DEFAULT_ACCENT, MAX_CORNER_UNIT, settings, useSettings, type Background, type ColorSource, type Design } from '../../settings/store'
 import { useAppUpdate, checkAppUpdate, installAppUpdate } from '../appUpdate'
-import { CircleIconButton, PillButton, ProgressBar, SegmentedPill, SettingHeading, SettingSection, SettingSwitch } from '../components/Controls'
+import { CircleIconButton, ColourPickerDialog, PillButton, ProgressBar, SegmentedPill, SettingHeading, SettingSection, SettingSwitch } from '../components/Controls'
 import { LevelSlider, SettingsCard } from '../components/SettingsCard'
 import { BackIcon } from '../components/Icons'
 import { sound } from '../sound'
@@ -22,9 +22,12 @@ export function SettingsScreen({ onBack, onWhatsNew }: { onBack: () => void; onW
   const app = useAppUpdate()
   const set = settings.set
   const phone = platform.kind === 'android'
+  const [picking, setPicking] = useState(false)
+  const material = p.design === 'MATERIAL'
+  const designs: Design[] = ['GLASS', 'MATERIAL']
 
   useEffect(() => {
-    const k = (e: KeyboardEvent) => { if (e.key === 'Escape' && !document.querySelector('.scrim')) onBack() }
+    const k = (e: KeyboardEvent) => { if (e.key === 'Escape' && !document.querySelector('.scrim, md-dialog[open]')) onBack() }
     window.addEventListener('keydown', k)
     return () => window.removeEventListener('keydown', k)
   }, [onBack])
@@ -44,8 +47,13 @@ export function SettingsScreen({ onBack, onWhatsNew }: { onBack: () => void; onW
       <div className="settings-grid">
         <div className="settings-col">
           <SettingsCard id="ui" title="App UI" i={1}>
+            <SettingSection title="Design" />
+            <SettingHeading title="Look" subtitle={material
+              ? 'Material You: solid Material 3 surfaces and widgets. The lightest on the GPU'
+              : 'Glass: translucent cards over a background, with blur or refraction'} />
+            <SegmentedPill options={['Glass', 'Material You']} selected={designs.indexOf(p.design)} onSelect={(i) => set({ design: designs[i] })} />
             <SettingSection title="Colour" />
-            <SettingHeading title="Theme" subtitle={{
+            <SettingHeading title="Colours" subtitle={{
               SYSTEM: phone ? 'Material You: colours from your wallpaper' : 'Material You: colours from your Windows accent colour',
               CUSTOM: 'Material You: colours from a colour you pick',
               MONOCHROME: 'Greys only',
@@ -57,33 +65,39 @@ export function SettingsScreen({ onBack, onWhatsNew }: { onBack: () => void; onW
                   <button key={a} className={'preset' + (a === p.accentColor ? ' selected' : '')} style={{ background: a }} title={a}
                     onClick={() => { sound.tap(); set({ accentColor: a }) }} />
                 ))}
-                <label className="preset custom" title="Custom colour" style={{ background: ACCENTS.includes(p.accentColor) ? undefined : p.accentColor }}>
-                  <input type="color" value={p.accentColor || DEFAULT_ACCENT} onChange={(e) => set({ accentColor: e.target.value })} />+
-                </label>
+                <button className="preset custom" title="Pick any colour" style={{ background: ACCENTS.includes(p.accentColor) ? undefined : p.accentColor }}
+                  onClick={() => { sound.tap(); setPicking(true) }}>+</button>
               </div>
             </Presence>
             <SettingHeading title="Appearance" subtitle={phone ? 'Light or dark, or the same as the phone' : 'Light or dark, or the same as Windows'} />
             <SegmentedPill options={['System', 'Light', 'Dark']} selected={p.themeMode} onSelect={(i) => set({ themeMode: i })} />
             <SettingSwitch title="Pure black (OLED)" subtitle="Black background in dark mode" checked={p.pureBlack} onChange={(v) => set({ pureBlack: v })} />
-            <SettingSection title="Background" />
-            <SettingHeading title="Background" subtitle={{
+            {!material && <SettingSection title="Background" />}
+            {!material && <SettingHeading title="Background" subtitle={{
               SIMPLE: 'Slow floating particles',
               AURORA: "Soft glows drifting in the light's colour",
               IMAGE: 'A photo of a living room',
               PLAIN: 'Nothing behind the controls; lightest on the GPU',
-            }[p.background]} />
-            <SegmentedPill options={['Particles', 'Aurora', 'Image', 'Plain']} selected={backgrounds.indexOf(p.background)} onSelect={(i) => set({ background: backgrounds[i] })} />
-            <Presence show={p.background === 'IMAGE'}>
+            }[p.background]} />}
+            {!material && <SegmentedPill options={['Particles', 'Aurora', 'Image', 'Plain']} selected={backgrounds.indexOf(p.background)} onSelect={(i) => set({ background: backgrounds[i] })} />}
+            <Presence show={!material && p.background === 'IMAGE'}>
               <LevelSlider label="Darkness" value={p.imageDim / 0.95} text={`${Math.round(p.imageDim * 100)} %`} onChange={(f) => set({ imageDim: f * 0.95 })} />
             </Presence>
             <SettingSection title="Shape & surface" />
-            <SettingSwitch title="Refractive glass" subtitle="Clear glass that bends the background at its edges, instead of frosted glass that blurs it" checked={p.refractiveGlass} onChange={(v) => set({ refractiveGlass: v })} />
-            <SettingHeading title="Corners" subtitle="Roundness of everything: cards, buttons, pills, dots, thumbs" />
+            {!material && <SettingSwitch title="Light effects" subtitle="No blur and no WebGL, a slower background: much smoother on a phone" checked={p.lightEffects} onChange={(v) => set({ lightEffects: v })} />}
+            {!material && (
+              <Presence show={!p.lightEffects}>
+                <SettingSwitch title="Refractive glass" subtitle="Clear glass that bends the background at its edges, instead of frosted glass that blurs it" checked={p.refractiveGlass} onChange={(v) => set({ refractiveGlass: v })} />
+              </Presence>
+            )}
+            <SettingHeading title="Corners" subtitle="Everything scales with it: cards, buttons, chips, switches, dots" />
             <SegmentedPill options={['Square', 'Small', 'Medium', 'Large', 'Custom']} selected={p.cornerStyle} onSelect={(i) => set({ cornerStyle: i })} />
             <Presence show={p.cornerStyle === 4}>
-              <LevelSlider label="Radius" value={p.customCorner / 2} text={`${Math.round(p.customCorner * 100)} %`} onChange={(f) => set({ customCorner: f * 2 })}
-                hint="0 % is square, 100 % makes round things fully round, above that cards get rounder." />
+              <LevelSlider label="Radius" value={cornerUnit(p) / MAX_CORNER_UNIT} text={`${Math.round(cornerUnit(p) * 12)} px`}
+                onChange={(f) => set({ customCorner: Math.round(f * MAX_CORNER_UNIT * 20) / 20 })}
+                hint="0 is square. A card has 12 px at 12; buttons and chips are fully round from about 12 px up." />
             </Presence>
+            <SettingSwitch title="Round LED preview" subtitle="Keep the LED preview a perfect circle whatever the corners" checked={p.roundLedPreview} onChange={(v) => set({ roundLedPreview: v })} />
             <SettingHeading title="Font" subtitle="Used for all text in the app" />
             <SegmentedPill options={['System', 'JetBrains Mono']} selected={p.monoFont ? 1 : 0} onSelect={(i) => set({ monoFont: i === 1 })} />
             <SettingSection title="Behaviour" />
@@ -132,6 +146,14 @@ export function SettingsScreen({ onBack, onWhatsNew }: { onBack: () => void; onW
           {types.map((t) => { const Section = t.SettingsSection!; return <Section key={t.id} /> })}
         </div>
       </div>
+      {picking && (
+        <ColourPickerDialog
+          title="Theme colour"
+          initial={p.accentColor || DEFAULT_ACCENT}
+          onDismiss={() => setPicking(false)}
+          onPick={(hex) => { set({ accentColor: hex }); setPicking(false) }}
+        />
+      )}
     </div>
   )
 }

@@ -1,0 +1,118 @@
+// Every mode's own options, on the control screen (the "tune" tab shows the current mode's):
+//   Solid     colour fade          Rainbow   speed, animated sliders       Candle  flicker, tint, style
+//   Music     sensitivity, colours, beat flash                              Visualizer  sensitivity, beat flash
+//   Screen    which display (PCs with several)
+// Options the board's firmware is too old for say so instead of vanishing.
+
+import { useEffect, useState } from 'react'
+import { platform } from '../../platform'
+import { settings } from '../../settings/store'
+import { Hint, LevelBar, PillButton, SegmentedPill, SettingHeading, SettingSwitch, SliderLabel } from '../../ui/components/Controls'
+import { Swap, Txt } from '../../ui/motion'
+import { MODE } from './modes'
+import type { LedController } from './useLed'
+
+/** Does this mode have options to show? */
+export const hasTune = (mode: number) =>
+  mode === MODE.SOLID || mode === MODE.RAINBOW || mode === MODE.CANDLE || mode === MODE.MUSIC || mode === MODE.VISUALIZER || mode === MODE.SCREEN
+
+export const tuneLabel = (mode: number) =>
+  mode === MODE.SOLID ? 'Fade' : mode === MODE.RAINBOW ? 'Rainbow' : mode === MODE.CANDLE ? 'Candle'
+    : mode === MODE.MUSIC ? 'Music' : mode === MODE.VISUALIZER ? 'Visualizer' : 'Screen'
+
+export function TuneTab({ c }: { c: LedController }) {
+  const { s, prefs, caps } = c
+  const set = settings.set
+  const needs = (fw: string) => <Hint>Needs board firmware {fw}</Hint>
+
+  if (s.mode === MODE.SOLID) {
+    return (
+      <div className="deck tune">
+        <SettingHeading title="Colour fade" subtitle="How long the light takes to reach a new colour" />
+        {caps.options
+          ? <SegmentedPill options={['Quick', 'Normal', 'Slow']} selected={[500, 1500, 3000].indexOf(prefs.fadeMs)} onSelect={(i) => set({ fadeMs: [500, 1500, 3000][i] })} />
+          : needs('1.3.0')}
+      </div>
+    )
+  }
+
+  if (s.mode === MODE.RAINBOW) {
+    return (
+      <div className="deck tune">
+        <SettingHeading title="Speed" subtitle="One trip round the colour wheel" />
+        {caps.options
+          ? <SegmentedPill options={['Slow 30 s', 'Normal 15 s', 'Fast 6 s']} selected={[30, 15, 6].indexOf(prefs.rainbowSeconds)} onSelect={(i) => set({ rainbowSeconds: [30, 15, 6][i] })} />
+          : needs('1.3.0')}
+        <SettingSwitch title="Animate the colour sliders" subtitle="Hue and saturation follow the rainbow while it runs" checked={prefs.rainbowSync} onChange={(v) => set({ rainbowSync: v })} />
+      </div>
+    )
+  }
+
+  if (s.mode === MODE.CANDLE) {
+    return (
+      <div className="deck tune">
+        {caps.options ? (
+          <>
+            <SettingSwitch title="Smooth flicker" subtitle="Slow and gentle, easier on the eyes at night" checked={prefs.smoothCandle} onChange={(v) => set({ smoothCandle: v })} />
+            <SettingHeading title="Flame colour" />
+            <SegmentedPill options={['Ember', 'Warm', 'Amber']} selected={[10, 19, 30].indexOf(prefs.candleHue)} onSelect={(i) => set({ candleHue: [10, 19, 30][i] })} />
+            <SettingHeading title="Style" subtitle={prefs.twoCandles ? 'Each LED is a candle of its own' : 'One flame: LED 1 the bright core, LED 2 the flickering tip'} />
+            <Swap k={!caps.candleStyle ? 'fw' : !c.twoLeds ? 'sep' : 'pill'}>
+              {!caps.candleStyle ? needs('1.6.1')
+                : !c.twoLeds ? <Hint>Set the LEDs to Separate (Colour tab) to choose</Hint>
+                  : <SegmentedPill options={['One flame', 'Two candles']} selected={prefs.twoCandles ? 1 : 0} onSelect={(i) => set({ twoCandles: i === 1 })} />}
+            </Swap>
+          </>
+        ) : needs('1.3.0')}
+      </div>
+    )
+  }
+
+  if (s.mode === MODE.SCREEN) {
+    return (
+      <div className="deck tune">
+        <div className="panel-head">
+          <span>Screen sync</span>
+          <span className="panel-state"><Txt>{c.sync.active === 'NONE' ? 'Starting…' : 'Watching the screen'}</Txt></span>
+        </div>
+        <CaptureDisplay />
+        <PillButton text="Stop screen sync" onClick={() => void c.startMode(MODE.SOLID)} />
+      </div>
+    )
+  }
+
+  // Music / Visualizer
+  const levelPct = Math.round((c.sync.active === 'NONE' ? 0 : c.sync.level) * 100)
+  return (
+    <div className="deck tune">
+      <div className="panel-head">
+        <span>{s.mode === MODE.MUSIC ? 'Music' : 'Visualizer'}</span>
+        <span className="panel-state"><Txt>{c.sync.active === 'NONE' ? 'Starting…' : s.mode === MODE.MUSIC ? 'Listening' : 'Listening to your PC'}</Txt></span>
+      </div>
+      <div className="level-meter"><div style={{ width: `${levelPct}%` }} /></div>
+      <SliderLabel text="Sensitivity" />
+      <LevelBar label="Sensitivity" fraction={prefs.musicSensitivity} onFraction={(f) => set({ musicSensitivity: f })} onFinished={() => {}} />
+      {s.mode === MODE.MUSIC && (
+        <SegmentedPill options={['Beat colours', 'My colour']} selected={prefs.musicKeepColour ? 1 : 0} onSelect={(i) => set({ musicKeepColour: i === 1 })} />
+      )}
+      <SettingSwitch title="Beat flash" subtitle="A quick burst of brightness on every beat" checked={prefs.beatFlash} onChange={(v) => set({ beatFlash: v })} />
+      <PillButton text={`Stop ${s.mode === MODE.MUSIC ? 'music' : 'visualizer'}`} onClick={() => void c.startMode(MODE.SOLID)} />
+    </div>
+  )
+}
+
+/** Which screen Screen sync watches (PCs with several monitors). */
+function CaptureDisplay() {
+  const [displays, setDisplays] = useState<{ index: number; label: string }[]>([])
+  const [chosen, setChosen] = useState(settings.get().captureDisplay)
+  useEffect(() => { void platform.capture.displays?.().then(setDisplays) }, [])
+  useEffect(() => { platform.capture.setDisplay?.(chosen) }, [chosen])
+  if (displays.length < 2) return null
+  return (
+    <>
+      <SettingHeading title="Display" subtitle="Which monitor to watch" />
+      <SegmentedPill options={displays.map((d) => `Display ${d.index + 1}`)} selected={Math.min(chosen, displays.length - 1)}
+        onSelect={(i) => { setChosen(i); settings.set({ captureDisplay: i }) }} />
+    </>
+  )
+}
