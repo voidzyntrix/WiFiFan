@@ -74,8 +74,12 @@ export interface Settings {
   fluidNearMouse: boolean
   /** How thick the fluid is, 0 (watery) to 1 (syrup); 0.5 is the default. */
   fluidViscosity: number
+  /** How much fast-moving fluid smears along its path, 0 (none) to 1. */
+  fluidMotionBlur: number
   /** A net of dots the mouse pushes around, behind the Particles and Fluid backgrounds. */
   dotNet: boolean
+  /** DOTS: dots joined by springs. CELLS: a grid of cells that carries waves (stirred by the mouse and the fluid). */
+  dotNetStyle: 'DOTS' | 'CELLS'
   /** How taut the net is, 0 (loose, wobbly) to 1 (stiff). */
   dotNetStiffness: number
   /** How visible the net is, 0 (not at all) to 1; 0.5 is the default look. */
@@ -140,7 +144,9 @@ const DEFAULTS: Settings = {
   fluidStir: 0.6,
   fluidNearMouse: false,
   fluidViscosity: 0.5,
+  fluidMotionBlur: 0.5,
   dotNet: true,
+  dotNetStyle: 'DOTS',
   dotNetStiffness: 0.5,
   dotNetOpacity: 0.5,
   captureDisplay: 0,

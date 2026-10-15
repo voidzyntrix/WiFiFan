@@ -3,6 +3,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { DotNet } from './DotNet'
+import { WaveGrid } from './WaveGrid'
 import { FluidRenderer } from './FluidRenderer'
 import { FluidSim } from './FluidSim'
 import { setBackdropFade, setBackdropSource } from './source'
@@ -58,14 +59,25 @@ function useSmoothColor(target: string, rate = 6) {
   }
 }
 
-/** The dot net (DotNet.ts), alive while mounted; null while Settings > Dot net is off. */
-function useDotNet() {
-  const net = useRef<DotNet | null>(null)
+/** Both styles of the net (DotNet.ts: Dots, WaveGrid.ts: Cells), alive while mounted. */
+function useNet() {
+  const net = useRef<{ dots: DotNet; cells: WaveGrid } | null>(null)
   useEffect(() => {
-    net.current = new DotNet()
-    return () => { net.current?.dispose(); net.current = null }
+    net.current = { dots: new DotNet(), cells: new WaveGrid() }
+    return () => { net.current?.dots.dispose(); net.current?.cells.dispose(); net.current = null }
   }, [])
   return net
+}
+
+/** Draws the net in the style chosen in Settings (nothing when it is off). `fluid` lets the cells feel the liquid. */
+function drawNet(
+  net: { dots: DotNet; cells: WaveGrid } | null, g: CanvasRenderingContext2D, dt: number, scale: number, color: string,
+  fluid?: { sim: FluidSim; cellPx: number },
+) {
+  const st = settings.get()
+  if (!st.dotNet || !net) return
+  if (st.dotNetStyle === 'CELLS') net.cells.frame(g, dt, scale, color, st.dotNetStiffness, st.dotNetOpacity, 0.4 + st.fluidStir * 1.2, fluid)
+  else net.dots.frame(g, dt, scale, color, st.dotNetStiffness, st.dotNetOpacity)
 }
 
 /** Background canvases are never wider than this many px (the glow, liquid and net are soft anyway). */
@@ -109,7 +121,7 @@ function Particles({ active, tint }: { active: boolean; tint: string }) {
   const parts = useRef<Particle[]>(Array.from({ length: 12 }, () => spawn(Math.random())))
   const spawnClock = useRef(0)
   const smooth = useSmoothColor(tint)
-  const net = useDotNet()
+  const net = useNet()
   useFrames((_t, dt) => {
     const c = ref.current
     if (!c) return
@@ -137,7 +149,7 @@ function Particles({ active, tint }: { active: boolean; tint: string }) {
       g.fill()
     }
     g.globalAlpha = 1
-    if (settings.get().dotNet) net.current?.frame(g, dt, dpr, color, settings.get().dotNetStiffness, settings.get().dotNetOpacity)
+    drawNet(net.current, g, dt, dpr, color)
   })
   return <canvas ref={ref} className="bg-canvas" />
 }
@@ -239,7 +251,7 @@ function Fluid({ tint, netTint }: { tint: string; netTint: string }) {
   const smooth = useSmoothColor(tint, 5)
   const smoothNet = useSmoothColor(netTint)
   const shader = useRef<FluidRenderer | null | undefined>(undefined)
-  const net = useDotNet()
+  const net = useNet()
 
   useEffect(() => {
     const make = () => {
@@ -337,15 +349,13 @@ function Fluid({ tint, netTint }: { tint: string; netTint: string }) {
     const cg = c.getContext('2d')!
     // the net goes down first: the liquid is drawn over it and hides it
     const netColor = smoothNet(dt)
-    const drawNet = () => {
-      if (settings.get().dotNet) net.current?.frame(cg, dt, c.width / window.innerWidth, netColor, settings.get().dotNetStiffness, settings.get().dotNetOpacity)
-    }
+    const drawNetNow = () => drawNet(net.current, cg, dt, c.width / window.innerWidth, netColor, { sim: s, cellPx })
     if (shader.current) {
       // glossy water (FluidRenderer.ts)
       const [r, g2, b] = (color.match(/\d+/g) ?? ['255', '255', '255']).map(Number)
-      const drawn = shader.current.render(s, c.width, c.height, cell, [r, g2, b])
+      const drawn = shader.current.render(s, c.width, c.height, cell, [r, g2, b], settings.get().fluidMotionBlur)
       cg.clearRect(0, 0, c.width, c.height)
-      drawNet()
+      drawNetNow()
       cg.drawImage(drawn, 0, 0, c.width, c.height)
     } else {
       // no WebGL2: dots first, then the goo filter onto the visible canvas (half opacity, like the phone)
@@ -364,7 +374,7 @@ function Fluid({ tint, netTint }: { tint: string; netTint: string }) {
       // (the half opacity is part of the filter: a canvas applies globalAlpha before its filter,
       // which would move the threshold)
       cg.clearRect(0, 0, c.width, c.height)
-      drawNet()
+      drawNetNow()
       cg.filter = 'url(#goo)'
       cg.drawImage(d, 0, 0)
       cg.filter = 'none'

@@ -116,6 +116,10 @@ export function SettingsScreen({ onBack, onWhatsNew }: { onBack: () => void; onW
                 hint="The pointer pushes the fluid away. Hold Ctrl to pull it in instead." />
             </Presence>
             <Presence show={p.background === 'FLUID'}>
+              <LevelSlider label="Motion blur" value={p.fluidMotionBlur} text={p.fluidMotionBlur === 0 ? 'Off' : `${Math.round(p.fluidMotionBlur * 100)} %`}
+                onChange={(f) => set({ fluidMotionBlur: f })} hint="Fast fluid leaves a soft trail behind it." />
+            </Presence>
+            <Presence show={p.background === 'FLUID'}>
               <LevelSlider label="Viscosity" value={p.fluidViscosity} text={p.fluidViscosity < 0.2 ? 'Watery' : p.fluidViscosity > 0.8 ? 'Thick' : `${Math.round(p.fluidViscosity * 100)} %`}
                 onChange={(f) => set({ fluidViscosity: f })} hint="Watery fluid sloshes and splashes; thick fluid flows slowly and holds together." />
             </Presence>
@@ -129,8 +133,14 @@ export function SettingsScreen({ onBack, onWhatsNew }: { onBack: () => void; onW
               <SettingSwitch title="Dot net" subtitle="A net of dots the mouse pushes around; a push travels through the whole net" checked={p.dotNet} onChange={(v) => set({ dotNet: v })} />
             </Presence>
             <Presence show={p.dotNet && (p.background === 'SIMPLE' || p.background === 'FLUID')}>
+              <div className="stack">
+                <SettingHeading title="Net style" subtitle={p.dotNetStyle === 'CELLS' ? 'A grid of cells: waves travel across it, stirred by the mouse and the fluid' : 'Dots joined by lines, pushed around by the mouse'} />
+                <SegmentedPill options={['Dots', 'Cells']} selected={p.dotNetStyle === 'CELLS' ? 1 : 0} onSelect={(i) => set({ dotNetStyle: i === 1 ? 'CELLS' : 'DOTS' })} />
+              </div>
+            </Presence>
+            <Presence show={p.dotNet && (p.background === 'SIMPLE' || p.background === 'FLUID')}>
               <LevelSlider label="Net stiffness" value={p.dotNetStiffness} text={p.dotNetStiffness < 0.2 ? 'Loose' : p.dotNetStiffness > 0.8 ? 'Taut' : `${Math.round(p.dotNetStiffness * 100)} %`}
-                onChange={(f) => set({ dotNetStiffness: f })} hint="Loose nets wobble and a push spreads slowly; taut ones snap back and carry it fast." />
+                onChange={(f) => set({ dotNetStiffness: f })} hint="Loose nets wobble and a push spreads slowly; taut ones snap back and carry it fast (for Cells: how fast waves travel)." />
             </Presence>
             <Presence show={p.dotNet && (p.background === 'SIMPLE' || p.background === 'FLUID')}>
               <LevelSlider label="Net opacity" value={p.dotNetOpacity} text={p.dotNetOpacity === 0 ? 'Hidden' : `${Math.round(p.dotNetOpacity * 100)} %`}

@@ -2,6 +2,14 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '1.12.0',
+    notes: [
+      'Net style: choose between the Dots net and a new Cells net, a grid of cells that carries waves.',
+      'Cells: the mouse presses the grid down (Ctrl lifts it), moving fluid kicks the cells it enters and leaves, and the waves ride along with the fluid.',
+      'Motion blur for the fluid: fast fluid leaves a soft trail. A slider sets how much (or off).',
+    ],
+  },
+  {
     version: '1.11.3',
     notes: [
       'Reverted the sticky grab: Ctrl attracts the fluid as it did in 1.11.0 again.',

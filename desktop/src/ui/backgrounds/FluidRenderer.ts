@@ -14,6 +14,8 @@ import type { FluidSim } from './FluidSim'
 /** Splat radius in sim radii (cells), and the density one particle adds at its centre. */
 const SPLAT = 1.0
 const WEIGHT = 0.35
+/** Extra blobs along a fast particle's path (motion blur). */
+const TRAIL_POINTS = 4
 /** Wider targets are drawn at this width and scaled up. */
 const MAX_WIDTH = 1920
 /** Density at the surface: below what a lone particle makes, so even one is a (small) drop. */
@@ -25,9 +27,12 @@ const OUTLINE = 2.6
 
 const SPLAT_VERT = `#version 300 es
 in vec2 aPos;      // px on the full-size canvas, from the top left
+in float aW;       // how much of a full blob this point adds (a particle's trail points add less)
 uniform vec2 uRes;
 uniform float uSize;
+out float vW;
 void main() {
+  vW = aW;
   vec2 p = aPos / uRes;
   gl_Position = vec4(p.x * 2.0 - 1.0, 1.0 - p.y * 2.0, 0.0, 1.0);
   gl_PointSize = uSize;
@@ -36,13 +41,14 @@ void main() {
 const SPLAT_FRAG = `#version 300 es
 precision highp float;
 uniform float uWeight;
+in float vW;
 out vec4 outColor;
 void main() {
   vec2 c = gl_PointCoord * 2.0 - 1.0;
   float r2 = dot(c, c);
   if (r2 > 1.0) discard;
   float k = 1.0 - r2;
-  outColor = vec4(k * k * k * uWeight, 0.0, 0.0, 0.0);
+  outColor = vec4(k * k * k * uWeight * vW, 0.0, 0.0, 0.0);
 }`
 
 const QUAD_VERT = `#version 300 es
@@ -146,7 +152,10 @@ export class FluidRenderer {
     gl.bindBuffer(gl.ARRAY_BUFFER, this.buf)
     const aPos = gl.getAttribLocation(this.splat, 'aPos')
     gl.enableVertexAttribArray(aPos)
-    gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 8, 0)
+    gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 12, 0)
+    const aW = gl.getAttribLocation(this.splat, 'aW')
+    gl.enableVertexAttribArray(aW)
+    gl.vertexAttribPointer(aW, 1, gl.FLOAT, false, 12, 8)
     gl.bindVertexArray(null)
     for (const [prog, names] of [
       [this.splat, ['uRes', 'uSize', 'uWeight']],
@@ -179,17 +188,33 @@ export class FluidRenderer {
    * [rgb] the liquid's colour, 0..255. On very large screens it draws smaller (the liquid is soft
    * anyway) and the caller scales the canvas up.
    */
-  render(sim: FluidSim, targetW: number, targetH: number, targetCell: number, rgb: [number, number, number]) {
+  render(sim: FluidSim, targetW: number, targetH: number, targetCell: number, rgb: [number, number, number], blur = 0.5) {
     const gl = this.gl
     const q = Math.min(1, MAX_WIDTH / targetW)
     const w = Math.max(1, Math.round(targetW * q)), h = Math.max(1, Math.round(targetH * q)), cell = targetCell * q
     if (this.canvas.width !== w || this.canvas.height !== h) { this.canvas.width = w; this.canvas.height = h }
     this.fitMaps(w, h)
 
+    // Motion blur: a particle moving fast also leaves a few fainter blobs along the path it just
+    // took, so fast fluid smears into a soft trail while slow fluid is untouched.
     const n = sim.count
-    if (this.data.length < n * 2) this.data = new Float32Array(n * 2)
+    if (this.data.length < n * TRAIL_POINTS * 3 + n * 3) this.data = new Float32Array(n * (TRAIL_POINTS + 1) * 3)
     const d = this.data
-    for (let i = 0; i < n; i++) { d[i * 2] = sim.x[i] * cell; d[i * 2 + 1] = sim.y[i] * cell }
+    const shutter = 0.04 + 0.06 * blur
+    let points = 0
+    for (let i = 0; i < n; i++) {
+      const x = sim.x[i], y = sim.y[i], vx = sim.vx[i], vy = sim.vy[i]
+      d[points * 3] = x * cell; d[points * 3 + 1] = y * cell; d[points * 3 + 2] = 1
+      points++
+      const k = Math.min(1, Math.hypot(vx, vy) / 6) * blur
+      if (k < 0.03) continue
+      for (let j = 1; j <= TRAIL_POINTS; j++) {
+        d[points * 3] = (x - vx * shutter * (j / TRAIL_POINTS)) * cell
+        d[points * 3 + 1] = (y - vy * shutter * (j / TRAIL_POINTS)) * cell
+        d[points * 3 + 2] = 0.7 * k * (1 - j / (TRAIL_POINTS + 1))
+        points++
+      }
+    }
 
     gl.disable(gl.SCISSOR_TEST)
     gl.viewport(0, 0, this.mapW, this.mapH)
@@ -206,8 +231,8 @@ export class FluidRenderer {
     gl.uniform1f(this.loc['s.uWeight'], WEIGHT)
     gl.bindVertexArray(this.vao)
     gl.bindBuffer(gl.ARRAY_BUFFER, this.buf)
-    gl.bufferData(gl.ARRAY_BUFFER, d.subarray(0, n * 2), gl.STREAM_DRAW)
-    gl.drawArrays(gl.POINTS, 0, n)
+    gl.bufferData(gl.ARRAY_BUFFER, d.subarray(0, points * 3), gl.STREAM_DRAW)
+    gl.drawArrays(gl.POINTS, 0, points)
     gl.bindVertexArray(null)
     gl.disable(gl.BLEND)
 
