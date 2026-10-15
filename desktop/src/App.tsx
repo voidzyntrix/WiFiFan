@@ -1,7 +1,7 @@
 // The app shell: theme, background, which screen shows (boards / board / settings), dialogs,
 // toasts, and the desktop wiring (tray while something runs, keep the display awake, updates).
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ble, useBle } from './ble/ble'
 import { desktop, APP_VERSION } from './desktop'
 import { compareVersions, hsvCss } from './led/color'
@@ -22,6 +22,7 @@ import { applyTheme, useSystemDark } from './ui/theme'
 import { toast, useToasts } from './ui/toast'
 import { WHATS_NEW } from './ui/whatsNew'
 import { sound } from './ui/sound'
+import { pulse, useExit, useFlip, useLeavingList } from './ui/motion'
 
 /** Modes whose preview moves, so the clock only ticks when something animates. */
 const ANIMATED = [MODE.RAINBOW, MODE.CANDLE, MODE.BREATHE, MODE.OCEAN, MODE.PARTY, MODE.AURORA, MODE.CHASE]
@@ -53,6 +54,18 @@ export function App() {
   const connected = conn.state === 'connected'
 
   const colors = useMemo(() => applyTheme(prefs, systemDark), [prefs, systemDark])
+
+  // The first colours are set without the eased transition the theme otherwise has.
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => requestAnimationFrame(() => document.documentElement.classList.remove('booting')))
+    return () => cancelAnimationFrame(raf)
+  }, [])
+  // The font can't ease between two faces: the screen fades through the change instead.
+  const firstFont = useRef(true)
+  useEffect(() => {
+    if (firstFont.current) { firstFont.current = false; return }
+    pulse(document.querySelector('main.app'))
+  }, [prefs.monoFont])
 
   // The preview clock (and the rainbow sliders): ~30 fps while something animates.
   const [t, setT] = useState(0)
@@ -123,6 +136,21 @@ export function App() {
   const liquid = connected && c.ledOn ? hsvCss(preview.hue, Math.min(1, Math.max(0, preview.sat))) : colors.primary
   const mainScreen = showSettings ? 'settings' : connected && boardOpen ? 'home' : 'connect'
 
+  // A screen leaves (fades, shrinks away) before the next one comes in.
+  const [screen, setScreen] = useState(mainScreen)
+  useEffect(() => {
+    if (mainScreen === screen) return
+    const t = window.setTimeout(() => setScreen(mainScreen), 220)
+    return () => window.clearTimeout(t)
+  }, [mainScreen, screen])
+
+  // Dialogs and toasts animate out too; the glass layer fades away when it is switched off.
+  const dialogs = useLeavingList(dialog ? [dialog] : [], (d) => d.kind + ('board' in d ? d.board.id : 'scene' in d ? d.scene.id : ''))
+  const toastList = useLeavingList(toasts, (t) => String(t.id))
+  const toastBox = useRef<HTMLDivElement>(null)
+  useFlip(toastBox)
+  const glass = useExit(prefs.refractiveGlass, 500)
+
   return (
     <>
       <div className="backdrop">
@@ -136,7 +164,7 @@ export function App() {
           imageDim={prefs.imageDim}
         />
       </div>
-      {prefs.refractiveGlass && <GlassLayer bg={colors.bg} />}
+      {glass.mounted && <GlassLayer bg={colors.bg} leaving={glass.leaving} />}
       {/* refractive glass without WebGL: a CSS backdrop filter (no rim bend) */}
       <svg width="0" height="0" style={{ position: 'absolute' }} aria-hidden>
         <filter id="refract" x="0" y="0" width="100%" height="100%">
@@ -145,10 +173,10 @@ export function App() {
         </filter>
       </svg>
 
-      <main className="app" key={mainScreen}>
-        {mainScreen === 'settings' ? (
+      <main className={'app' + (mainScreen !== screen ? ' leaving' : '')} key={screen}>
+        {screen === 'settings' ? (
           <SettingsScreen onBack={() => setShowSettings(false)} onWhatsNew={() => setDialog({ kind: 'whatsNew' })} />
-        ) : mainScreen === 'home' ? (
+        ) : screen === 'home' ? (
           <HomeScreen
             c={c}
             preview={preview}
@@ -183,110 +211,114 @@ export function App() {
         )}
       </main>
 
-      {dialog?.kind === 'renameBoard' && (
-        <NameDialog
-          title="Name this board"
-          subtitle={`Shown in Glow only. Leave it empty to use the Bluetooth name${dialog.board.bleName ? ` (${dialog.board.bleName})` : ''}.`}
-          initial={prefs.boardNames[dialog.board.id] ?? ''}
-          placeholder={dialog.board.bleName ?? 'LED board'}
-          allowEmpty
-          onDismiss={() => setDialog(null)}
-          onSave={(n) => { setBoardName(dialog.board.id, n); setDialog(null) }}
-        />
-      )}
-      {dialog?.kind === 'boardMenu' && (
-        <ActionsDialog
-          title={boardName(dialog.board)}
-          subtitle={dialog.board.id}
-          actions={[
-            ['Rename', () => setDialog({ kind: 'renameBoard', board: dialog.board })],
-            ['Forget', () => {
-              if (conn.deviceId === dialog.board.id) ble.disconnect()
-              settings.set({ pairedBoards: prefs.pairedBoards.filter((b) => b.id !== dialog.board.id) })
-              setBoardName(dialog.board.id, '')
-              setDialog(null)
-            }],
-          ]}
-          onDismiss={() => setDialog(null)}
-        />
-      )}
-      {dialog?.kind === 'sleep' && (
-        <ActionsDialog
-          title="Sleep timer"
-          subtitle={c.s.sleepEndsAt ? `Running: off in about ${Math.floor((c.s.sleepEndsAt - Date.now()) / 60_000) + 1} min` : 'The light fades slowly to off'}
-          actions={([
-            ['15 minutes', () => { setDialog(null); c.startSleep(15) }],
-            ['30 minutes', () => { setDialog(null); c.startSleep(30) }],
-            ['1 hour', () => { setDialog(null); c.startSleep(60) }],
-          ] as [string, () => void][]).concat(c.s.sleepEndsAt ? [['Stop the timer', () => { setDialog(null); c.startSleep(0) }]] : [])}
-          onDismiss={() => setDialog(null)}
-        />
-      )}
-      {dialog?.kind === 'addScene' && (
-        <NameDialog
-          title="Save scene"
-          subtitle="Saves the mode, colour and brightness you have now."
-          initial=""
-          placeholder={c.sceneSuggestion}
-          allowEmpty
-          onDismiss={() => setDialog(null)}
-          onSave={(n) => { c.addScene(n || c.sceneSuggestion); setDialog(null); sound.confirm() }}
-        />
-      )}
-      {dialog?.kind === 'sceneMenu' && (
-        <ActionsDialog
-          title={dialog.scene.name}
-          subtitle="Scene"
-          actions={([
-            ['Rename', () => setDialog({ kind: 'renameScene', scene: dialog.scene })],
-          ] as [string, () => void][])
-            .concat(c.canSaveScene ? [['Update to the current light', () => { c.updateSceneToCurrent(dialog.scene); setDialog(null); sound.confirm() }]] : [])
-            .concat([['Delete', () => { c.deleteScene(dialog.scene); setDialog(null) }]])}
-          onDismiss={() => setDialog(null)}
-        />
-      )}
-      {dialog?.kind === 'renameScene' && (
-        <NameDialog
-          title="Rename scene"
-          initial={dialog.scene.name}
-          placeholder={dialog.scene.name}
-          onDismiss={() => setDialog(null)}
-          onSave={(n) => { c.renameScene(dialog.scene, n); setDialog(null) }}
-        />
-      )}
-      {dialog?.kind === 'whatsNew' && (
-        <Dialog onDismiss={() => setDialog(null)} wide>
-          <h2 className="dialog-title">What's new</h2>
-          <div className="dialog-sub">Glow for Windows v{APP_VERSION}</div>
-          <div className="whats-new">
-            {WHATS_NEW.map((w) => (
-              <div key={w.version}>
-                <h3>v{w.version}</h3>
-                <ul>{w.notes.map((n) => <li key={n}>{n}</li>)}</ul>
-              </div>
-            ))}
-          </div>
-          <PillButton text="Got it" highlighted onClick={() => setDialog(null)} />
-        </Dialog>
-      )}
-      {dialog?.kind === 'update' && (
-        <Dialog onDismiss={() => setDialog(null)}>
-          <h2 className="dialog-title">Update available</h2>
-          {app.kind === 'available' && <div className="dialog-sub">Glow for Windows v{app.release.version}</div>}
-          {ota.kind === 'available' && <div className="dialog-sub">Board firmware v{ota.release.version}</div>}
-          <div className="dialog-buttons">
-            <PillButton text="Later" onClick={() => setDialog(null)} />
-            <PillButton text="Open Settings" highlighted onClick={() => {
-              setDialog(null)
-              settings.set({ collapsed: { ...settings.get().collapsed, firmware: false } })
-              setShowSettings(true)
-            }} />
-          </div>
-        </Dialog>
-      )}
+      {dialogs.map(({ item: d, key, leaving }) => (
+        <div key={key} className={'dialog-host' + (leaving ? ' closing' : '')}>
+        {d.kind === 'renameBoard' && (
+          <NameDialog
+            title="Name this board"
+            subtitle={`Shown in Glow only. Leave it empty to use the Bluetooth name${d.board.bleName ? ` (${d.board.bleName})` : ''}.`}
+            initial={prefs.boardNames[d.board.id] ?? ''}
+            placeholder={d.board.bleName ?? 'LED board'}
+            allowEmpty
+            onDismiss={() => setDialog(null)}
+            onSave={(n) => { setBoardName(d.board.id, n); setDialog(null) }}
+          />
+        )}
+        {d.kind === 'boardMenu' && (
+          <ActionsDialog
+            title={boardName(d.board)}
+            subtitle={d.board.id}
+            actions={[
+              ['Rename', () => setDialog({ kind: 'renameBoard', board: d.board })],
+              ['Forget', () => {
+                if (conn.deviceId === d.board.id) ble.disconnect()
+                settings.set({ pairedBoards: prefs.pairedBoards.filter((b) => b.id !== d.board.id) })
+                setBoardName(d.board.id, '')
+                setDialog(null)
+              }],
+            ]}
+            onDismiss={() => setDialog(null)}
+          />
+        )}
+        {d.kind === 'sleep' && (
+          <ActionsDialog
+            title="Sleep timer"
+            subtitle={c.s.sleepEndsAt ? `Running: off in about ${Math.floor((c.s.sleepEndsAt - Date.now()) / 60_000) + 1} min` : 'The light fades slowly to off'}
+            actions={([
+              ['15 minutes', () => { setDialog(null); c.startSleep(15) }],
+              ['30 minutes', () => { setDialog(null); c.startSleep(30) }],
+              ['1 hour', () => { setDialog(null); c.startSleep(60) }],
+            ] as [string, () => void][]).concat(c.s.sleepEndsAt ? [['Stop the timer', () => { setDialog(null); c.startSleep(0) }]] : [])}
+            onDismiss={() => setDialog(null)}
+          />
+        )}
+        {d.kind === 'addScene' && (
+          <NameDialog
+            title="Save scene"
+            subtitle="Saves the mode, colour and brightness you have now."
+            initial=""
+            placeholder={c.sceneSuggestion}
+            allowEmpty
+            onDismiss={() => setDialog(null)}
+            onSave={(n) => { c.addScene(n || c.sceneSuggestion); setDialog(null); sound.confirm() }}
+          />
+        )}
+        {d.kind === 'sceneMenu' && (
+          <ActionsDialog
+            title={d.scene.name}
+            subtitle="Scene"
+            actions={([
+              ['Rename', () => setDialog({ kind: 'renameScene', scene: d.scene })],
+            ] as [string, () => void][])
+              .concat(c.canSaveScene ? [['Update to the current light', () => { c.updateSceneToCurrent(d.scene); setDialog(null); sound.confirm() }]] : [])
+              .concat([['Delete', () => { c.deleteScene(d.scene); setDialog(null) }]])}
+            onDismiss={() => setDialog(null)}
+          />
+        )}
+        {d.kind === 'renameScene' && (
+          <NameDialog
+            title="Rename scene"
+            initial={d.scene.name}
+            placeholder={d.scene.name}
+            onDismiss={() => setDialog(null)}
+            onSave={(n) => { c.renameScene(d.scene, n); setDialog(null) }}
+          />
+        )}
+        {d.kind === 'whatsNew' && (
+          <Dialog onDismiss={() => setDialog(null)} wide>
+            <h2 className="dialog-title">What's new</h2>
+            <div className="dialog-sub">Glow for Windows v{APP_VERSION}</div>
+            <div className="whats-new">
+              {WHATS_NEW.map((w) => (
+                <div key={w.version}>
+                  <h3>v{w.version}</h3>
+                  <ul>{w.notes.map((n) => <li key={n}>{n}</li>)}</ul>
+                </div>
+              ))}
+            </div>
+            <PillButton text="Got it" highlighted onClick={() => setDialog(null)} />
+          </Dialog>
+        )}
+        {d.kind === 'update' && (
+          <Dialog onDismiss={() => setDialog(null)}>
+            <h2 className="dialog-title">Update available</h2>
+            {app.kind === 'available' && <div className="dialog-sub">Glow for Windows v{app.release.version}</div>}
+            {ota.kind === 'available' && <div className="dialog-sub">Board firmware v{ota.release.version}</div>}
+            <div className="dialog-buttons">
+              <PillButton text="Later" onClick={() => setDialog(null)} />
+              <PillButton text="Open Settings" highlighted onClick={() => {
+                setDialog(null)
+                settings.set({ collapsed: { ...settings.get().collapsed, firmware: false } })
+                setShowSettings(true)
+              }} />
+            </div>
+          </Dialog>
+        )}
+        </div>
+      ))}
 
-      <div className="toasts" aria-live="polite">
-        {toasts.map((t) => <div key={t.id} className="toast">{t.text}</div>)}
+      <div ref={toastBox} className="toasts" aria-live="polite">
+        {toastList.map(({ item: t, key, leaving }) => <div key={key} data-flip={key} className={'toast' + (leaving ? ' leaving' : '')}>{t.text}</div>)}
       </div>
     </>
   )

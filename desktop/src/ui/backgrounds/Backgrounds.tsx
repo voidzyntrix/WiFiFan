@@ -1,9 +1,9 @@
 // What sits behind the UI: floating particles, aurora glows, the fluid, a photo, or nothing.
 // Each one registers what it draws into (source.ts), so the refractive glass can bend it.
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { FluidSim } from './FluidSim'
-import { setBackdropSource } from './source'
+import { setBackdropFade, setBackdropSource } from './source'
 import { settings, type Background } from '../../settings/store'
 import backgroundUrl from '../../assets/background.jpg'
 
@@ -22,6 +22,38 @@ function useFrames(frame: (t: number, dt: number) => void) {
     raf = requestAnimationFrame(loop)
     return () => cancelAnimationFrame(raf)
   }, [])
+}
+
+
+/** Reads any CSS colour as r, g, b (0..255). */
+const probe = document.createElement('canvas')
+probe.width = probe.height = 1
+const probeCtx = probe.getContext('2d', { willReadFrequently: true })!
+function parseColor(css: string): [number, number, number] {
+  probeCtx.clearRect(0, 0, 1, 1)
+  probeCtx.fillStyle = '#000'
+  probeCtx.fillStyle = css
+  probeCtx.fillRect(0, 0, 1, 1)
+  const d = probeCtx.getImageData(0, 0, 1, 1).data
+  return [d[0], d[1], d[2]]
+}
+
+/** A colour that eases to its target instead of jumping: call the result once a frame with the frame time. */
+function useSmoothColor(target: string, rate = 6) {
+  const goal = useRef(parseColor(target))
+  const cur = useRef<[number, number, number] | null>(null)
+  const last = useRef(target)
+  if (last.current !== target) { last.current = target; goal.current = parseColor(target) }
+  return (dt: number) => {
+    const g = goal.current
+    if (!cur.current) cur.current = [...g]
+    else {
+      const k = 1 - Math.exp(-rate * dt)
+      for (let i = 0; i < 3; i++) cur.current[i] += (g[i] - cur.current[i]) * k
+    }
+    const c = cur.current
+    return `rgb(${Math.round(c[0])} ${Math.round(c[1])} ${Math.round(c[2])})`
+  }
 }
 
 /** A full-window canvas kept at device resolution, registered as what the glass bends. */
@@ -60,6 +92,7 @@ function Particles({ active, tint }: { active: boolean; tint: string }) {
   const ref = useCanvas()
   const parts = useRef<Particle[]>(Array.from({ length: 12 }, () => spawn(Math.random())))
   const spawnClock = useRef(0)
+  const smooth = useSmoothColor(tint)
   useFrames((_t, dt) => {
     const c = ref.current
     if (!c) return
@@ -78,7 +111,7 @@ function Particles({ active, tint }: { active: boolean; tint: string }) {
     })
     g.clearRect(0, 0, c.width, c.height)
     const dpr = c.width / window.innerWidth
-    g.fillStyle = tint
+    g.fillStyle = smooth(dt)
     for (const p of parts.current) {
       g.globalAlpha = p.a
       g.beginPath()
@@ -103,10 +136,19 @@ const GLOWS = [
 
 function Aurora({ hue, sat }: { hue: number; sat: number }) {
   const ref = useCanvas(0.5)
-  const s = Math.min(0.85, Math.max(0.35, sat))
-  useFrames((t) => {
+  const goal = useRef({ hue, sat })
+  goal.current = { hue, sat }
+  const shown = useRef<{ hue: number; sat: number } | null>(null)
+  useFrames((t, dt) => {
     const c = ref.current
     if (!c) return
+    // the glow's colour eases to the LED's (round the short way on the colour wheel)
+    const k = 1 - Math.exp(-4 * dt)
+    const cur = shown.current ?? (shown.current = { ...goal.current })
+    cur.hue = (((cur.hue + (((goal.current.hue - cur.hue + 540) % 360) - 180) * k) % 360) + 360) % 360
+    cur.sat += (goal.current.sat - cur.sat) * k
+    const hue = cur.hue
+    const s = Math.min(0.85, Math.max(0.35, cur.sat))
     const g = c.getContext('2d')!
     g.clearRect(0, 0, c.width, c.height)
     const r = Math.max(c.width, c.height) * 0.55
@@ -168,6 +210,7 @@ function Fluid({ tint }: { tint: string }) {
   const sim = useRef<FluidSim | null>(null)
   const mouse = useRef({ x: -1, y: -1, dx: 0, dy: 0 })
   const win = useRef({ x: window.screenX, y: window.screenY, vx: 0, vy: 0 })
+  const smooth = useSmoothColor(tint, 5)
 
   useEffect(() => {
     const make = () => {
@@ -242,7 +285,7 @@ function Fluid({ tint }: { tint: string }) {
     dg.clearRect(0, 0, d.width, d.height)
     const cell = c.width / s.width
     const r = cell * 0.42
-    dg.fillStyle = tint
+    dg.fillStyle = smooth(dt)
     dg.beginPath()
     for (let i = 0; i < s.count; i++) {
       dg.moveTo(s.x[i] * cell + r, s.y[i] * cell)
@@ -307,7 +350,34 @@ export function BackgroundLayer(props: {
   liquid: string
   imageDim: number
 }) {
-  switch (props.background) {
+  // A new background fades the old one out, swaps, and fades in (the glass reads the same fade).
+  const [shown, setShown] = useState(props.background)
+  const goal = useRef(props.background)
+  const showing = useRef(shown)
+  goal.current = props.background
+  showing.current = shown
+  useEffect(() => {
+    const root = document.querySelector<HTMLElement>('.backdrop')
+    let raf = 0, last = performance.now(), fade = 1, applied = -1
+    const loop = (now: number) => {
+      const dt = Math.min(0.05, (now - last) / 1000)
+      last = now
+      const swapping = goal.current !== showing.current
+      fade = swapping ? Math.max(0, fade - dt / 0.25) : Math.min(1, fade + dt / 0.35)
+      if (swapping && fade <= 0) setShown(goal.current)
+      const eased = fade * fade * (3 - 2 * fade)
+      if (eased !== applied) {
+        applied = eased
+        setBackdropFade(eased)
+        root?.style.setProperty('--fade', String(eased))
+      }
+      raf = requestAnimationFrame(loop)
+    }
+    raf = requestAnimationFrame(loop)
+    return () => cancelAnimationFrame(raf)
+  }, [])
+
+  switch (shown) {
     case 'SIMPLE': return <Particles active={props.active} tint={props.tint} />
     case 'AURORA': return <Aurora hue={props.active ? props.hue : 200} sat={props.active ? props.sat : 0.7} />
     case 'FLUID': return <Fluid tint={props.liquid} />

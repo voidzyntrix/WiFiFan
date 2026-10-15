@@ -5,6 +5,7 @@
 //   Space power · 1-9 scenes · [ / ] brightness · M mode menu · , settings
 
 import { useEffect, useRef, useState } from 'react'
+import { Presence, Swap, Txt, useExit, useFlip, useLeavingList } from '../motion'
 import { hexOf, hsvCss, kelvinScreenColor, KELVIN_MAX, KELVIN_MIN } from '../../led/color'
 import { LedPreview, LedPreviewPair } from '../../led/LedPreview'
 import { KELVIN_PRESETS, LED_EFFECTS, LED_CHASE, LED_PRESETS, MODE, modeLabel } from '../../model/modes'
@@ -77,6 +78,10 @@ export function HomeScreen(props: {
   const { s, prefs, caps } = c
   const auto = useAutoStatus()
   const [modeMenu, setModeMenu] = useState(false)
+  const menu = useExit(modeMenu, 200)
+  const sceneRow = useRef<HTMLDivElement>(null)
+  useFlip(sceneRow)
+  const scenes = useLeavingList(s.scenes, (sc) => String(sc.id))
 
   const cycling = s.mode === MODE.RAINBOW && prefs.rainbowSync
   const shownHue = cycling ? props.rainbowHue : s.hue
@@ -128,7 +133,7 @@ export function HomeScreen(props: {
           <h1>Glow</h1>
           <button className="board-pill" onClick={props.onRename} title="Rename this board">
             <span className="board-dot" />
-            <span className="board-name">{props.boardTitle}</span>
+            <span className="board-name"><Txt>{props.boardTitle}</Txt></span>
             {c.fwVersion && <span className="board-ver">v{c.fwVersion}</span>}
             <EditIcon />
           </button>
@@ -148,16 +153,18 @@ export function HomeScreen(props: {
       <div className="home-grid">
         <div className="home-col">
           <div className="entrance" style={{ ['--i' as string]: 1 }}>
-            {c.twoLeds ? (
-              <LedPreviewPair
-                hue1={preview.hue} sat1={preview.sat} value1={preview.val}
-                hue2={preview.hue2} sat2={preview.sat2} value2={preview.val2}
-                editing={s.editLed}
-                onTap={(i) => { sound.tap(); c.setEditLed(i) }}
-              />
-            ) : (
-              <LedPreview hue={preview.hue} sat={preview.sat} value={preview.val} />
-            )}
+            <Swap k={c.twoLeds ? 'pair' : 'one'}>
+              {c.twoLeds ? (
+                <LedPreviewPair
+                  hue1={preview.hue} sat1={preview.sat} value1={preview.val}
+                  hue2={preview.hue2} sat2={preview.sat2} value2={preview.val2}
+                  editing={s.editLed}
+                  onTap={(i) => { sound.tap(); c.setEditLed(i) }}
+                />
+              ) : (
+                <LedPreview hue={preview.hue} sat={preview.sat} value={preview.val} />
+              )}
+            </Swap>
             <div className="mode-name" key={modeName}>{modeName}</div>
           </div>
 
@@ -167,39 +174,43 @@ export function HomeScreen(props: {
 
         {/* everything you click often, together and right under the power button */}
         <div className="home-col">
-          <div className="scene-row entrance" style={{ ['--i' as string]: 2 }}>
-            <button className={'chip' + (prefs.autoLight ? ' selected' : '')} onClick={() => { sound.tap(); setAutoLight(!prefs.autoLight) }}>
+          <div ref={sceneRow} className="scene-row entrance" style={{ ['--i' as string]: 2 }}>
+            <button data-flip="auto" className={'chip' + (prefs.autoLight ? ' selected' : '')} onClick={() => { sound.tap(); setAutoLight(!prefs.autoLight) }}>
               <span className="auto-mark"><span /></span>Auto
             </button>
-            {s.scenes.map((sc, i) => (
+            {scenes.map(({ item: sc, key, leaving }, i) => (
               <button
-                key={sc.id}
-                className={'chip' + (sc.id === c.selectedSceneId ? ' selected' : '')}
+                key={key}
+                data-flip={key}
+                disabled={leaving}
+                className={'chip scene' + (sc.id === c.selectedSceneId ? ' selected' : '') + (leaving ? ' leaving' : '')}
                 title={i < 9 ? `${sc.name} (${i + 1}) · right-click for options` : 'Right-click for options'}
                 onClick={() => { sound.tap(); c.applyScene(sc) }}
                 onContextMenu={(e) => { e.preventDefault(); sound.longPress(); props.onSceneMenu(sc) }}
               >
                 <span className="swatch" style={{ background: sceneSwatch(sc, prefs.candleHue) }} />
-                <span className="chip-text">{sc.name}</span>
+                <span className="chip-text"><Txt>{sc.name}</Txt></span>
               </button>
             ))}
-            <button className={'chip add' + (c.canSaveScene ? '' : ' disabled')} onClick={props.onAddScene} title="Save the current light as a scene">
+            <button data-flip="add" className={'chip add' + (c.canSaveScene ? '' : ' disabled')} onClick={props.onAddScene} title="Save the current light as a scene">
               <AddIcon />{s.scenes.length === 0 && <span>Save scene</span>}
             </button>
           </div>
-          {prefs.autoLight && <div className="auto-status">Auto: {auto.running ? statusText(auto) : 'Starting…'}</div>}
+          <Presence show={prefs.autoLight} className="gap14">
+            <div className="auto-status">Auto: <Txt>{auto.running ? statusText(auto) : 'Starting…'}</Txt></div>
+          </Presence>
 
           <PanelCard className="entrance" style={{ ['--i' as string]: 3 }}>
             <div className="mode-anchor">
               <button className="mode-button glass-soft" onClick={() => setModeMenu(!modeMenu)} aria-expanded={modeMenu} title="Mode (M)">
                 <span className="mode-label">Mode</span>
-                <span className="mode-value">{modeLabel(s.mode)}</span>
+                <span className="mode-value"><Txt>{modeLabel(s.mode)}</Txt></span>
                 <BackIcon size={18} className={'mode-arrow' + (modeMenu ? ' open' : '')} />
               </button>
-              {modeMenu && (
+              {menu.mounted && (
                 <>
-                  <div className="menu-scrim" onPointerDown={() => setModeMenu(false)} />
-                  <div className="mode-menu">
+                  {modeMenu && <div className="menu-scrim" onPointerDown={() => setModeMenu(false)} />}
+                  <div className={'mode-menu' + (menu.leaving ? ' leaving' : '')}>
                     {modeGroups.map(([title, modes]) => (
                       <div key={title}>
                         <div className="menu-title">{title}</div>
@@ -230,20 +241,22 @@ export function HomeScreen(props: {
               onFraction={c.setBrightness}
               onFinished={c.sendCurrent}
             />
-            {!caps.effects && <Hint>Update the board firmware (Settings) for all modes.</Hint>}
+            <Presence show={!caps.effects}><Hint>Update the board firmware (Settings) for all modes.</Hint></Presence>
           </PanelCard>
 
-          {isSync && (
-            <PanelCard className="entrance" style={{ ['--i' as string]: 4 }}>
+          <Presence show={isSync} className="gap14">
+            <PanelCard>
               <div className="panel-head">
-                <span>{s.mode === MODE.MUSIC ? 'Music' : s.mode === MODE.VISUALIZER ? 'Visualizer' : 'Screen sync'}</span>
+                <span><Txt>{s.mode === MODE.MUSIC ? 'Music' : s.mode === MODE.VISUALIZER ? 'Visualizer' : 'Screen sync'}</Txt></span>
                 <span className="panel-state">
-                  {c.sync.active === 'NONE' ? 'Starting…'
-                    : s.mode === MODE.MUSIC ? 'Listening' : s.mode === MODE.VISUALIZER ? 'Listening to your PC' : 'Watching the screen'}
+                  <Txt>
+                    {c.sync.active === 'NONE' ? 'Starting…'
+                      : s.mode === MODE.MUSIC ? 'Listening' : s.mode === MODE.VISUALIZER ? 'Listening to your PC' : 'Watching the screen'}
+                  </Txt>
                 </span>
               </div>
-              {s.mode !== MODE.SCREEN && (
-                <>
+              <Presence show={s.mode !== MODE.SCREEN}>
+                <div className="stack">
                   <div className="level-meter"><div style={{ width: `${levelPct}%` }} /></div>
                   <SliderLabel text="Sensitivity" />
                   <GradientBar
@@ -254,35 +267,38 @@ export function HomeScreen(props: {
                     onFraction={(f) => settings.set({ musicSensitivity: f })}
                     onFinished={() => {}}
                   />
-                </>
-              )}
-              {s.mode === MODE.MUSIC && (
+                </div>
+              </Presence>
+              <Presence show={s.mode === MODE.MUSIC}>
                 <SegmentedPill options={['Beat colours', 'My colour']} selected={prefs.musicKeepColour ? 1 : 0}
                   onSelect={(i) => settings.set({ musicKeepColour: i === 1 })} />
-              )}
-              {s.mode !== MODE.SCREEN && (
+              </Presence>
+              <Presence show={s.mode !== MODE.SCREEN}>
                 <SettingSwitch title="Beat flash" subtitle="A quick burst of brightness on every beat"
                   checked={prefs.beatFlash} onChange={(v) => settings.set({ beatFlash: v })} />
-              )}
+              </Presence>
               <Hint>
-                {s.mode === MODE.MUSIC ? 'Listens to the microphone. Keeps running in the tray when you close the window.'
-                  : s.mode === MODE.VISUALIZER ? 'Bass is red, mids green, treble blue. Plays along with everything Windows plays. Keeps running in the tray.'
-                    : 'The LED follows the colours on your screen, also while other apps are open. Keeps running in the tray.'}
+                <Txt>
+                  {s.mode === MODE.MUSIC ? 'Listens to the microphone. Keeps running in the tray when you close the window.'
+                    : s.mode === MODE.VISUALIZER ? 'Bass is red, mids green, treble blue. Plays along with everything Windows plays. Keeps running in the tray.'
+                      : 'The LED follows the colours on your screen, also while other apps are open. Keeps running in the tray.'}
+                </Txt>
               </Hint>
-              {s.mode !== MODE.MUSIC && (
+              <Presence show={s.mode !== MODE.MUSIC}>
                 <PillButton text={s.mode === MODE.SCREEN ? 'Stop screen sync' : 'Stop visualizer'} onClick={() => void c.startMode(MODE.SOLID)} />
-              )}
+              </Presence>
             </PanelCard>
-          )}
+          </Presence>
           <PanelCard className="entrance" style={{ ['--i' as string]: 5 }}>
-            {c.twoLeds && (
+            <Presence show={c.twoLeds}>
               <SegmentedPill options={['LED 1', 'LED 2', 'Both']} selected={s.editLed} onSelect={c.setEditLed} />
-            )}
+            </Presence>
             <SegmentedPill
               options={['Color', 'Kelvin']}
               selected={eKelvinMode ? 1 : 0}
               onSelect={(i) => { c.editKelvinMode(i === 1); if (i === 1) { c.editKelvin(eKelvin); c.sendCurrent() } }}
             />
+            <Swap k={eKelvinMode ? 'kelvin' : 'color'} className="stack">
             {eKelvinMode ? (
               <>
                 <SliderLabel text="Temperature" value={`${Math.round(eKelvin / 50) * 50} K`} />
@@ -329,6 +345,7 @@ export function HomeScreen(props: {
                 </div>
               </>
             )}
+            </Swap>
           </PanelCard>
         </div>
       </div>

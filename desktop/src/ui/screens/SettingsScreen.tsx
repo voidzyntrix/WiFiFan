@@ -15,6 +15,7 @@ import {
 } from '../components/Controls'
 import { BackIcon } from '../components/Icons'
 import { sound } from '../sound'
+import { Presence, Swap, Txt } from '../motion'
 
 const ACCENTS = ['#7e57c2', '#5c6bc0', '#42a5f5', '#26a69a', '#66bb6a', '#ffca28', '#ff7043', '#ec407a']
 
@@ -32,7 +33,7 @@ function SettingsCard(props: { id: string; title: string; badge?: boolean; child
         {props.badge && <span className="update-dot" />}
         <BackIcon size={18} className={'card-arrow' + (open ? ' open' : '')} />
       </button>
-      {open && <div className="card-body">{props.children}</div>}
+      <Presence show={open}><div className="card-body">{props.children}</div></Presence>
     </section>
   )
 }
@@ -69,17 +70,21 @@ export function SettingsScreen({ onBack, onWhatsNew }: { onBack: () => void; onW
           <SettingsCard id="board" title="Board LED" i={1}>
             <SettingSection title="Layout" />
             <SettingHeading title="LEDs" subtitle={p.separateLeds && twoLedBoard ? 'Each LED has its own colour; effects run in two-LED versions' : 'Both LEDs show the same light'} />
-            {twoLedBoard
-              ? <SegmentedPill options={['Linked', 'Separate']} selected={p.separateLeds ? 1 : 0} onSelect={(i) => set({ separateLeds: i === 1 })} />
-              : <Hint>Needs board firmware 1.6.0</Hint>}
+            <Swap k={twoLedBoard ? 'pill' : 'hint'}>
+              {twoLedBoard
+                ? <SegmentedPill options={['Linked', 'Separate']} selected={p.separateLeds ? 1 : 0} onSelect={(i) => set({ separateLeds: i === 1 })} />
+                : <Hint>Needs board firmware 1.6.0</Hint>}
+            </Swap>
             <SettingSection title="Candle" />
             <SettingSwitch title="Smooth candle" subtitle="Slow, gentle flicker (easier on the eyes at night)" checked={p.smoothCandle} onChange={(v) => set({ smoothCandle: v })} />
             <SettingHeading title="Candle colour" subtitle="Tint of the candle flame" />
             <SegmentedPill options={['Ember', 'Warm', 'Amber']} selected={[10, 19, 30].indexOf(p.candleHue)} onSelect={(i) => set({ candleHue: [10, 19, 30][i] })} />
             <SettingHeading title="Candle style" subtitle={p.twoCandles ? 'With Separate LEDs: each LED is a candle of its own' : 'With Separate LEDs: one flame, LED1 the bright core, LED2 the flickering tip'} />
-            {!candleStyles ? <Hint>Needs board firmware 1.6.1</Hint>
-              : !p.separateLeds ? <Hint>Set LEDs to Separate to choose</Hint>
-                : <SegmentedPill options={['One flame', 'Two candles']} selected={p.twoCandles ? 1 : 0} onSelect={(i) => set({ twoCandles: i === 1 })} />}
+            <Swap k={!candleStyles ? 'fw' : !p.separateLeds ? 'sep' : 'pill'}>
+              {!candleStyles ? <Hint>Needs board firmware 1.6.1</Hint>
+                : !p.separateLeds ? <Hint>Set LEDs to Separate to choose</Hint>
+                  : <SegmentedPill options={['One flame', 'Two candles']} selected={p.twoCandles ? 1 : 0} onSelect={(i) => set({ twoCandles: i === 1 })} />}
+            </Swap>
             <SettingSection title="Effects" />
             <SettingHeading title="Rainbow speed" subtitle="One trip round the colour wheel: 30, 15 or 6 s" />
             <SegmentedPill options={['Slow', 'Normal', 'Fast']} selected={[30, 15, 6].indexOf(p.rainbowSeconds)} onSelect={(i) => set({ rainbowSeconds: [30, 15, 6][i] })} />
@@ -103,17 +108,17 @@ export function SettingsScreen({ onBack, onWhatsNew }: { onBack: () => void; onW
               PLAIN: 'Nothing behind the controls; lightest on the GPU',
             }[p.background]} />
             <SegmentedPill options={['Particles', 'Aurora', 'Fluid', 'Image', 'Plain']} selected={backgrounds.indexOf(p.background)} onSelect={(i) => set({ background: backgrounds[i] })} />
-            {p.background === 'IMAGE' && (
+            <Presence show={p.background === 'IMAGE'}>
               <LevelSlider label="Darkness" value={p.imageDim / 0.95} text={`${Math.round(p.imageDim * 100)} %`} onChange={(f) => set({ imageDim: f * 0.95 })} />
-            )}
-            {p.background === 'FLUID' && (
+            </Presence>
+            <Presence show={p.background === 'FLUID'}>
               <LevelSlider label="Mouse movement" value={p.fluidStir} text={p.fluidStir === 0 ? 'Off' : `${Math.round(p.fluidStir * 100)} %`} onChange={(f) => set({ fluidStir: f })} />
-            )}
+            </Presence>
             <SettingHeading title="Appearance" subtitle="Light or dark, or the same as Windows" />
             <SegmentedPill options={['System', 'Light', 'Dark']} selected={p.themeMode} onSelect={(i) => set({ themeMode: i })} />
             <SettingHeading title="Colour" subtitle="Pure grayscale, grayscale with accents, or fully coloured" />
             <SegmentedPill options={['Monochrome', 'Tinted', 'Coloured']} selected={schemes.indexOf(p.colorScheme)} onSelect={(i) => set({ colorScheme: schemes[i] })} />
-            {p.colorScheme === 'COLORED' && (
+            <Presence show={p.colorScheme === 'COLORED'}>
               <div className="accent-row">
                 {ACCENTS.map((a) => (
                   <button key={a} className={'preset' + (a === p.accentColor ? ' selected' : '')} style={{ background: a }} title={a}
@@ -123,26 +128,26 @@ export function SettingsScreen({ onBack, onWhatsNew }: { onBack: () => void; onW
                   <input type="color" value={p.accentColor || DEFAULT_ACCENT} onChange={(e) => set({ accentColor: e.target.value })} />+
                 </label>
               </div>
-            )}
+            </Presence>
             <SettingHeading title="Font" subtitle="Used for all text in the app" />
             <SegmentedPill options={['System', 'JetBrains Mono']} selected={p.monoFont ? 1 : 0} onSelect={(i) => set({ monoFont: i === 1 })} />
             <SettingSwitch title="Pure black (OLED)" subtitle="Black background in dark mode" checked={p.pureBlack} onChange={(v) => set({ pureBlack: v })} />
             <SettingSection title="Shape & surface" />
             <SettingHeading title="Corners" subtitle="Roundness of everything: cards, buttons, pills, dots, thumbs" />
             <SegmentedPill options={['Square', 'Small', 'Medium', 'Large', 'Custom']} selected={p.cornerStyle} onSelect={(i) => set({ cornerStyle: i })} />
-            {p.cornerStyle === 4 && (
+            <Presence show={p.cornerStyle === 4}>
               <LevelSlider label="Radius" value={p.customCorner / 2} text={`${Math.round(p.customCorner * 100)} %`} onChange={(f) => set({ customCorner: f * 2 })}
                 hint="0 % is square, 100 % makes round things fully round, above that cards get rounder." />
-            )}
+            </Presence>
             <SettingSwitch title="Round LED preview" subtitle="Keep the LED preview a perfect circle whatever the corners" checked={p.roundLedPreview} onChange={(v) => set({ roundLedPreview: v })} />
-            <SettingSwitch title="Refractive glass" subtitle="Clear cards that bend the background at their edges, no blur" checked={p.refractiveGlass} onChange={(v) => set({ refractiveGlass: v })} />
+            <SettingSwitch title="Refractive glass" subtitle="Everything is glass: clear pieces that bend the background at their edges instead of blurring it" checked={p.refractiveGlass} onChange={(v) => set({ refractiveGlass: v })} />
             <SettingSection title="Behaviour" />
             <SettingSwitch title="Rainbow preview" subtitle="Animate the colour sliders while Rainbow runs" checked={p.rainbowSync} onChange={(v) => set({ rainbowSync: v })} />
             <SettingSwitch title="Sounds" subtitle="Soft clicks on sliders and buttons (the phone app's haptics)" checked={p.sounds} onChange={(v) => set({ sounds: v })} />
-            {p.sounds && (
+            <Presence show={p.sounds}>
               <LevelSlider label="Volume" value={p.soundVolume} text={`${Math.round(p.soundVolume * 100)} %`}
                 onChange={(f) => set({ soundVolume: Math.max(0.05, f) })} onDone={() => sound.confirm()} />
-            )}
+            </Presence>
             <SettingSwitch title="Keep screen on" subtitle="The display doesn't sleep while Glow runs" checked={p.keepScreenOn} onChange={(v) => set({ keepScreenOn: v })} />
             <SettingSwitch title="Update prompts" subtitle="Ask at launch when an update is available" checked={p.updatePrompts} onChange={(v) => set({ updatePrompts: v })} />
             {desktop && <CaptureDisplay />}
@@ -153,17 +158,21 @@ export function SettingsScreen({ onBack, onWhatsNew }: { onBack: () => void; onW
             <FirmwareBlock state={ota} version={version} connected={conn.state === 'connected'} />
             <SettingSection title="App" />
             <div className="update-block">
-              <div className="update-title">Glow for Windows v{APP_VERSION}{app.kind === 'available' && <span className="update-dot" />}</div>
+              <div className="update-title">Glow for Windows v{APP_VERSION}<Presence show={app.kind === 'available'} className="inline"><span className="update-dot" /></Presence></div>
               <div className={'update-status' + (app.kind === 'error' ? ' error' : '')}>
-                {app.kind === 'idle' ? 'New versions are published as GitHub releases.'
-                  : app.kind === 'checking' ? 'Checking GitHub…'
-                    : app.kind === 'upToDate' ? `Up to date (latest release is v${app.latest}).`
-                      : app.kind === 'available' ? `Version ${app.release.version} is available.` : app.message}
+                <Txt>
+                  {app.kind === 'idle' ? 'New versions are published as GitHub releases.'
+                    : app.kind === 'checking' ? 'Checking GitHub…'
+                      : app.kind === 'upToDate' ? `Up to date (latest release is v${app.latest}).`
+                        : app.kind === 'available' ? `Version ${app.release.version} is available.` : app.message}
+                </Txt>
               </div>
-              {app.kind === 'available'
-                ? <PillButton text={`Download v${app.release.version}`} highlighted onClick={() => openLink(app.release.downloadUrl)} />
-                : app.kind === 'checking' ? <ProgressBar fraction={null} />
-                  : <PillButton text="Check for updates" onClick={() => void checkAppUpdate()} />}
+              <Swap k={app.kind === 'available' ? 'download' : app.kind === 'checking' ? 'progress' : 'check'}>
+                {app.kind === 'available'
+                  ? <PillButton text={`Download v${app.release.version}`} highlighted onClick={() => openLink(app.release.downloadUrl)} />
+                  : app.kind === 'checking' ? <ProgressBar fraction={null} />
+                    : <PillButton text="Check for updates" onClick={() => void checkAppUpdate()} />}
+              </Swap>
             </div>
             <div className="button-row">
               <PillButton text="What's new" onClick={onWhatsNew} />
@@ -236,6 +245,7 @@ function AutoLightSettings() {
       <SettingHeading title="Follows" subtitle="Windows lock & idle time, or the room's light (webcam)" />
       <SegmentedPill options={['Lock & idle', 'Room light']} selected={p.autoRoomLight ? 1 : 0} onSelect={(i) => set({ autoRoomLight: i === 1 })} />
       <SettingSection title="Scenes" />
+      <Swap k={p.autoRoomLight ? 'room' : 'lock'} className="stack">
       {p.autoRoomLight ? (
         <>
           <SettingHeading title="Dark room" subtitle="Lights off or dim" />
@@ -272,6 +282,7 @@ function AutoLightSettings() {
           </Hint>
         </>
       )}
+      </Swap>
     </>
   )
 }
@@ -302,19 +313,21 @@ function FirmwareBlock({ state, version, connected }: { state: OtaState; version
   return (
     <div className="update-block">
       <div className="update-title">
-        {!connected ? 'Board not connected' : version ? `Board firmware v${version}` : 'Board firmware version unknown'}
-        {state.kind === 'available' && <span className="update-dot" />}
+        <Txt>{!connected ? 'Board not connected' : version ? `Board firmware v${version}` : 'Board firmware version unknown'}</Txt>
+        <Presence show={state.kind === 'available'} className="inline"><span className="update-dot" /></Presence>
       </div>
-      <div className={'update-status' + (state.kind === 'error' ? ' error' : '')}>{status}</div>
-      {busy || state.kind === 'checking' ? (
-        <ProgressBar fraction={state.kind === 'uploading' && state.total > 0 ? state.sent / state.total : null} />
-      ) : state.kind === 'available' ? (
-        <PillButton text={`Update to v${state.release.version}`} highlighted enabled={connected} onClick={() => void startFirmwareUpdate(state.release)} />
-      ) : (
-        <PillButton text="Check for updates" enabled={connected} onClick={() => void checkFirmware(version)} />
-      )}
-      {!busy && connected && (
-        <>
+      <div className={'update-status' + (state.kind === 'error' ? ' error' : '')}><Txt>{status}</Txt></div>
+      <Swap k={busy || state.kind === 'checking' ? 'progress' : state.kind === 'available' ? 'update' : 'check'}>
+        {busy || state.kind === 'checking' ? (
+          <ProgressBar fraction={state.kind === 'uploading' && state.total > 0 ? state.sent / state.total : null} />
+        ) : state.kind === 'available' ? (
+          <PillButton text={`Update to v${state.release.version}`} highlighted enabled={connected} onClick={() => void startFirmwareUpdate(state.release)} />
+        ) : (
+          <PillButton text="Check for updates" enabled={connected} onClick={() => void checkFirmware(version)} />
+        )}
+      </Swap>
+      <Presence show={!busy && connected}>
+        <div className="stack">
           <button className="quiet-link small" onClick={() => file.current?.click()}>Flash a firmware file (.bin)…</button>
           <input
             ref={file} type="file" accept=".bin" hidden
@@ -326,8 +339,8 @@ function FirmwareBlock({ state, version, connected }: { state: OtaState; version
               await startFirmwareUpdate(null, new Uint8Array(await f.arrayBuffer()), v)
             }}
           />
-        </>
-      )}
+        </div>
+      </Presence>
     </div>
   )
 }

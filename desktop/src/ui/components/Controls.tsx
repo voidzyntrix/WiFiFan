@@ -3,6 +3,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { sound } from '../sound'
+import { Txt } from '../motion'
 
 /**
  * A draggable colour strip (hue, saturation, brightness, kelvin, or a plain level).
@@ -17,6 +18,7 @@ export function GradientBar(props: {
   label?: string
 }) {
   const ref = useRef<HTMLDivElement>(null)
+  const [dragging, setDragging] = useState(false)   // while held the thumb follows the pointer exactly
   const step = useRef(-1)
   const finishTimer = useRef(0)
   const report = (f: number) => {
@@ -38,7 +40,7 @@ export function GradientBar(props: {
   return (
     <div
       ref={ref}
-      className="gbar"
+      className={'gbar' + (dragging ? ' dragging' : '')}
       role="slider"
       aria-label={props.label}
       aria-valuemin={0}
@@ -47,6 +49,7 @@ export function GradientBar(props: {
       tabIndex={0}
       onPointerDown={(e) => {
         ref.current!.setPointerCapture(e.pointerId)
+        setDragging(true)
         step.current = -1
         report(at(e.clientX))
       }}
@@ -54,6 +57,7 @@ export function GradientBar(props: {
       onPointerUp={(e) => {
         if (!ref.current!.hasPointerCapture(e.pointerId)) return
         ref.current!.releasePointerCapture(e.pointerId)
+        setDragging(false)
         props.onFinished()
       }}
       onWheel={(e) => {
@@ -71,7 +75,14 @@ export function GradientBar(props: {
         finishSoon()
       }}
     >
-      <div className="gbar-track" style={{ background: `linear-gradient(90deg, ${props.stops.join(',')})` }} />
+      {/* the stops are registered colour properties (styles.css), so a new colour glides in */}
+      <div
+        className="gbar-track"
+        style={{
+          background: `linear-gradient(90deg, ${props.stops.map((_, i) => `var(--g${i})`).join(',')})`,
+          ...Object.fromEntries(props.stops.map((c, i) => [`--g${i}`, c])),
+        }}
+      />
       <div className="gbar-thumb" style={{ left: `${props.fraction * 100}%` }}>
         <div className="gbar-dot" style={{ background: props.thumbColor }} />
       </div>
@@ -84,9 +95,14 @@ export function SegmentedPill(props: { options: string[]; selected: number; onSe
   const n = props.options.length
   return (
     <div className={'pill glass-soft' + (props.disabled ? ' disabled' : '')} role="radiogroup">
-      {props.selected >= 0 && (
-        <div className="pill-thumb" style={{ width: `calc(${100 / n}% - 6px)`, transform: `translateX(calc(${props.selected * 100}% + ${props.selected * 6}px))` }} />
-      )}
+      <div
+        className="pill-thumb"
+        style={{
+          width: `calc(${100 / n}% - 6px)`,
+          transform: `translateX(calc(${Math.max(0, props.selected) * 100}% + ${Math.max(0, props.selected) * 6}px))`,
+          opacity: props.selected >= 0 ? 1 : 0,
+        }}
+      />
       {props.options.map((o, i) => (
         <button
           key={o}
@@ -138,7 +154,7 @@ export function PillButton(props: { text: string; highlighted?: boolean; enabled
       disabled={!enabled}
       onClick={() => { sound.tap(); props.onClick() }}
     >
-      {props.text}
+      <Txt>{props.text}</Txt>
     </button>
   )
 }
@@ -170,7 +186,7 @@ export function SettingSwitch(props: { title: string; subtitle?: string | null; 
     <div className="setting-switch">
       <div className="setting-text">
         <div className="setting-title">{props.title}</div>
-        {props.subtitle && <div className="setting-sub">{props.subtitle}</div>}
+        {props.subtitle && <div className="setting-sub"><Txt>{props.subtitle}</Txt></div>}
       </div>
       <Switch checked={props.checked} onChange={props.onChange} label={props.title} />
     </div>
@@ -181,7 +197,7 @@ export function SettingHeading({ title, subtitle }: { title: string; subtitle?: 
   return (
     <div className="setting-heading">
       <div className="setting-title">{title}</div>
-      {subtitle && <div className="setting-sub">{subtitle}</div>}
+      {subtitle && <div className="setting-sub"><Txt>{subtitle}</Txt></div>}
     </div>
   )
 }

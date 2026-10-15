@@ -15,3 +15,8 @@ let current: BackdropSource | null = null
 
 export function setBackdropSource(s: BackdropSource | null) { current = s }
 export function backdropSource() { return current }
+
+// 1 normally, dips to 0 and back while one background swaps for another (the glass reads it too).
+let fade = 1
+export function setBackdropFade(f: number) { fade = f }
+export function backdropFade() { return fade }

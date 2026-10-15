@@ -2,6 +2,17 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '1.1.0',
+    notes: [
+      'Everything is glass: every card, button, pill, switch, slider, menu, dialog and toast either blurs or (with Refractive glass) bends what is behind it.',
+      'Everything that changes now animates: screens, dialogs, menus and toasts leave as gracefully as they arrive.',
+      'Settings that appear and disappear unfold and fold; swapped content cross-fades; changed text fades in.',
+      'Theme, colour and corner changes glide instead of snapping; sliders slide to new values.',
+      'Scenes, boards and devices slide into place when the list changes.',
+      'Switching background fades through, and the Fluid and Aurora colours follow the LED smoothly.',
+    ],
+  },
+  {
     version: '1.0.0',
     notes: [
       'Glow for Windows: everything from the phone app, at your desk.',
