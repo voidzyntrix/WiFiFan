@@ -5,6 +5,7 @@
 //   Space power · 1-9 scenes · [ / ] brightness · M mode menu · , settings
 
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Presence, Swap, Txt, useExit, useFlip, useLeavingList } from '../motion'
 import { hexOf, hsvCss, kelvinScreenColor, KELVIN_MAX, KELVIN_MIN } from '../../led/color'
 import { LedPreview, LedPreviewPair } from '../../led/LedPreview'
@@ -79,6 +80,32 @@ export function HomeScreen(props: {
   const auto = useAutoStatus()
   const [modeMenu, setModeMenu] = useState(false)
   const menu = useExit(modeMenu, 200)
+  const anchor = useRef<HTMLDivElement>(null)
+  // The menu lives on <body>: inside the card it would be clipped to it (a card with a blur is the
+  // box a fixed child is placed in), painted under the cards after it, and the click-away layer
+  // would leave everything outside the card clickable.
+  const [menuBox, setMenuBox] = useState({ left: 0, top: 0, width: 0, maxHeight: 400 })
+  useEffect(() => {
+    if (!modeMenu) return
+    const place = () => {
+      const r = anchor.current?.getBoundingClientRect()
+      if (!r) return
+      const top = r.bottom + 8
+      setMenuBox({ left: r.left, top, width: r.width, maxHeight: Math.max(160, window.innerHeight - top - 12) })
+    }
+    place()
+    const close = () => setModeMenu(false)
+    const onScroll = (e: Event) => { if (!(e.target instanceof Node && document.querySelector('.mode-menu')?.contains(e.target))) close() }
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); close() } }
+    window.addEventListener('resize', place)
+    window.addEventListener('scroll', onScroll, true)
+    window.addEventListener('keydown', esc, true)
+    return () => {
+      window.removeEventListener('resize', place)
+      window.removeEventListener('scroll', onScroll, true)
+      window.removeEventListener('keydown', esc, true)
+    }
+  }, [modeMenu])
   const sceneRow = useRef<HTMLDivElement>(null)
   useFlip(sceneRow)
   const scenes = useLeavingList(s.scenes, (sc) => String(sc.id))
@@ -201,16 +228,16 @@ export function HomeScreen(props: {
           </Presence>
 
           <PanelCard className="entrance" style={{ ['--i' as string]: 3 }}>
-            <div className="mode-anchor">
+            <div className="mode-anchor" ref={anchor}>
               <button className="mode-button glass-soft" onClick={() => setModeMenu(!modeMenu)} aria-expanded={modeMenu} title="Mode (M)">
                 <span className="mode-label">Mode</span>
                 <span className="mode-value"><Txt>{modeLabel(s.mode)}</Txt></span>
                 <BackIcon size={18} className={'mode-arrow' + (modeMenu ? ' open' : '')} />
               </button>
-              {menu.mounted && (
+              {menu.mounted && createPortal(
                 <>
-                  {modeMenu && <div className="menu-scrim" onPointerDown={() => setModeMenu(false)} />}
-                  <div className={'mode-menu' + (menu.leaving ? ' leaving' : '')}>
+                  {modeMenu && <div className="menu-scrim" onPointerDown={() => setModeMenu(false)} onContextMenu={(e) => { e.preventDefault(); setModeMenu(false) }} />}
+                  <div className={'mode-menu' + (menu.leaving ? ' leaving' : '')} style={menuBox}>
                     {modeGroups.map(([title, modes]) => (
                       <div key={title}>
                         <div className="menu-title">{title}</div>
@@ -229,7 +256,8 @@ export function HomeScreen(props: {
                       </div>
                     ))}
                   </div>
-                </>
+                </>,
+                document.body,
               )}
             </div>
             <SliderLabel text="Brightness" value={`${Math.round(s.bri * 100)} %`} />

@@ -72,6 +72,8 @@ export interface Settings {
   fluidStir: number
   /** Whether the mouse moves all the fluid on screen (false) or only the fluid near it (true). */
   fluidNearMouse: boolean
+  /** How thick the fluid is, 0 (watery) to 1 (syrup); 0.5 is the default. */
+  fluidViscosity: number
   /** A net of dots the mouse pushes around, behind the Particles and Fluid backgrounds. */
   dotNet: boolean
   /** How taut the net is, 0 (loose, wobbly) to 1 (stiff). */
@@ -137,6 +139,7 @@ const DEFAULTS: Settings = {
   autoSnapshot: null,
   fluidStir: 0.6,
   fluidNearMouse: false,
+  fluidViscosity: 0.5,
   dotNet: true,
   dotNetStiffness: 0.5,
   dotNetOpacity: 0.5,

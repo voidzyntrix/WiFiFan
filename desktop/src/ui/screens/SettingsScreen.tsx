@@ -115,6 +115,10 @@ export function SettingsScreen({ onBack, onWhatsNew }: { onBack: () => void; onW
               <LevelSlider label="Mouse movement" value={p.fluidStir} text={p.fluidStir === 0 ? 'Off' : `${Math.round(p.fluidStir * 100)} %`} onChange={(f) => set({ fluidStir: f })} />
             </Presence>
             <Presence show={p.background === 'FLUID'}>
+              <LevelSlider label="Viscosity" value={p.fluidViscosity} text={p.fluidViscosity < 0.2 ? 'Watery' : p.fluidViscosity > 0.8 ? 'Thick' : `${Math.round(p.fluidViscosity * 100)} %`}
+                onChange={(f) => set({ fluidViscosity: f })} hint="Watery fluid sloshes and splashes; thick fluid flows slowly and holds together." />
+            </Presence>
+            <Presence show={p.background === 'FLUID'}>
               <div className="stack">
                 <SettingHeading title="Mouse reach" subtitle={p.fluidNearMouse ? 'Only the fluid near the pointer moves' : 'Moving the mouse anywhere moves all the fluid'} />
                 <SegmentedPill options={['Whole screen', 'Nearby fluid']} selected={p.fluidNearMouse ? 1 : 0} onSelect={(i) => set({ fluidNearMouse: i === 1 })} />

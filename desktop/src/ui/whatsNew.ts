@@ -2,6 +2,20 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '1.8.0',
+    notes: [
+      'Viscosity: a new slider for the fluid, from watery to thick.',
+      'Menus open on top of everything: the mode menu can no longer be covered by the cards below it, and clicking outside only closes it.',
+      'Mouse movement hits harder: the pointer also pushes fluid outwards like a paddle, and fluid can move faster.',
+    ],
+  },
+  {
+    version: '1.7.1',
+    notes: [
+      'Mouse movement is much stronger at the top of the slider: 100 % is now eight times what it was (up to 60 % it is unchanged).',
+    ],
+  },
+  {
     version: '1.7.0',
     notes: [
       'Mouse reach: choose in Settings whether moving the mouse moves all the fluid on screen or only the fluid near the pointer.',

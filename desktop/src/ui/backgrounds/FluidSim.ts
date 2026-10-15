@@ -16,7 +16,7 @@ const RELAXATION = 0.6
 /** XSPH viscosity: how much each particle takes on its neighbours' velocity. */
 const XSPH = 0.04
 /** A particle never moves further than this in one step (radii). */
-const MAX_MOVE = 0.35
+const MAX_MOVE = 0.55
 const WALL = 0.15
 const MAX_NEIGHBOURS = 48
 
@@ -74,6 +74,10 @@ export class FluidSim {
     }
   }
 
+  /** XSPH strength and an overall drag (per second): both make the liquid thicker. */
+  viscosity = XSPH
+  drag = 0
+
   /** One step of [dt] seconds; gx, gy: gravity in radii/s² (y down). */
   step(dt: number, gx: number, gy: number) {
     const { count, x, y, vx, vy, px, py } = this
@@ -96,6 +100,10 @@ export class FluidSim {
       vy[i] = (y[i] - py[i]) / dt
     }
     this.xsph()
+    if (this.drag > 0) {
+      const f = Math.exp(-this.drag * dt)
+      for (let i = 0; i < count; i++) { vx[i] *= f; vy[i] *= f }
+    }
   }
 
   private clampX(v: number, i: number) {
@@ -206,7 +214,7 @@ export class FluidSim {
       }
       ax[i] = sx; ay[i] = sy
     }
-    for (let i = 0; i < count; i++) { vx[i] += XSPH * ax[i]; vy[i] += XSPH * ay[i] }
+    for (let i = 0; i < count; i++) { vx[i] += this.viscosity * ax[i]; vy[i] += this.viscosity * ay[i] }
   }
 }
 

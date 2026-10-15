@@ -267,9 +267,13 @@ function Fluid({ tint, netTint }: { tint: string; netTint: string }) {
     if (!s || !c) return
     const steps = Math.min(2, Math.max(1, Math.round(dt / STEP)))
     const cellPx = window.innerWidth / s.width          // CSS px per radius
-    // up to 0.6 the slider is as it always was; above it each step counts five times over (100 % = 3x)
+    // viscosity: from watery (a hundredth of the default stickiness) to syrup (fifteen times it)
+    const visc = settings.get().fluidViscosity
+    s.viscosity = 0.04 * 2 ** ((visc - 0.5) * 7.8)
+    s.drag = Math.max(0, visc - 0.6) * 9
+    // up to 60 % the slider is as it always was; above it the strength climbs steeply (100 % = 8x)
     const raw = settings.get().fluidStir
-    const stir = raw + Math.max(0, raw - 0.6) * 5
+    const stir = raw + Math.max(0, raw - 0.6) * 17.5
     const g = GRAVITY_PX / cellPx                        // radii/s²
     const frameS = Math.max(dt, 1 / 240)
 
@@ -283,19 +287,28 @@ function Fluid({ tint, netTint }: { tint: string; netTint: string }) {
       const pushY = lim((m.dy / cellPx) * MOUSE_PUSH * stir * 4)
       const mx = m.x / cellPx, my = m.y / cellPx
       const near = settings.get().fluidNearMouse
+      // the pointer is also a paddle: fluid right around it is thrown outwards, the faster it moves
+      const speed = Math.hypot(m.dx, m.dy) / cellPx
+      const paddle = Math.min(14 * Math.max(1, stir), speed * 0.9 * stir)
       for (let i = 0; i < s.count; i++) {
         let k = near ? 0 : 1
+        let out = 0, ox = 0, oy = 0
         if (m.x >= 0) {
           const dx = s.x[i] - mx, dy = s.y[i] - my
           const d2 = dx * dx + dy * dy
-          if (near) {
-            // only the fluid close to the pointer moves, most of all right under it
-            if (d2 < NEAR_RADIUS * NEAR_RADIUS) { const f = 1 - Math.sqrt(d2) / NEAR_RADIUS; k = 2.2 * f * f + 0.3 * f }
-          } else if (d2 < STIR_RADIUS * STIR_RADIUS) k += 0.8 * (1 - Math.sqrt(d2) / STIR_RADIUS)
+          const reach = near ? NEAR_RADIUS : STIR_RADIUS
+          if (d2 < reach * reach) {
+            const d = Math.sqrt(d2) || 0.001
+            const f = 1 - d / reach
+            if (near) k = 2.2 * f * f + 0.3 * f
+            else k += 0.8 * f
+            out = paddle * f * f
+            ox = dx / d; oy = dy / d
+          }
         }
         if (k === 0) continue
-        s.vx[i] += pushX * k
-        s.vy[i] += pushY * k
+        s.vx[i] += pushX * k + ox * out
+        s.vy[i] += pushY * k + oy * out
       }
     }
     m.dx = 0; m.dy = 0
