@@ -202,14 +202,16 @@ const SIM_WIDTH = 40
 /** Liquid fills about the bottom fifth of the window (the phone's share). */
 const LIQUID_SHARE = 380 * 0.25 / (14 * 31)
 const MAX_PARTICLES = 3000
-/** Moving the mouse anywhere pushes the whole liquid the same way, this hard. */
-const MOUSE_PUSH = 0.12
-/** ...and a bit harder right around the pointer, within this many radii. */
-const STIR_RADIUS = 3
-/** With "near the mouse" only fluid within this many radii of the pointer moves. */
+/**
+ * The pointer is one force: it pushes fluid away from it (hold Ctrl and it pulls towards it
+ * instead), strongest right at the pointer and fading to nothing at its reach. "Nearby fluid"
+ * reaches NEAR_RADIUS radii; "Whole screen" is the same force with a reach so large that it
+ * covers everything. FORCE is radii/s² right at the pointer for a slider at 100 % of the old
+ * scale (gravity is about 50).
+ */
 const NEAR_RADIUS = 6
-/** The steady push away from the pointer, radii/s² right at the pointer, scaled by the mouse slider (gravity is about 50). */
-const HOLD = 260
+const WHOLE_RADIUS = 400
+const FORCE = 180
 
 /** The fluid box for the window: square cells, SIM_WIDTH radii across a portrait window. */
 function simSize() {
@@ -231,7 +233,7 @@ function Fluid({ tint, netTint }: { tint: string; netTint: string }) {
   const ref = useCanvas()
   const dots = useRef<HTMLCanvasElement>(document.createElement('canvas'))
   const sim = useRef<FluidSim | null>(null)
-  const mouse = useRef({ x: -1, y: -1, dx: 0, dy: 0 })
+  const mouse = useRef({ x: -1, y: -1 })
   const pull = useRef(false)    // Ctrl is held: the pointer attracts instead of pushing
   const win = useRef({ x: window.screenX, y: window.screenY, vx: 0, vy: 0 })
   const smooth = useSmoothColor(tint, 5)
@@ -251,7 +253,6 @@ function Fluid({ tint, netTint }: { tint: string; netTint: string }) {
     const resize = () => { window.clearTimeout(t); t = window.setTimeout(make, 200) }
     const move = (e: PointerEvent) => {
       const m = mouse.current
-      if (m.x >= 0) { m.dx += e.clientX - m.x; m.dy += e.clientY - m.y }
       m.x = e.clientX; m.y = e.clientY
       pull.current = e.ctrlKey
     }
@@ -284,74 +285,27 @@ function Fluid({ tint, netTint }: { tint: string; netTint: string }) {
     const visc = settings.get().fluidViscosity
     s.viscosity = 0.04 * 2 ** ((visc - 0.5) * 7.8)
     s.drag = Math.max(0, visc - 0.6) * 9
-    // up to 60 % the slider is as it always was; above it the strength climbs steeply (100 % = 8x)
+    // the slider is the strength: gentle up to 60 %, then it climbs steeply (100 % = 8x)
     const raw = settings.get().fluidStir
     const stir = raw + Math.max(0, raw - 0.6) * 17.5
     const g = GRAVITY_PX / cellPx                        // radii/s²
     const frameS = Math.max(dt, 1 / 240)
 
-    // Mouse: its movement (anywhere) pushes everything the same way, a little more near it.
-    // Each px moved adds a little velocity (radii/s), so a gentle move gives a gentle push.
+    // Mouse: repel (hold Ctrl: attract), within the reach, strongest at the pointer.
     const m = mouse.current
-    if ((m.dx || m.dy) && stir > 0) {
-      const cap = 12 * Math.max(1, stir)
-      const lim = (v: number) => Math.max(-cap, Math.min(cap, v))
-      const sgn = pull.current ? -1 : 1          // Ctrl inverts everything the pointer does
-      const pushX = sgn * lim((m.dx / cellPx) * MOUSE_PUSH * stir * 4)
-      const pushY = sgn * lim((m.dy / cellPx) * MOUSE_PUSH * stir * 4)
-      const mx = m.x / cellPx, my = m.y / cellPx
-      const near = settings.get().fluidNearMouse
-      // the pointer is also a paddle: fluid right around it is thrown outwards, the faster it moves
-      const speed = Math.hypot(m.dx, m.dy) / cellPx
-      const paddle = Math.min(14 * Math.max(1, stir), speed * 0.9 * stir)
-      // From 60 % to 100 % the fluid near the pointer is also dragged up to the pointer's own
-      // speed (radii/s), so a fast sweep sends it racing along instead of nudging it.
-      const extra = Math.max(0, raw - 0.6) / 0.4
-      const follow = Math.min(1, speed * 4)
-      const vmx = sgn * Math.max(-70, Math.min(70, m.dx / cellPx / frameS)), vmy = sgn * Math.max(-70, Math.min(70, m.dy / cellPx / frameS))
-      for (let i = 0; i < s.count; i++) {
-        let k = near ? 0 : 1
-        let out = 0, ox = 0, oy = 0
-        if (m.x >= 0) {
-          const dx = s.x[i] - mx, dy = s.y[i] - my
-          const d2 = dx * dx + dy * dy
-          const reach = near ? NEAR_RADIUS : STIR_RADIUS
-          if (d2 < reach * reach) {
-            const d = Math.sqrt(d2) || 0.001
-            const f = 1 - d / reach
-            if (near) k = 2.2 * f * f + 0.3 * f
-            else k += 0.8 * f
-            out = paddle * f * f
-            ox = dx / d; oy = dy / d
-          }
-        }
-        if (k === 0) continue
-        s.vx[i] += pushX * k + sgn * ox * out
-        s.vy[i] += pushY * k + sgn * oy * out
-        if (extra > 0) {
-          const b = Math.min(0.85, extra * follow * 0.5 * Math.min(k, 1.6))
-          s.vx[i] += (vmx - s.vx[i]) * b
-          s.vy[i] += (vmy - s.vy[i]) * b
-        }
-      }
-    }
-    m.dx = 0; m.dy = 0
-
-    // The pointer also holds the fluid off it all the time, moving or not: a steady push outwards
-    // that is strongest right at the pointer (it takes the same slider as the movement does).
     if (m.x >= 0 && stir > 0) {
-      const hold = HOLD * Math.min(stir, 4) * frameS
-      const pulling = pull.current
+      const reach = settings.get().fluidNearMouse ? NEAR_RADIUS : WHOLE_RADIUS
+      const accel = FORCE * stir * frameS * (pull.current ? -1 : 1)
       const hx = m.x / cellPx, hy = m.y / cellPx
-      const r2max = NEAR_RADIUS * NEAR_RADIUS
+      const r2max = reach * reach
       for (let i = 0; i < s.count; i++) {
         const dx = s.x[i] - hx, dy = s.y[i] - hy
         const d2 = dx * dx + dy * dy
         if (d2 >= r2max) continue
         const d = Math.sqrt(d2) || 0.001
-        const f = 1 - d / NEAR_RADIUS
-        // (pulling fades out right at the pointer, so the fluid gathers there instead of jittering)
-        const push = hold * f * f * (pulling ? -2.5 * Math.min(1, d / 1.2) : 1)
+        const f = 1 - d / reach
+        // (an attraction fades out right at the pointer, so the fluid gathers there instead of jittering)
+        const push = accel * f * f * (pull.current ? Math.min(1, d / 1.2) : 1)
         s.vx[i] += (dx / d) * push
         s.vy[i] += (dy / d) * push
       }

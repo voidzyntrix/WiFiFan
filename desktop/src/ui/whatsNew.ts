@@ -2,6 +2,14 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '1.11.0',
+    notes: [
+      'The mouse is one simple force now: it repels the fluid, and holding Ctrl makes it attract.',
+      'Whole screen is the same force with a reach so large it covers everything; Nearby fluid limits it to the fluid around the pointer.',
+      'The old movement push, the paddle and the steady force are gone.',
+    ],
+  },
+  {
     version: '1.10.0',
     notes: [
       'Hold Ctrl and the pointer attracts the fluid instead of pushing it: its movement, its paddle and its steady force are all inverted.',

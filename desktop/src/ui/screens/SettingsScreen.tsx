@@ -112,8 +112,8 @@ export function SettingsScreen({ onBack, onWhatsNew }: { onBack: () => void; onW
               <LevelSlider label="Darkness" value={p.imageDim / 0.95} text={`${Math.round(p.imageDim * 100)} %`} onChange={(f) => set({ imageDim: f * 0.95 })} />
             </Presence>
             <Presence show={p.background === 'FLUID'}>
-              <LevelSlider label="Mouse movement" value={p.fluidStir} text={p.fluidStir === 0 ? 'Off' : `${Math.round(p.fluidStir * 100)} %`} onChange={(f) => set({ fluidStir: f })}
-                hint="The pointer pushes the fluid away, moving or not. Hold Ctrl to pull it in instead." />
+              <LevelSlider label="Mouse force" value={p.fluidStir} text={p.fluidStir === 0 ? 'Off' : `${Math.round(p.fluidStir * 100)} %`} onChange={(f) => set({ fluidStir: f })}
+                hint="The pointer pushes the fluid away. Hold Ctrl to pull it in instead." />
             </Presence>
             <Presence show={p.background === 'FLUID'}>
               <LevelSlider label="Viscosity" value={p.fluidViscosity} text={p.fluidViscosity < 0.2 ? 'Watery' : p.fluidViscosity > 0.8 ? 'Thick' : `${Math.round(p.fluidViscosity * 100)} %`}
@@ -121,7 +121,7 @@ export function SettingsScreen({ onBack, onWhatsNew }: { onBack: () => void; onW
             </Presence>
             <Presence show={p.background === 'FLUID'}>
               <div className="stack">
-                <SettingHeading title="Mouse reach" subtitle={p.fluidNearMouse ? 'Only the fluid near the pointer moves' : 'Moving the mouse anywhere moves all the fluid'} />
+                <SettingHeading title="Mouse reach" subtitle={p.fluidNearMouse ? 'Only the fluid near the pointer is pushed or pulled' : 'All the fluid on screen is pushed or pulled'} />
                 <SegmentedPill options={['Whole screen', 'Nearby fluid']} selected={p.fluidNearMouse ? 1 : 0} onSelect={(i) => set({ fluidNearMouse: i === 1 })} />
               </div>
             </Presence>
