@@ -2,6 +2,14 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '1.13.0',
+    notes: [
+      'Grid fluid: a new Fluid style made of cells of water that fall, spread and level out. The pointer pushes (or with Ctrl pulls) the water between cells.',
+      'Grid resolution: one slider sets the cell size of the Cells net, the Dots spacing and the Grid fluid, together.',
+      'The Cells net shows its colours much more strongly, and it feels the Grid fluid too.',
+    ],
+  },
+  {
     version: '1.12.2',
     notes: [
       'Cells net: waves going up are green and going down amber, as well as red for left and blue for right.',

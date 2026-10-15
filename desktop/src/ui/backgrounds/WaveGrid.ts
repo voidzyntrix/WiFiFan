@@ -15,6 +15,8 @@
 // Units are CSS px and seconds; drawing scales to the canvas.
 
 import type { FluidSim } from './FluidSim'
+import type { GridFluid } from './GridFluid'
+import { gridCell } from './gridSize'
 
 /** Cell size in CSS px (bigger on very large windows so there are never more than about 3000). */
 const CELL = 26
@@ -25,13 +27,15 @@ const DAMPING = 3.6
 /** How much of the neighbours' average each cell takes on per step (smoothing). */
 const SMOOTH = 0.12
 /** A cell's change in fluid cover kicks its height by this much. */
-const FLUID_KICK = 8
+const FLUID_KICK = 22
 const STEP = 1 / 120
 const LIMIT = 2
 /** How long a glow lingers: its strength falls to a third in this many seconds. */
 const LINGER = 1.8
+/** The energy flow below which a cell stays black. */
+const QUIET = 0.004
 /** How strongly a wave lights a cell. */
-const GAIN = 14
+const GAIN = 160
 
 /** left, right, up, down */
 const COLOURS: [number, number, number][] = [[255, 59, 59], [47, 107, 255], [47, 209, 107], [255, 204, 47]]
@@ -67,9 +71,9 @@ export class WaveGrid {
     window.removeEventListener('resize', this.onResize)
   }
 
-  private build() {
+  private build(cell = this.cell) {
     const w = window.innerWidth, hgt = window.innerHeight
-    this.cell = Math.max(CELL, Math.sqrt((w * hgt) / 3000))
+    this.cell = cell
     this.cols = Math.ceil(w / this.cell) + 1
     this.rows = Math.ceil(hgt / this.cell) + 1
     const n = this.cols * this.rows
@@ -77,6 +81,19 @@ export class WaveGrid {
     this.glow = new Float32Array(n * 4)
     this.soft = new Float32Array(n * 4)
     this.seenFluid = false
+  }
+
+  /** Reads the Grid fluid: its cells are this grid's cells (same size), so it is a straight copy. */
+  private readGrid(grid: GridFluid) {
+    const { cols, rows, count, flowX, flowY, cover } = this
+    if (grid.cols !== cols || grid.rows !== rows) { count.fill(0); flowX.fill(0); flowY.fill(0); cover.fill(0); return }
+    for (let i = 0; i < cols * rows; i++) {
+      const wet = grid.mass[i] >= 0.05
+      count[i] = wet ? 1 : 0
+      flowX[i] = wet ? grid.flowX[i] : 0
+      flowY[i] = wet ? grid.flowY[i] : 0
+      cover[i] = Math.min(1, grid.mass[i])
+    }
   }
 
   /** Reads the fluid: where it is (cover) and how it moves (flow), per cell. */
@@ -146,8 +163,10 @@ export class WaveGrid {
    */
   frame(
     g: CanvasRenderingContext2D, dt: number, scale: number, color: string, stiffness: number, opacity: number,
-    fluid?: { sim: FluidSim; cellPx: number },
+    fluid?: { sim: FluidSim; cellPx: number } | { grid: GridFluid }, resolution = 0.5,
   ) {
+    const cell = gridCell(resolution)
+    if (Math.abs(cell - this.cell) > 0.01) this.build(cell)
     const tension = 2 ** ((stiffness - 0.5) * 4)
     const speed = SPEED * Math.sqrt(tension)
     const c2 = speed * speed
@@ -155,12 +174,13 @@ export class WaveGrid {
     const al = (a: number) => Math.min(1, a * k)
 
     if (fluid) {
-      this.readFluid(fluid.sim, fluid.cellPx)
+      if ('grid' in fluid) this.readGrid(fluid.grid)
+      else this.readFluid(fluid.sim, fluid.cellPx)
       // fluid arriving in a cell or leaving it kicks it
       const { cover, lastCover, v, cols, rows } = this
       for (let i = 0; i < cols * rows; i++) {
         const d = cover[i] - lastCover[i]
-        if (d !== 0 && this.seenFluid) v[i] += d * FLUID_KICK     // (the first look is not an arrival)
+        if (Math.abs(d) > 0.03 && this.seenFluid) v[i] += d * FLUID_KICK     // (the first look is not an arrival; a pool at rest only shivers)
         lastCover[i] = cover[i]
       }
       this.seenFluid = true
@@ -183,8 +203,8 @@ export class WaveGrid {
         const dhdy = ((y < rows - 1 ? h[i + cols] : h[i]) - (y > 0 ? h[i - cols] : h[i])) * 0.5
         // the energy of a wave flows with -v * grad h (positive x = right, positive y = down)
         const fx = -v[i] * dhdx, fy = -v[i] * dhdy
-        const t0 = 1 - Math.exp(-GAIN * Math.max(0, -fx)), t1 = 1 - Math.exp(-GAIN * Math.max(0, fx))
-        const t2 = 1 - Math.exp(-GAIN * Math.max(0, -fy)), t3 = 1 - Math.exp(-GAIN * Math.max(0, fy))
+        const light = (f: number) => 1 - Math.exp(-GAIN * Math.max(0, f - QUIET))     // (waves too small to see stay dark)
+        const t0 = light(-fx), t1 = light(fx), t2 = light(-fy), t3 = light(fy)
         const o = i * 4
         glow[o] = Math.max(t0, glow[o] * keep)
         glow[o + 1] = Math.max(t1, glow[o + 1] * keep)
@@ -218,10 +238,10 @@ export class WaveGrid {
     for (let i = 0; i < n; i++) {
       const o = i * 4
       const sum = soft[o] + soft[o + 1] + soft[o + 2] + soft[o + 3]
-      if (sum < 0.02) continue
+      if (sum < 0.01) continue
       let r = 0, gr = 0, b = 0
       for (let c = 0; c < 4; c++) { const w = soft[o + c]; r += COLOURS[c][0] * w; gr += COLOURS[c][1] * w; b += COLOURS[c][2] * w }
-      g.globalAlpha = al(0.9 * Math.min(1, sum))
+      g.globalAlpha = al(0.95 * Math.sqrt(Math.min(1, sum * 2.5)))
       g.fillStyle = `rgb(${Math.round(r / sum)} ${Math.round(gr / sum)} ${Math.round(b / sum)})`
       const x = i % cols, y = (i - x) / cols
       g.fillRect(x * cs + inset, y * cs + inset, side, side)

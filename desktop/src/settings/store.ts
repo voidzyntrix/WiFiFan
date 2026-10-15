@@ -74,6 +74,10 @@ export interface Settings {
   fluidNearMouse: boolean
   /** How thick the fluid is, 0 (watery) to 1 (syrup); 0.5 is the default. */
   fluidViscosity: number
+  /** PARTICLES: a particle fluid (smooth). GRID: water made of cells. */
+  fluidStyle: 'PARTICLES' | 'GRID'
+  /** Size of the cells of every grid (Cells net, Dots spacing, Grid fluid): 0 coarse .. 1 fine. */
+  gridResolution: number
   /** How much fast-moving fluid smears along its path, 0 (none) to 1. */
   fluidMotionBlur: number
   /** A net of dots the mouse pushes around, behind the Particles and Fluid backgrounds. */
@@ -144,6 +148,8 @@ const DEFAULTS: Settings = {
   fluidStir: 0.6,
   fluidNearMouse: false,
   fluidViscosity: 0.5,
+  fluidStyle: 'PARTICLES',
+  gridResolution: 0.5,
   fluidMotionBlur: 0.5,
   dotNet: true,
   dotNetStyle: 'DOTS',

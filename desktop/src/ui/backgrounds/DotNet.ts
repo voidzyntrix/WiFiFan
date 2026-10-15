@@ -8,6 +8,8 @@
 // Lines join each dot to its right and lower neighbour; they light up where the net is stretched.
 // Units are CSS px and seconds; drawing scales to the canvas.
 
+import { gridCell } from './gridSize'
+
 /** Gap between dots, CSS px. */
 const SPACING = 60
 /** Pull back to the home place, per second² per px. */
@@ -77,9 +79,12 @@ export class DotNet {
   }
 
   /** Lays the dots out over the window, with a margin so the net runs off every edge. */
+  /** Gap between dots, CSS px (Settings > Grid resolution). */
+  private spacing = SPACING
+
   private build() {
     const w = window.innerWidth, h = window.innerHeight
-    const sp = Math.max(SPACING, Math.sqrt((w * h) / 1800))   // never more than about 1800 dots
+    const sp = Math.max(this.spacing, Math.sqrt((w * h) / 2500))   // never more than about 2500 dots
     this.cols = Math.ceil(w / sp) + 3
     this.rows = Math.ceil(h / sp) + 3
     const n = this.cols * this.rows
@@ -146,7 +151,9 @@ export class DotNet {
   }
 
   /** Advances by `dt` seconds and draws onto `g` (a canvas `scale` times larger than CSS px). */
-  frame(g: CanvasRenderingContext2D, dt: number, scale: number, color: string, stiffness = 0.5, opacity = 0.5) {
+  frame(g: CanvasRenderingContext2D, dt: number, scale: number, color: string, stiffness = 0.5, opacity = 0.5, resolution = 0.5) {
+    const spacing = gridCell(resolution) * (SPACING / 26)
+    if (Math.abs(spacing - this.spacing) > 0.01) { this.spacing = spacing; this.build() }
     const k = opacity * 2   // 0.5 is the look it was designed with; 1 is twice as strong, 0 is invisible
     const al = (v: number) => Math.min(1, v * k)
     // 0..1 from the slider: loose and wobbly (a quarter) to taut (four times), 0.5 as designed

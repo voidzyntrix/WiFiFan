@@ -112,14 +112,20 @@ export function SettingsScreen({ onBack, onWhatsNew }: { onBack: () => void; onW
               <LevelSlider label="Darkness" value={p.imageDim / 0.95} text={`${Math.round(p.imageDim * 100)} %`} onChange={(f) => set({ imageDim: f * 0.95 })} />
             </Presence>
             <Presence show={p.background === 'FLUID'}>
+              <div className="stack">
+                <SettingHeading title="Fluid style" subtitle={p.fluidStyle === 'GRID' ? 'Water made of cells that falls, spreads and levels out' : 'A smooth particle fluid that splashes'} />
+                <SegmentedPill options={['Particles', 'Grid']} selected={p.fluidStyle === 'GRID' ? 1 : 0} onSelect={(i) => set({ fluidStyle: i === 1 ? 'GRID' : 'PARTICLES' })} />
+              </div>
+            </Presence>
+            <Presence show={p.background === 'FLUID'}>
               <LevelSlider label="Mouse force" value={p.fluidStir} text={p.fluidStir === 0 ? 'Off' : `${Math.round(p.fluidStir * 100)} %`} onChange={(f) => set({ fluidStir: f })}
                 hint="The pointer pushes the fluid away. Hold Ctrl to pull it in instead." />
             </Presence>
-            <Presence show={p.background === 'FLUID'}>
+            <Presence show={p.background === 'FLUID' && p.fluidStyle !== 'GRID'}>
               <LevelSlider label="Motion blur" value={p.fluidMotionBlur} text={p.fluidMotionBlur === 0 ? 'Off' : `${Math.round(p.fluidMotionBlur * 100)} %`}
                 onChange={(f) => set({ fluidMotionBlur: f })} hint="Fast fluid leaves a soft trail behind it." />
             </Presence>
-            <Presence show={p.background === 'FLUID'}>
+            <Presence show={p.background === 'FLUID' && p.fluidStyle !== 'GRID'}>
               <LevelSlider label="Viscosity" value={p.fluidViscosity} text={p.fluidViscosity < 0.2 ? 'Watery' : p.fluidViscosity > 0.8 ? 'Thick' : `${Math.round(p.fluidViscosity * 100)} %`}
                 onChange={(f) => set({ fluidViscosity: f })} hint="Watery fluid sloshes and splashes; thick fluid flows slowly and holds together." />
             </Presence>
@@ -128,6 +134,10 @@ export function SettingsScreen({ onBack, onWhatsNew }: { onBack: () => void; onW
                 <SettingHeading title="Mouse reach" subtitle={p.fluidNearMouse ? 'Only the fluid near the pointer is pushed or pulled' : 'All the fluid on screen is pushed or pulled'} />
                 <SegmentedPill options={['Whole screen', 'Nearby fluid']} selected={p.fluidNearMouse ? 1 : 0} onSelect={(i) => set({ fluidNearMouse: i === 1 })} />
               </div>
+            </Presence>
+            <Presence show={(p.dotNet && (p.background === 'SIMPLE' || p.background === 'FLUID')) || (p.background === 'FLUID' && p.fluidStyle === 'GRID')}>
+              <LevelSlider label="Grid resolution" value={p.gridResolution} text={p.gridResolution < 0.2 ? 'Coarse' : p.gridResolution > 0.8 ? 'Fine' : `${Math.round(p.gridResolution * 100)} %`}
+                onChange={(f) => set({ gridResolution: f })} hint="The size of the cells of the Cells net, the spacing of the Dots net and the cells of the Grid fluid, together. A change restarts the Grid fluid." />
             </Presence>
             <Presence show={p.background === 'SIMPLE' || p.background === 'FLUID'}>
               <SettingSwitch title="Dot net" subtitle="A net of dots the mouse pushes around; a push travels through the whole net" checked={p.dotNet} onChange={(v) => set({ dotNet: v })} />
