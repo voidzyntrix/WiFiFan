@@ -34,6 +34,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlin.math.max
+import kotlin.math.pow
 import kotlin.math.sin
 
 /**
@@ -141,7 +142,12 @@ class SolarSyncService : Service() {
         val bri = SyncParams.bri
         val t = SystemClock.elapsedRealtime()
         val v1 = bri * if (look.pulse1) SolarPolicy.breath(t, FAST_BREATH_MS, IMPORT_LOW) else 1f
-        val v2 = bri * if (look.pulse2) SolarPolicy.breath(t, if (look.fastPulse2) FAST_BREATH_MS else BREATH_MS, BATTERY_LOW) else 1f
+        // The battery breath ignores the brightness slider and runs min to max; the board's gamma 2.2
+        // would keep a straight ramp dark most of the time, so it is undone here.
+        val v2 = if (look.pulse2) {
+            val b = SolarPolicy.breath(t, if (look.fastPulse2) FAST_BREATH_MS else BREATH_MS, BATTERY_LOW)
+            b.toDouble().pow(1.0 / 2.2).toFloat()
+        } else bri
         SyncHub.hue.value = look.hue1
         SyncHub.sat.value = 1f
         SyncHub.hue2.value = look.hue2
@@ -217,8 +223,8 @@ class SolarSyncService : Service() {
         private const val RESEND_MS = 10_000L
         private const val PULSE_MS = 200L
         private const val BREATH_MS = 3000L
-        /** Battery breath goes down to 5 % for a full cycle; the import pulse only to 35 %. */
-        private const val BATTERY_LOW = 0.05f
+        /** Battery breath goes from almost off to full brightness; the import pulse only down to 35 %. */
+        private const val BATTERY_LOW = 0.02f
         private const val IMPORT_LOW = 0.35f
         /** Heavy grid import pulses faster, so it reads differently from the battery's slow breath. */
         private const val FAST_BREATH_MS = 800L
