@@ -212,6 +212,8 @@ const MAX_PARTICLES = 3000
 const NEAR_RADIUS = 6
 const WHOLE_RADIUS = 400
 const FORCE = 180
+/** How firmly grabbed fluid takes on the pointer's own speed (per second, at full strength right at the pointer). */
+const GRIP = 60
 
 /** The fluid box for the window: square cells, SIM_WIDTH radii across a portrait window. */
 function simSize() {
@@ -233,8 +235,9 @@ function Fluid({ tint, netTint }: { tint: string; netTint: string }) {
   const ref = useCanvas()
   const dots = useRef<HTMLCanvasElement>(document.createElement('canvas'))
   const sim = useRef<FluidSim | null>(null)
-  const mouse = useRef({ x: -1, y: -1 })
+  const mouse = useRef({ x: -1, y: -1, vx: 0, vy: 0, t: 0 })   // pointer position and its speed (px/s)
   const pull = useRef(false)    // Ctrl is held: the pointer attracts instead of pushing
+  const grabbedRef = useRef(new Uint8Array(0))   // particles the pointer has grabbed while Ctrl is held
   const win = useRef({ x: window.screenX, y: window.screenY, vx: 0, vy: 0 })
   const smooth = useSmoothColor(tint, 5)
   const smoothNet = useSmoothColor(netTint)
@@ -253,10 +256,17 @@ function Fluid({ tint, netTint }: { tint: string; netTint: string }) {
     const resize = () => { window.clearTimeout(t); t = window.setTimeout(make, 200) }
     const move = (e: PointerEvent) => {
       const m = mouse.current
+      const now = performance.now()
+      if (m.x >= 0 && now - m.t < 100) {
+        const dt = Math.max(0.004, (now - m.t) / 1000)
+        m.vx = m.vx * 0.5 + ((e.clientX - m.x) / dt) * 0.5
+        m.vy = m.vy * 0.5 + ((e.clientY - m.y) / dt) * 0.5
+      }
+      m.t = now
       m.x = e.clientX; m.y = e.clientY
       pull.current = e.ctrlKey
     }
-    const leave = () => { mouse.current.x = -1 }
+    const leave = () => { mouse.current.x = -1; mouse.current.vx = mouse.current.vy = 0 }
     // Holding Ctrl turns the pointer's push into a pull
     const key = (e: KeyboardEvent) => { if (e.key === 'Control') pull.current = e.type === 'keydown' }
     const blur = () => { pull.current = false }
@@ -292,22 +302,43 @@ function Fluid({ tint, netTint }: { tint: string; netTint: string }) {
     const frameS = Math.max(dt, 1 / 240)
 
     // Mouse: repel (hold Ctrl: attract), within the reach, strongest at the pointer.
+    if (grabbedRef.current.length !== s.count) grabbedRef.current = new Uint8Array(s.count)
+    const grabbed = grabbedRef.current
     const m = mouse.current
+    m.vx *= Math.exp(-7 * frameS); m.vy *= Math.exp(-7 * frameS)    // a pointer that stops has no speed
     if (m.x >= 0 && stir > 0) {
       const reach = settings.get().fluidNearMouse ? NEAR_RADIUS : WHOLE_RADIUS
-      const accel = FORCE * stir * frameS * (pull.current ? -1 : 1)
+      const accel = FORCE * stir * frameS
+      if (!pull.current) grabbed.fill(0)
       const hx = m.x / cellPx, hy = m.y / cellPx
+      const pvx = m.vx / cellPx, pvy = m.vy / cellPx        // the pointer's speed, radii/s
       const r2max = reach * reach
       for (let i = 0; i < s.count; i++) {
         const dx = s.x[i] - hx, dy = s.y[i] - hy
         const d2 = dx * dx + dy * dy
-        if (d2 >= r2max) continue
-        const d = Math.sqrt(d2) || 0.001
-        const f = 1 - d / reach
-        // (an attraction fades out right at the pointer, so the fluid gathers there instead of jittering)
-        const push = accel * f * f * (pull.current ? Math.min(1, d / 1.2) : 1)
-        s.vx[i] += (dx / d) * push
-        s.vy[i] += (dy / d) * push
+        if (pull.current) {
+          // Attract: whatever comes within the reach is grabbed, and stays grabbed (however fast the
+          // pointer moves away) until Ctrl is let go. A grabbed particle is pulled to the pointer,
+          // carried along with the pointer's own movement and slowed down around it, so it neither
+          // shoots through nor flies off. The pull fades out right at the pointer (no jitter).
+          if (d2 < r2max) grabbed[i] = 1
+          if (!grabbed[i]) continue
+          const d = Math.sqrt(d2) || 0.001
+          const f = Math.max(0, 1 - d / reach)
+          const pullForce = accel * (0.5 + 0.5 * f) * Math.min(1, d / 2.5)
+          s.vx[i] -= (dx / d) * pullForce
+          s.vy[i] -= (dy / d) * pullForce
+          const grip = Math.min(1, GRIP * Math.min(stir, 3) * (0.4 + 0.6 * f) * frameS)
+          s.vx[i] += (pvx - s.vx[i]) * grip
+          s.vy[i] += (pvy - s.vy[i]) * grip
+        } else if (d2 < r2max) {
+          // Repel: strongest at the pointer, nothing at the edge of the reach.
+          const d = Math.sqrt(d2) || 0.001
+          const f = 1 - d / reach
+          const push = accel * f * f
+          s.vx[i] += (dx / d) * push
+          s.vy[i] += (dy / d) * push
+        }
       }
     }
 
