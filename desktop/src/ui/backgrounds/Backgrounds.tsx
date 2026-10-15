@@ -68,6 +68,9 @@ function useDotNet() {
   return net
 }
 
+/** Background canvases are never wider than this many px (the glow, liquid and net are soft anyway). */
+const MAX_CANVAS_WIDTH = 1920
+
 /** A full-window canvas kept at device resolution, registered as what the glass bends. */
 function useCanvas(scale = 1) {
   const ref = useRef<HTMLCanvasElement>(null)
@@ -79,7 +82,8 @@ function useCanvas(scale = 1) {
     const fit = () => {
       const c = ref.current
       if (!c) return
-      const dpr = Math.min(2, window.devicePixelRatio || 1) * scale
+      let dpr = Math.min(2, window.devicePixelRatio || 1) * scale
+      dpr = Math.min(dpr, MAX_CANVAS_WIDTH / Math.max(1, window.innerWidth))   // big screens: fewer pixels to fill and upload
       c.width = Math.max(1, Math.round(window.innerWidth * dpr))
       c.height = Math.max(1, Math.round(window.innerHeight * dpr))
     }
@@ -259,7 +263,7 @@ function Fluid({ tint, netTint }: { tint: string; netTint: string }) {
   useFrames((_t, dt) => {
     const s = sim.current, c = ref.current
     if (!s || !c) return
-    const steps = Math.min(3, Math.max(1, Math.round(dt / STEP)))
+    const steps = Math.min(2, Math.max(1, Math.round(dt / STEP)))
     const cellPx = window.innerWidth / s.width          // CSS px per radius
     const stir = settings.get().fluidStir
     const g = GRAVITY_PX / cellPx                        // radii/s²
@@ -287,24 +291,40 @@ function Fluid({ tint, netTint }: { tint: string; netTint: string }) {
     m.dx = 0; m.dy = 0
 
     // Window: its change of speed pushes the liquid the other way (inertia), in radii/s.
+    // The window's speed is smoothed first: while it is dragged, frames come unevenly and the
+    // position jumps, and raw readings would kick the liquid about instead of sloshing it.
     const w = win.current
     const wvx = (window.screenX - w.x) / cellPx / frameS, wvy = (window.screenY - w.y) / cellPx / frameS
-    const lim2 = (v: number) => Math.max(-25, Math.min(25, v))
-    const ax = lim2(wvx - w.vx), ay = lim2(wvy - w.vy)
-    w.x = window.screenX; w.y = window.screenY; w.vx = wvx; w.vy = wvy
+    const ease = 1 - Math.exp(-frameS * 14)
+    const nvx = w.vx + (wvx - w.vx) * ease, nvy = w.vy + (wvy - w.vy) * ease
+    const lim2 = (v: number) => Math.max(-8, Math.min(8, v))
+    const ax = lim2(nvx - w.vx), ay = lim2(nvy - w.vy)
+    w.x = window.screenX; w.y = window.screenY; w.vx = nvx; w.vy = nvy
     if (ax || ay) for (let i = 0; i < s.count; i++) { s.vx[i] -= ax * 0.6; s.vy[i] -= ay * 0.6 }
 
-    for (let k = 0; k < steps; k++) s.step(STEP, 0, g)
+    // At most two steps a frame, and none more once the frame's budget is spent, so a slow
+    // moment never snowballs into a slower one.
+    const began = performance.now()
+    for (let k = 0; k < steps; k++) {
+      s.step(STEP, 0, g)
+      if (performance.now() - began > 9) break
+    }
 
     const cell = c.width / s.width
     const color = smooth(dt)
     if (shader.current === undefined) shader.current = FluidRenderer.create()
     const cg = c.getContext('2d')!
+    // the net goes down first: the liquid is drawn over it and hides it
+    const netColor = smoothNet(dt)
+    const drawNet = () => {
+      if (settings.get().dotNet) net.current?.frame(cg, dt, c.width / window.innerWidth, netColor, settings.get().dotNetStiffness)
+    }
     if (shader.current) {
       // glossy water (FluidRenderer.ts)
       const [r, g2, b] = (color.match(/\d+/g) ?? ['255', '255', '255']).map(Number)
       const drawn = shader.current.render(s, c.width, c.height, cell, [r, g2, b])
       cg.clearRect(0, 0, c.width, c.height)
+      drawNet()
       cg.drawImage(drawn, 0, 0, c.width, c.height)
     } else {
       // no WebGL2: dots first, then the goo filter onto the visible canvas (half opacity, like the phone)
@@ -323,12 +343,11 @@ function Fluid({ tint, netTint }: { tint: string; netTint: string }) {
       // (the half opacity is part of the filter: a canvas applies globalAlpha before its filter,
       // which would move the threshold)
       cg.clearRect(0, 0, c.width, c.height)
+      drawNet()
       cg.filter = 'url(#goo)'
       cg.drawImage(d, 0, 0)
       cg.filter = 'none'
     }
-    const netColor = smoothNet(dt)
-    if (settings.get().dotNet) net.current?.frame(cg, dt, c.width / window.innerWidth, netColor, settings.get().dotNetStiffness)
   })
 
   // Blur follows the cell size (0.32 of a cell, as on Android), in canvas pixels.

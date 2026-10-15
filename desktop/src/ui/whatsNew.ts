@@ -2,6 +2,14 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '1.5.1',
+    notes: [
+      'Fluid redrawn: a clean, smooth liquid with a thin lit edge instead of a thick rim.',
+      'The dot net is hidden under the fluid.',
+      'Dragging the window no longer makes the fluid lag: the window speed is smoothed, the work per frame is capped, and large screens draw fewer pixels.',
+    ],
+  },
+  {
     version: '1.5.0',
     notes: [
       'Fluid looks like water now: it deepens with depth, catches light along its surface, glints, foams where it moves fast and glows softly around its edge.',
