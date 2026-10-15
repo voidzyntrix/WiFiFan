@@ -2,6 +2,12 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '1.11.3',
+    notes: [
+      'Reverted the sticky grab: Ctrl attracts the fluid as it did in 1.11.0 again.',
+    ],
+  },
+  {
     version: '1.11.2',
     notes: [
       'Fixed Music, Visualizer and Screen sync getting stuck on Starting: the app stopped the sync a moment after it began.',
