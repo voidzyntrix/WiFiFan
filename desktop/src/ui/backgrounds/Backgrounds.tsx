@@ -132,7 +132,7 @@ function Particles({ active, tint }: { active: boolean; tint: string }) {
       g.fill()
     }
     g.globalAlpha = 1
-    if (settings.get().dotNet) net.current?.frame(g, dt, dpr, color)
+    if (settings.get().dotNet) net.current?.frame(g, dt, dpr, color, settings.get().dotNetStiffness)
   })
   return <canvas ref={ref} className="bg-canvas" />
 }
@@ -316,7 +316,7 @@ function Fluid({ tint, netTint }: { tint: string; netTint: string }) {
     cg.drawImage(d, 0, 0)
     cg.filter = 'none'
     const netColor = smoothNet(dt)
-    if (settings.get().dotNet) net.current?.frame(cg, dt, c.width / window.innerWidth, netColor)
+    if (settings.get().dotNet) net.current?.frame(cg, dt, c.width / window.innerWidth, netColor, settings.get().dotNetStiffness)
   })
 
   // Blur follows the cell size (0.32 of a cell, as on Android), in canvas pixels.

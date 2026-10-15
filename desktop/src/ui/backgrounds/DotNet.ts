@@ -38,6 +38,8 @@ export class DotNet {
   private ay = new Float32Array(0)
   private mouse = { x: -1e4, y: -1e4, vx: 0, vy: 0 }
   private left = 0
+  /** Multiplies every spring (and damping by its square root): 1 is the default feel. */
+  private tension = 1
   private resizeTimer = 0
   private readonly onMove: (e: PointerEvent) => void
   private readonly onLeave: () => void
@@ -97,7 +99,8 @@ export class DotNet {
   private step(dt: number) {
     const { cols, rows, ux, uy, vx, vy, ax, ay } = this
     const n = cols * rows
-    for (let k = 0; k < n; k++) { ax[k] = -HOME * ux[k] - DAMPING * vx[k]; ay[k] = -HOME * uy[k] - DAMPING * vy[k] }
+    const T = this.tension, home = HOME * T, side = SIDE * T, diag = DIAG * T, damp = DAMPING * Math.sqrt(T)
+    for (let k = 0; k < n; k++) { ax[k] = -home * ux[k] - damp * vx[k]; ay[k] = -home * uy[k] - damp * vy[k] }
 
     // springs between neighbours: they pull each other towards moving together
     const tie = (a: number, b: number, k: number) => {
@@ -108,11 +111,11 @@ export class DotNet {
     for (let j = 0; j < rows; j++) {
       for (let i = 0; i < cols; i++) {
         const k = j * cols + i
-        if (i + 1 < cols) tie(k, k + 1, SIDE)
+        if (i + 1 < cols) tie(k, k + 1, side)
         if (j + 1 < rows) {
-          tie(k, k + cols, SIDE)
-          if (i + 1 < cols) tie(k, k + cols + 1, DIAG)
-          if (i > 0) tie(k, k + cols - 1, DIAG)
+          tie(k, k + cols, side)
+          if (i + 1 < cols) tie(k, k + cols + 1, diag)
+          if (i > 0) tie(k, k + cols - 1, diag)
         }
       }
     }
@@ -143,7 +146,9 @@ export class DotNet {
   }
 
   /** Advances by `dt` seconds and draws onto `g` (a canvas `scale` times larger than CSS px). */
-  frame(g: CanvasRenderingContext2D, dt: number, scale: number, color: string) {
+  frame(g: CanvasRenderingContext2D, dt: number, scale: number, color: string, stiffness = 0.5) {
+    // 0..1 from the slider: loose and wobbly (a quarter) to taut (four times), 0.5 as designed
+    this.tension = 2 ** ((stiffness - 0.5) * 4)
     this.left += Math.min(0.05, dt)
     while (this.left >= STEP) { this.step(STEP); this.left -= STEP }
 

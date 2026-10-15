@@ -2,6 +2,12 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '1.3.0',
+    notes: [
+      'Net stiffness: a slider under Dot net sets how taut the net is, from loose and wobbly to snappy.',
+    ],
+  },
+  {
     version: '1.2.0',
     notes: [
       'Dot net: the Particles and Fluid backgrounds now carry a net of dots joined by lines.',

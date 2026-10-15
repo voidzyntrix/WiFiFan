@@ -72,6 +72,8 @@ export interface Settings {
   fluidStir: number
   /** A net of dots the mouse pushes around, behind the Particles and Fluid backgrounds. */
   dotNet: boolean
+  /** How taut the net is, 0 (loose, wobbly) to 1 (stiff). */
+  dotNetStiffness: number
   captureDisplay: number
 }
 
@@ -131,6 +133,7 @@ const DEFAULTS: Settings = {
   autoSnapshot: null,
   fluidStir: 0.6,
   dotNet: true,
+  dotNetStiffness: 0.5,
   captureDisplay: 0,
 }
 

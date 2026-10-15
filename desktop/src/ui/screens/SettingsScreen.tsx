@@ -117,6 +117,10 @@ export function SettingsScreen({ onBack, onWhatsNew }: { onBack: () => void; onW
             <Presence show={p.background === 'SIMPLE' || p.background === 'FLUID'}>
               <SettingSwitch title="Dot net" subtitle="A net of dots the mouse pushes around; a push travels through the whole net" checked={p.dotNet} onChange={(v) => set({ dotNet: v })} />
             </Presence>
+            <Presence show={p.dotNet && (p.background === 'SIMPLE' || p.background === 'FLUID')}>
+              <LevelSlider label="Net stiffness" value={p.dotNetStiffness} text={p.dotNetStiffness < 0.2 ? 'Loose' : p.dotNetStiffness > 0.8 ? 'Taut' : `${Math.round(p.dotNetStiffness * 100)} %`}
+                onChange={(f) => set({ dotNetStiffness: f })} hint="Loose nets wobble and a push spreads slowly; taut ones snap back and carry it fast." />
+            </Presence>
             <SettingHeading title="Appearance" subtitle="Light or dark, or the same as Windows" />
             <SegmentedPill options={['System', 'Light', 'Dark']} selected={p.themeMode} onSelect={(i) => set({ themeMode: i })} />
             <SettingHeading title="Colour" subtitle="Pure grayscale, grayscale with accents, or fully coloured" />
