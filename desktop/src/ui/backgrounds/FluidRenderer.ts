@@ -1,23 +1,25 @@
-// Draws the fluid (FluidSim's particles) as a smooth, tinted liquid with WebGL:
-//  1. every particle is splatted as a soft blob into a half-resolution density map (additively,
-//     so neighbouring particles melt into one body; a lone particle stays too faint to show);
-//  2. the map is blurred a little so the surface comes out smooth, not lumpy;
-//  3. one full-resolution pass turns it into a surface: the edge is where the density crosses a
-//     threshold (anti-aliased to the pixel), the colour deepens with depth, and light from the
-//     top left shades it by the slope of the surface: a soft sheen, one small glint, and a thin
-//     crisp lit edge (a couple of pixels wide whatever the slope).
-// The liquid is opaque enough to hide whatever is behind it. The result is premultiplied RGBA on
-// its own canvas, which the background copies into the visible one.
+// Draws the fluid (FluidSim's particles) as a plain two-tone liquid with WebGL:
+//  1. every particle is splatted as a small soft blob into a half-resolution density map
+//     (additively, so neighbouring particles melt into one body);
+//  2. the map is blurred a little so the outline comes out smooth;
+//  3. one full-resolution pass colours it: the main fluid in the liquid's colour and a thin
+//     outline, a few pixels wide, in a lighter tone of it. The edge is anti-aliased to the pixel.
+// The surface is drawn where the density passes a threshold that a single lone particle already
+// exceeds, so nothing is too thin to see: drops, spray and thin films all show.
+// The liquid is opaque (it hides whatever is behind it). The result is premultiplied RGBA on its
+// own canvas, which the background copies into the visible one.
 
 import type { FluidSim } from './FluidSim'
 
 /** Splat radius in sim radii (cells), and the density one particle adds at its centre. */
-const SPLAT = 1.35
-const WEIGHT = 0.17
+const SPLAT = 1.0
+const WEIGHT = 0.35
 /** Wider targets are drawn at this width and scaled up. */
 const MAX_WIDTH = 1920
-/** Density at the surface. */
-const THRESHOLD = 0.4
+/** Density at the surface: below what a lone particle makes, so even one is a (small) drop. */
+const THRESHOLD = 0.15
+/** Width of the outline, px at 1280 wide (it scales a little with the screen). */
+const OUTLINE = 2.6
 
 const SPLAT_VERT = `#version 300 es
 in vec2 aPos;      // px on the full-size canvas, from the top left
@@ -64,55 +66,25 @@ const SHADE_FRAG = `#version 300 es
 precision highp float;
 uniform sampler2D uDensity;
 uniform vec2 uRes;        // canvas, px
-uniform float uCell;      // px per sim radius
-uniform vec3 uColor;
+uniform vec3 uColor;      // the main fluid
+uniform vec3 uOutline;    // the outline
 uniform float uT;
+uniform float uWidth;     // outline width, px
 out vec4 outColor;
 
 void main() {
   vec2 uv = gl_FragCoord.xy / uRes;     // the density map is stored the same way up as it is drawn (y up)
   float d = texture(uDensity, uv).r;
 
-  // distance to the edge in pixels (the density changes by fwidth(d) per pixel)
+  // distance inside the edge in pixels (the density changes by fwidth(d) per pixel)
   float w = max(fwidth(d), 1e-4);
   float dist = (d - uT) / w;
   float cover = clamp(dist + 0.5, 0.0, 1.0);
   if (cover <= 0.0) { outColor = vec4(0.0); return; }
 
-  // slope of the surface, per radius, from a wide enough step to be smooth
-  float e = max(2.0, uCell * 0.3);
-  vec2 ex = vec2(e, 0.0) / uRes, ey = vec2(0.0, e) / uRes;
-  vec2 g = vec2(texture(uDensity, uv + ex).r - texture(uDensity, uv - ex).r,
-                texture(uDensity, uv + ey).r - texture(uDensity, uv - ey).r) / (2.0 * e / uCell);
-  vec3 n = normalize(vec3(-g * 0.9, 1.0));
-
-  // how deep this is below the surface: the density around it a radius or two out
-  float ring = 0.0;
-  for (int i = 0; i < 6; i++) {
-    float t = 1.0471976 * float(i);
-    ring += texture(uDensity, uv + vec2(cos(t), sin(t)) * uCell * 1.9 / uRes).r;
-  }
-  float depth = smoothstep(0.25, 0.9, ring / 6.0);
-
-  vec3 top = mix(uColor, vec3(1.0), 0.1) * 1.02;
-  vec3 deep = uColor * 0.46;
-  vec3 col = mix(top, deep, pow(depth, 0.85));
-
-  // light from the top left (y is up here)
-  vec3 L = normalize(vec3(-0.5, 0.65, 0.6));
-  float diff = dot(n, L);
-  col *= 0.9 + 0.22 * diff;
-  vec3 H = normalize(L + vec3(0.0, 0.0, 1.0));
-  float nh = max(dot(n, H), 0.0);
-  col += vec3(1.0) * (pow(nh, 22.0) * 0.12 + pow(nh, 160.0) * 0.38);
-
-  // a thin lit edge, two pixels wide, brightest where the edge faces the light
-  float edge = 1.0 - smoothstep(0.0, 2.4, dist);
-  float facing = 0.55 + 0.45 * clamp(dot(normalize(-g + vec2(1e-4)), vec2(-0.6, 0.8)), -1.0, 1.0);
-  col += mix(uColor, vec3(1.0), 0.65) * edge * facing * 0.32;
-
-  float a = cover * 0.97;
-  outColor = vec4(min(col, vec3(1.0)) * a, a);
+  float inner = smoothstep(uWidth - 0.75, uWidth + 0.75, dist);   // 0 on the outline, 1 in the fluid
+  vec3 col = mix(uOutline, uColor, inner);
+  outColor = vec4(col * cover, cover);
 }`
 
 function compile(gl: WebGL2RenderingContext, type: number, src: string) {
@@ -177,7 +149,7 @@ export class FluidRenderer {
     for (const [prog, names] of [
       [this.splat, ['uRes', 'uSize', 'uWeight']],
       [this.blur, ['uSrc', 'uStep']],
-      [this.shade, ['uDensity', 'uRes', 'uCell', 'uColor', 'uT']],
+      [this.shade, ['uDensity', 'uRes', 'uColor', 'uOutline', 'uT', 'uWidth']],
     ] as [WebGLProgram, string[]][]) {
       for (const n of names) this.loc[`${prog === this.splat ? 's' : prog === this.blur ? 'b' : 'h'}.${n}`] = gl.getUniformLocation(prog, n)
     }
@@ -238,7 +210,7 @@ export class FluidRenderer {
     gl.disable(gl.BLEND)
 
     // 2. a little blur, along then across (a -> b -> a); the step follows the cell size
-    const step = Math.max(0.6, cell * 0.075)
+    const step = Math.max(0.6, cell * 0.1)
     gl.useProgram(this.blur)
     gl.uniform1i(this.loc['b.uSrc'], 0)
     gl.activeTexture(gl.TEXTURE0)
@@ -260,8 +232,11 @@ export class FluidRenderer {
     gl.bindTexture(gl.TEXTURE_2D, this.a.tex)
     gl.uniform1i(this.loc['h.uDensity'], 0)
     gl.uniform2f(this.loc['h.uRes'], w, h)
-    gl.uniform1f(this.loc['h.uCell'], cell)
-    gl.uniform3f(this.loc['h.uColor'], rgb[0] / 255, rgb[1] / 255, rgb[2] / 255)
+    const main: [number, number, number] = [rgb[0] / 255, rgb[1] / 255, rgb[2] / 255]
+    gl.uniform3f(this.loc['h.uColor'], main[0], main[1], main[2])
+    // the outline: the same colour, lighter
+    gl.uniform3f(this.loc['h.uOutline'], main[0] + (1 - main[0]) * 0.6, main[1] + (1 - main[1]) * 0.6, main[2] + (1 - main[2]) * 0.6)
+    gl.uniform1f(this.loc['h.uWidth'], OUTLINE * Math.min(1.5, Math.max(0.8, w / 1280)))
     gl.uniform1f(this.loc['h.uT'], THRESHOLD)
     gl.drawArrays(gl.TRIANGLES, 0, 3)
     return this.canvas

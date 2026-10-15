@@ -74,6 +74,8 @@ export interface Settings {
   dotNet: boolean
   /** How taut the net is, 0 (loose, wobbly) to 1 (stiff). */
   dotNetStiffness: number
+  /** How visible the net is, 0 (not at all) to 1; 0.5 is the default look. */
+  dotNetOpacity: number
   captureDisplay: number
 }
 
@@ -134,6 +136,7 @@ const DEFAULTS: Settings = {
   fluidStir: 0.6,
   dotNet: true,
   dotNetStiffness: 0.5,
+  dotNetOpacity: 0.5,
   captureDisplay: 0,
 }
 

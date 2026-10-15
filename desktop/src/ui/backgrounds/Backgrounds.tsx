@@ -137,7 +137,7 @@ function Particles({ active, tint }: { active: boolean; tint: string }) {
       g.fill()
     }
     g.globalAlpha = 1
-    if (settings.get().dotNet) net.current?.frame(g, dt, dpr, color, settings.get().dotNetStiffness)
+    if (settings.get().dotNet) net.current?.frame(g, dt, dpr, color, settings.get().dotNetStiffness, settings.get().dotNetOpacity)
   })
   return <canvas ref={ref} className="bg-canvas" />
 }
@@ -265,7 +265,9 @@ function Fluid({ tint, netTint }: { tint: string; netTint: string }) {
     if (!s || !c) return
     const steps = Math.min(2, Math.max(1, Math.round(dt / STEP)))
     const cellPx = window.innerWidth / s.width          // CSS px per radius
-    const stir = settings.get().fluidStir
+    // up to 0.6 the slider is as it always was; above it each step counts five times over (100 % = 3x)
+    const raw = settings.get().fluidStir
+    const stir = raw + Math.max(0, raw - 0.6) * 5
     const g = GRAVITY_PX / cellPx                        // radii/s²
     const frameS = Math.max(dt, 1 / 240)
 
@@ -273,7 +275,8 @@ function Fluid({ tint, netTint }: { tint: string; netTint: string }) {
     // Each px moved adds a little velocity (radii/s), so a gentle move gives a gentle push.
     const m = mouse.current
     if ((m.dx || m.dy) && stir > 0) {
-      const lim = (v: number) => Math.max(-12, Math.min(12, v))
+      const cap = 12 * Math.max(1, stir)
+      const lim = (v: number) => Math.max(-cap, Math.min(cap, v))
       const pushX = lim((m.dx / cellPx) * MOUSE_PUSH * stir * 4)
       const pushY = lim((m.dy / cellPx) * MOUSE_PUSH * stir * 4)
       const mx = m.x / cellPx, my = m.y / cellPx
@@ -317,7 +320,7 @@ function Fluid({ tint, netTint }: { tint: string; netTint: string }) {
     // the net goes down first: the liquid is drawn over it and hides it
     const netColor = smoothNet(dt)
     const drawNet = () => {
-      if (settings.get().dotNet) net.current?.frame(cg, dt, c.width / window.innerWidth, netColor, settings.get().dotNetStiffness)
+      if (settings.get().dotNet) net.current?.frame(cg, dt, c.width / window.innerWidth, netColor, settings.get().dotNetStiffness, settings.get().dotNetOpacity)
     }
     if (shader.current) {
       // glossy water (FluidRenderer.ts)

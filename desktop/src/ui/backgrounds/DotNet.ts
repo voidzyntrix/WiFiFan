@@ -146,7 +146,9 @@ export class DotNet {
   }
 
   /** Advances by `dt` seconds and draws onto `g` (a canvas `scale` times larger than CSS px). */
-  frame(g: CanvasRenderingContext2D, dt: number, scale: number, color: string, stiffness = 0.5) {
+  frame(g: CanvasRenderingContext2D, dt: number, scale: number, color: string, stiffness = 0.5, opacity = 0.5) {
+    const k = opacity * 2   // 0.5 is the look it was designed with; 1 is twice as strong, 0 is invisible
+    const al = (v: number) => Math.min(1, v * k)
     // 0..1 from the slider: loose and wobbly (a quarter) to taut (four times), 0.5 as designed
     this.tension = 2 ** ((stiffness - 0.5) * 4)
     this.left += Math.min(0.05, dt)
@@ -162,7 +164,7 @@ export class DotNet {
     g.lineCap = 'round'
 
     // the whole net, faint
-    g.globalAlpha = 0.11
+    g.globalAlpha = al(0.11)
     g.beginPath()
     for (let j = 0; j < rows; j++) {
       for (let i = 0; i < cols; i++) {
@@ -177,7 +179,7 @@ export class DotNet {
     const lit = (a: number, b: number) => {
       const move = Math.hypot(ux[a], uy[a]) + Math.hypot(ux[b], uy[b])
       if (move < 3) return
-      g.globalAlpha = Math.min(0.5, 0.11 + move * 0.012)
+      g.globalAlpha = al(Math.min(0.5, 0.11 + move * 0.012))
       g.beginPath()
       g.moveTo(px(a), py(a)); g.lineTo(px(b), py(b))
       g.stroke()
@@ -191,7 +193,7 @@ export class DotNet {
     }
 
     // the dots
-    g.globalAlpha = 0.3
+    g.globalAlpha = al(0.3)
     g.beginPath()
     const r = 1.7 * scale
     for (let k = 0; k < cols * rows; k++) {
@@ -201,7 +203,7 @@ export class DotNet {
     }
     g.fill()
     // ... and the ones that are away from home grow a little
-    g.globalAlpha = 0.5
+    g.globalAlpha = al(0.5)
     g.beginPath()
     for (let k = 0; k < cols * rows; k++) {
       const move = Math.hypot(ux[k], uy[k])

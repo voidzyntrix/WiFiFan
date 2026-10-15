@@ -2,6 +2,15 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '1.6.0',
+    notes: [
+      'Fluid is a simple two-tone liquid now: the main colour with a thin lighter outline.',
+      'Thin sheets, drops and spray no longer vanish: even a single drop of fluid shows.',
+      'Net opacity: a new slider under Dot net, from hidden to strong.',
+      'Mouse movement goes further: the top of the slider is three times as strong as before (up to 60 % it is unchanged).',
+    ],
+  },
+  {
     version: '1.5.1',
     notes: [
       'Fluid redrawn: a clean, smooth liquid with a thin lit edge instead of a thick rim.',
