@@ -55,6 +55,20 @@ export function App() {
 
   const colors = useMemo(() => applyTheme(prefs, systemDark), [prefs, systemDark])
 
+  // Backslash: the Demo board (the controls without a board) on or off, in release builds too.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== '\\' || e.ctrlKey || e.altKey || e.metaKey || e.repeat) return
+      if (e.target instanceof Element && e.target.closest('input, textarea')) return
+      e.preventDefault()
+      if (ble.isDemo) { ble.disconnect(); toast('Demo board off') }
+      else if (ble.snapshot.state === 'disconnected') { ble.startDemo(); toast('Demo board on. Press \\ again to leave it.') }
+      else toast('Disconnect from your board first to use the Demo board.')
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
   // The first colours are set without the eased transition the theme otherwise has.
   useEffect(() => {
     const raf = requestAnimationFrame(() => requestAnimationFrame(() => document.documentElement.classList.remove('booting')))

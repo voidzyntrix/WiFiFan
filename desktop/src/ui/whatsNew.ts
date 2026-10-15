@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '1.5.0',
+    notes: [
+      'Fluid looks like water now: it deepens with depth, catches light along its surface, glints, foams where it moves fast and glows softly around its edge.',
+      'Press the backslash key to switch the Demo board on or off, in any build.',
+    ],
+  },
+  {
     version: '1.4.0',
     notes: [
       'One-click updates: Update downloads the new Glow, puts it in place of the old one (renamed to the new version) and restarts, all by itself.',

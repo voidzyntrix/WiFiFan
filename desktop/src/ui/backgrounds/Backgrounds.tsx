@@ -3,6 +3,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { DotNet } from './DotNet'
+import { FluidRenderer } from './FluidRenderer'
 import { FluidSim } from './FluidSim'
 import { setBackdropFade, setBackdropSource } from './source'
 import { settings, type Background } from '../../settings/store'
@@ -226,6 +227,7 @@ function Fluid({ tint, netTint }: { tint: string; netTint: string }) {
   const win = useRef({ x: window.screenX, y: window.screenY, vx: 0, vy: 0 })
   const smooth = useSmoothColor(tint, 5)
   const smoothNet = useSmoothColor(netTint)
+  const shader = useRef<FluidRenderer | null | undefined>(undefined)
   const net = useDotNet()
 
   useEffect(() => {
@@ -294,27 +296,37 @@ function Fluid({ tint, netTint }: { tint: string; netTint: string }) {
 
     for (let k = 0; k < steps; k++) s.step(STEP, 0, g)
 
-    // Dots first, then the goo filter onto the visible canvas (half opacity, like the phone).
-    const d = dots.current
-    if (d.width !== c.width || d.height !== c.height) { d.width = c.width; d.height = c.height }
-    const dg = d.getContext('2d')!
-    dg.clearRect(0, 0, d.width, d.height)
     const cell = c.width / s.width
-    const r = cell * 0.42
-    dg.fillStyle = smooth(dt)
-    dg.beginPath()
-    for (let i = 0; i < s.count; i++) {
-      dg.moveTo(s.x[i] * cell + r, s.y[i] * cell)
-      dg.arc(s.x[i] * cell, s.y[i] * cell, r, 0, Math.PI * 2)
-    }
-    dg.fill()
-    // (the half opacity is part of the filter: a canvas applies globalAlpha before its filter,
-    // which would move the threshold)
+    const color = smooth(dt)
+    if (shader.current === undefined) shader.current = FluidRenderer.create()
     const cg = c.getContext('2d')!
-    cg.clearRect(0, 0, c.width, c.height)
-    cg.filter = 'url(#goo)'
-    cg.drawImage(d, 0, 0)
-    cg.filter = 'none'
+    if (shader.current) {
+      // glossy water (FluidRenderer.ts)
+      const [r, g2, b] = (color.match(/\d+/g) ?? ['255', '255', '255']).map(Number)
+      const drawn = shader.current.render(s, c.width, c.height, cell, [r, g2, b])
+      cg.clearRect(0, 0, c.width, c.height)
+      cg.drawImage(drawn, 0, 0, c.width, c.height)
+    } else {
+      // no WebGL2: dots first, then the goo filter onto the visible canvas (half opacity, like the phone)
+      const d = dots.current
+      if (d.width !== c.width || d.height !== c.height) { d.width = c.width; d.height = c.height }
+      const dg = d.getContext('2d')!
+      dg.clearRect(0, 0, d.width, d.height)
+      const rr = cell * 0.42
+      dg.fillStyle = color
+      dg.beginPath()
+      for (let i = 0; i < s.count; i++) {
+        dg.moveTo(s.x[i] * cell + rr, s.y[i] * cell)
+        dg.arc(s.x[i] * cell, s.y[i] * cell, rr, 0, Math.PI * 2)
+      }
+      dg.fill()
+      // (the half opacity is part of the filter: a canvas applies globalAlpha before its filter,
+      // which would move the threshold)
+      cg.clearRect(0, 0, c.width, c.height)
+      cg.filter = 'url(#goo)'
+      cg.drawImage(d, 0, 0)
+      cg.filter = 'none'
+    }
     const netColor = smoothNet(dt)
     if (settings.get().dotNet) net.current?.frame(cg, dt, c.width / window.innerWidth, netColor, settings.get().dotNetStiffness)
   })
