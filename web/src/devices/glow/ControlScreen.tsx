@@ -93,9 +93,8 @@ export function ControlScreen(props: ControlScreenProps) {
 
   const isWifiBoard = useBoard().kind === 'wifi'
   const modeGroups: [string, [number, string, boolean][]][] = [
-    ['Light', [[MODE.SOLID, 'Solid', true], [MODE.RAINBOW, 'Rainbow', true], [MODE.CANDLE, 'Candle', c.caps.candle]]],
+    ['Light', [[MODE.SOLID, 'Solid', true], [MODE.SOLAR, 'Solar', isWifiBoard], [MODE.RAINBOW, 'Rainbow', true], [MODE.CANDLE, 'Candle', c.caps.candle]]],
     ['Board effects', [...LED_EFFECTS.map(([m, l]) => [m, l, c.caps.effects] as [number, string, boolean]), [LED_CHASE[0], LED_CHASE[1], c.caps.split]]],
-    ['Smart', [[MODE.SOLAR, 'Solar', isWifiBoard]]],
     ['Reactive', [
       [MODE.MUSIC, 'Music', platform.capture.microphone],
       [MODE.VISUALIZER, 'Visualizer', platform.capture.systemAudio],
@@ -109,7 +108,7 @@ export function ControlScreen(props: ControlScreenProps) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement
-      if (el.closest?.('input, textarea, [role=slider], .scrim, md-dialog, md-outlined-text-field') || e.ctrlKey || e.altKey || e.metaKey) return
+      if (el.closest?.('input, textarea, [role=slider], .scrim, mdui-dialog, mdui-text-field') || e.ctrlKey || e.altKey || e.metaKey) return
       const cc = live.current.c
       if (e.key === ' ') { e.preventDefault(); sound.confirm(); cc.togglePower() }
       else if (/^[1-9]$/.test(e.key)) { const sc = cc.s.scenes[+e.key - 1]; if (sc) { sound.tap(); cc.applyScene(sc) } }

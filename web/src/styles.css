@@ -3,7 +3,7 @@
 
    glass     translucent cards over a background; our own controls (the .pill, .switch, ... below),
              frosted (blur) or refractive (Glass.tsx bends the background) surfaces.
-   material  Material 3: solid tonal surfaces and Google's widgets (@material/web, ../ui/md.tsx).
+   material  Material 3: solid tonal surfaces and Google's widgets (mdui, ../ui/md.tsx).
 
    Shapes: every radius is a multiple of --u (Settings > Corners). One unit is Material's medium
    (12 px cards); 0 is square. Nothing is rounded by a constant, so a corner setting reaches every
@@ -108,7 +108,7 @@
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 /* nothing in the app can be selected or dragged, except what is typed into a text field */
 *, *::before, *::after { -webkit-user-select: none; user-select: none; -webkit-user-drag: none; }
-input, textarea, md-outlined-text-field { -webkit-user-select: text; user-select: text; }
+input, textarea, mdui-text-field { -webkit-user-select: text; user-select: text; }
 /* no blue tap flash, no long-press text selection or callouts on Android */
 html { -webkit-touch-callout: none; touch-action: manipulation; }
 html, body, #root { height: 100%; margin: 0; }
@@ -667,48 +667,53 @@ input.text-field:focus { border-color: var(--primary); background: var(--on-bg-8
 :root[data-design='material'] .board-pill { background: transparent; border: 1px solid var(--outline); }
 :root[data-design='material'] .quiet-link { background: transparent; color: var(--primary); }
 :root[data-design='material'] .quiet-link:hover { background: var(--on-bg-8); }
-:root[data-design='material'] .toast { background: var(--md-sys-color-inverse-surface); color: var(--md-sys-color-inverse-on-surface); border-radius: var(--r-xs); }
-:root[data-design='material'] .header h1 { font-size: 28px; font-weight: 400; }
+:root[data-design='material'] .toast { background: rgb(var(--mdui-color-inverse-surface)); color: rgb(var(--mdui-color-inverse-on-surface)); border-radius: var(--r-xs); }
+:root[data-design='material'] body { font-size: 15px; }
+:root[data-design='material'] .header h1 { font-size: 32px; font-weight: 400; letter-spacing: 0; }
+:root[data-design='material'] .panel, :root[data-design='material'] .settings-card { border-radius: var(--r-xl); padding: 20px; }
+:root[data-design='material'] .board-tile { border-radius: var(--r-xl); }
+:root[data-design='material'] .slider-label { font-size: 14px; font-weight: 500; color: rgb(var(--mdui-color-on-surface-variant)); }
+:root[data-design='material'] .card-head { font-size: 18px; font-weight: 400; }
+:root[data-design='material'] .dialog-title { font-size: 24px; font-weight: 400; }
+:root[data-design='material'] .hint, :root[data-design='material'] .dialog-sub { font-size: 14px; line-height: 1.45; }
+:root[data-design='material'] .setting-section { font-size: 12px; letter-spacing: 0.08em; color: var(--primary); }
 :root[data-design='material'] .led-disc { box-shadow: none !important; }
 :root[data-design='material'] .level-meter { background: var(--card-highest); }
 
-/* Material 3 widgets: sizes here; colours come from the --md-sys-color-* tokens (theme.ts) */
+/* Material 3 widgets (mdui): shapes and sizes here; colours come from the --mdui-color-* tokens (theme.ts) */
 :root {
-  --md-sys-shape-corner-extra-small: var(--r-xs);
-  --md-sys-shape-corner-small: var(--r-sm);
-  --md-sys-shape-corner-medium: var(--r-md);
-  --md-sys-shape-corner-large: var(--r-lg);
-  --md-sys-shape-corner-extra-large: var(--r-xl);
-  --md-sys-shape-corner-full: var(--r-pill);
+  --mdui-shape-corner-extra-small: var(--r-xs);
+  --mdui-shape-corner-small: var(--r-sm);
+  --mdui-shape-corner-medium: var(--r-md);
+  --mdui-shape-corner-large: var(--r-lg);
+  --mdui-shape-corner-extra-large: var(--r-xl);
+  --mdui-shape-corner-full: var(--r-pill);
+  --mdui-typography-font-family: var(--font);
+  --mdui-motion-easing-emphasized: cubic-bezier(.2, 0, 0, 1);
+  --mdui-motion-easing-emphasized-decelerate: cubic-bezier(.05, .7, .1, 1);
+  --mdui-motion-easing-emphasized-accelerate: cubic-bezier(.3, 0, .8, .15);
 }
-md-outlined-segmented-button-set.segmented { width: 100%; flex: none; --md-outlined-segmented-button-container-height: 40px; --md-outlined-segmented-button-shape: var(--r-pill); }
-md-outlined-segmented-button-set.segmented.disabled { opacity: 0.5; pointer-events: none; }
-md-outlined-segmented-button {
-  flex: 1 1 0; min-width: 0;
-  --md-outlined-segmented-button-leading-space: 4px;
-  --md-outlined-segmented-button-trailing-space: 4px;
-  --md-outlined-segmented-button-label-text-size: 13px;
-  --md-outlined-segmented-button-with-icon-leading-space: 4px;
-}
+mdui-segmented-button-group.segmented { width: 100%; flex: none; --mdui-comp-segmented-button-height: 40px; }
+mdui-segmented-button-group.segmented.disabled { opacity: 0.5; pointer-events: none; }
+mdui-segmented-button { flex: 1 1 0; min-width: 0; font-size: 13px; }
 .md-button { width: 100%; height: 44px; flex: none; }
 :is(.dialog-buttons, .button-row) > .md-button { flex: 1 1 0; width: auto; min-width: 0; }
-.icon-btn { flex: none; --md-filled-tonal-icon-button-container-width: 44px; --md-filled-tonal-icon-button-container-height: 44px; --md-filled-icon-button-container-width: 44px; --md-filled-icon-button-container-height: 44px; }
-.md-progress { width: 100%; --md-linear-progress-track-height: 6px; --md-linear-progress-active-indicator-height: 6px; }
-md-switch { flex: none; }
-.md-tabs { flex: none; --md-primary-tab-container-color: transparent; }
-.md-tabs md-primary-tab { --md-primary-tab-container-height: 44px; }
-md-filter-chip, md-assist-chip { --md-filter-chip-container-height: 40px; --md-assist-chip-container-height: 40px; }
-md-filter-chip.menu-item { --md-filter-chip-container-height: 100%; width: 100%; }
-md-filter-chip.chip.scene, md-assist-chip.chip { width: 100%; }
-md-assist-chip.chip.add.disabled { opacity: 0.45; }
-md-slider.md-slider { width: 100%; }
-.md-dialog { --md-dialog-container-shape: var(--r-xl); min-width: min(320px, calc(100vw - 32px)); max-width: min(400px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); }
+.icon-btn { flex: none; width: 44px; height: 44px; }
+.md-progress { width: 100%; }
+mdui-switch { flex: none; }
+.md-tabs { flex: none; width: 100%; background-color: transparent; }
+mdui-chip { height: 40px; }
+mdui-chip.menu-item { height: 100%; width: 100%; }
+mdui-chip.chip.scene, mdui-chip.chip { width: 100%; }
+mdui-chip.chip.add.disabled { opacity: 0.45; }
+mdui-slider.md-slider { width: 100%; }
+.md-dialog { min-width: min(320px, calc(100vw - 32px)); max-width: min(400px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); --mdui-shape-corner-extra-large: var(--r-xl); }
 .md-dialog.wide { max-width: min(520px, calc(100vw - 32px)); }
-md-dialog .dialog-sub { color: var(--md-sys-color-on-surface-variant); }
-md-dialog .dialog-title { font-weight: 400; }
-md-list.dialog-actions { margin: 4px -24px 0; --md-list-container-color: transparent; display: block; }
-md-outlined-text-field.text-field { width: 100%; margin-top: 8px; }
-md-fab.fab { position: absolute; right: calc(var(--pad) + 2px); bottom: calc(24px + var(--inset-bottom, 0px)); z-index: 3; }
+mdui-dialog .dialog-sub { color: rgb(var(--mdui-color-on-surface-variant)); }
+mdui-dialog .dialog-title { font-weight: 400; }
+mdui-list.dialog-actions { margin: 4px -24px 0; display: block; background: transparent; }
+mdui-text-field.text-field { width: 100%; margin-top: 8px; }
+mdui-fab.fab { position: absolute; right: calc(var(--pad) + 2px); bottom: calc(24px + var(--inset-bottom, 0px)); z-index: 3; }
 
 /* ── Colour picker (our own, in a dialog) ─────────────────── */
 

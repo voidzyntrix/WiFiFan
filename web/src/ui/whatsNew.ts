@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.8.0',
+    notes: [
+      'Material You is rebuilt on mdui, a true Material Design 3 component library: buttons, switches, sliders, tabs, chips, dialogs and text fields now look and move the way Google apps do, with bigger shapes, tonal surfaces and M3 type.',
+      'Solar sits right next to Solid in Modes (Wi-Fi boards), as a light mode of its own.',
+    ],
+  },
+  {
     version: '2.7.0',
     notes: [
       'Solar mode for the Wi-Fi board: paste your FoxESS API key under Modes > Solar and the board follows your inverter by itself, even with Glow closed. LED 1 shows the grid, LED 2 the battery, with pulses and red or green blinks. Needs board firmware 1.6.0.',

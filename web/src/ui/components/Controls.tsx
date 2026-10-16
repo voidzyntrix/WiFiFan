@@ -122,7 +122,7 @@ export function LevelBar(props: {
     if (el && Math.abs(el.value - props.fraction * 100) > 0.5) el.value = props.fraction * 100
   })
   if (design === 'MATERIAL') {
-    return <md-slider ref={ref} class="md-slider" min="0" max="100" step="1" aria-label={props.label} value={String(Math.round(props.fraction * 100))} />
+    return <mdui-slider ref={ref} class="md-slider" min="0" max="100" step="1" aria-label={props.label} value={String(Math.round(props.fraction * 100))} />
   }
   return (
     <GradientBar label={props.label} fraction={props.fraction} stops={props.stops ?? ['var(--on-bg-12)', 'var(--on-bg-55)']}
@@ -135,20 +135,7 @@ export function SegmentedPill(props: { options: string[]; selected: number; onSe
   const design = useDesign()
   const n = props.options.length
   if (design === 'MATERIAL') {
-    return (
-      <md-outlined-segmented-button-set class={'segmented' + (props.disabled ? ' disabled' : '')}>
-        {props.options.map((o, i) => (
-          <md-outlined-segmented-button
-            key={o}
-            label={o}
-            no-checkmark
-            selected={flag(i === props.selected)}
-            disabled={flag(props.disabled)}
-            onClick={() => { if (i !== props.selected) { sound.tap(); props.onSelect(i) } }}
-          />
-        ))}
-      </md-outlined-segmented-button-set>
-    )
+    return <MdSegmented {...props} />
   }
   return (
     <div className={'pill' + (props.disabled ? ' disabled' : '')} role="radiogroup">
@@ -198,9 +185,26 @@ export function Switch(props: { checked: boolean; onChange: (v: boolean) => void
   )
 }
 function MdSwitch(props: { checked: boolean; onChange: (v: boolean) => void; label?: string }) {
-  const ref = useElementEvent<HTMLElement & { selected: boolean }>('change', (el) => { sound.tap(); props.onChange(el.selected) })
-  useEffect(() => { if (ref.current) ref.current.selected = props.checked }, [props.checked])
-  return <md-switch ref={ref} icons show-only-selected-icon aria-label={props.label} selected={flag(props.checked)} />
+  const ref = useElementEvent<HTMLElement & { checked: boolean }>('change', (el) => { sound.tap(); props.onChange(el.checked) })
+  useEffect(() => { if (ref.current) ref.current.checked = props.checked }, [props.checked])
+  return <mdui-switch ref={ref} aria-label={props.label} checked={flag(props.checked)} />
+}
+
+/** Material 3 segmented buttons: one of a few options. */
+function MdSegmented(props: { options: string[]; selected: number; onSelect: (i: number) => void; disabled?: boolean }) {
+  const ref = useElementEvent<HTMLElement & { value: string }>('change', (el) => {
+    const i = Number(el.value)
+    if (!Number.isNaN(i) && i !== props.selected && el.value !== '') { sound.tap(); props.onSelect(i) }
+  })
+  useEffect(() => {
+    const el = ref.current
+    if (el && el.value !== (props.selected >= 0 ? String(props.selected) : '')) el.value = props.selected >= 0 ? String(props.selected) : ''
+  }, [props.selected, props.options.length])
+  return (
+    <mdui-segmented-button-group ref={ref} class={'segmented' + (props.disabled ? ' disabled' : '')} selects="single" full-width disabled={flag(props.disabled)} value={props.selected >= 0 ? String(props.selected) : ''}>
+      {props.options.map((o, i) => <mdui-segmented-button key={o} value={String(i)}>{o}</mdui-segmented-button>)}
+    </mdui-segmented-button-group>
+  )
 }
 
 /** A card: frosted / refractive glass, or a Material tonal surface. */
@@ -225,8 +229,8 @@ export function PillButton(props: { text: string; highlighted?: boolean; enabled
   const label = <Txt>{props.text}</Txt>
   if (design === 'MATERIAL') {
     return props.highlighted
-      ? <md-filled-button class="md-button" disabled={flag(!enabled)} onClick={click}>{label}</md-filled-button>
-      : <md-filled-tonal-button class="md-button" disabled={flag(!enabled)} onClick={click}>{label}</md-filled-tonal-button>
+      ? <mdui-button variant="filled" class="md-button" disabled={flag(!enabled)} onClick={click}>{label}</mdui-button>
+      : <mdui-button variant="tonal" class="md-button" disabled={flag(!enabled)} onClick={click}>{label}</mdui-button>
   }
   return (
     <button className={'pill-button' + (props.highlighted ? ' highlighted' : '')} disabled={!enabled} onClick={click}>
@@ -246,8 +250,8 @@ export function CircleIconButton(props: { label: string; onClick: () => void; ch
   }
   if (design === 'MATERIAL') {
     return props.active
-      ? <md-filled-icon-button class="icon-btn" {...common}>{props.children}</md-filled-icon-button>
-      : <md-filled-tonal-icon-button class="icon-btn" {...common}>{props.children}</md-filled-tonal-icon-button>
+      ? <mdui-button-icon variant="filled" class="icon-btn" {...common}>{props.children}</mdui-button-icon>
+      : <mdui-button-icon variant="tonal" class="icon-btn" {...common}>{props.children}</mdui-button-icon>
   }
   return <button className={'circle-btn' + (props.active ? ' active' : '')} {...common}>{props.children}</button>
 }
@@ -257,8 +261,8 @@ export function ProgressBar({ fraction }: { fraction: number | null }) {
   const design = useDesign()
   if (design === 'MATERIAL') {
     return fraction == null
-      ? <md-linear-progress class="md-progress" indeterminate />
-      : <md-linear-progress class="md-progress" value={String(fraction)} />
+      ? <mdui-linear-progress class="md-progress" />
+      : <mdui-linear-progress class="md-progress" value={String(fraction)} max="1" />
   }
   return (
     <div className="progress">
@@ -278,24 +282,27 @@ export function Chip(props: {
   if (design === 'MATERIAL') {
     if (props.assist) {
       return (
-        <md-assist-chip class={props.className} label={props.label} title={props.title} onClick={props.onClick}>
+        <mdui-chip variant="assist" class={props.className} title={props.title} onClick={props.onClick}>
           {props.icon && <span slot="icon" className="chip-icon">{props.icon}</span>}
-        </md-assist-chip>
+          {props.label}
+        </mdui-chip>
       )
     }
     return (
-      <md-filter-chip
+      <mdui-chip
         ref={ref}
+        variant="filter"
         class={props.className}
-        label={props.label}
         title={props.title}
         disabled={flag(props.disabled)}
+        selectable=""
         selected={flag(props.selected)}
         onClick={(e: React.MouseEvent) => { e.preventDefault(); if (ref.current) ref.current.selected = !!props.selected; props.onClick() }}
         onContextMenu={props.onContextMenu}
       >
         {props.icon && <span slot="icon" className="chip-icon">{props.icon}</span>}
-      </md-filter-chip>
+        {props.label}
+      </mdui-chip>
     )
   }
   return (
@@ -357,16 +364,15 @@ function MdDialog({ onDismiss, children, wide }: { onDismiss: () => void; childr
   dismiss.current = onDismiss
   const closingRef = useRef(closing)
   closingRef.current = closing
-  const ref = useElementEvent<HTMLElement & { show(): void; close(): void }>('close', () => { if (!closingRef.current) dismiss.current() })
-  useEffect(() => { ref.current?.show() }, [])
-  useEffect(() => { if (closing) ref.current?.close() }, [closing])
+  const ref = useElementEvent<HTMLElement & { open: boolean }>('close', () => { if (!closingRef.current) dismiss.current() })
+  useEffect(() => { const t = requestAnimationFrame(() => { if (ref.current) ref.current.open = true }); return () => cancelAnimationFrame(t) }, [])
+  useEffect(() => { if (closing && ref.current) ref.current.open = false }, [closing])
   return (
-    <md-dialog ref={ref} class={'md-dialog' + (wide ? ' wide' : '')}>
-      <div slot="content" className="dialog-content">{children}</div>
-    </md-dialog>
+    <mdui-dialog ref={ref} class={'md-dialog' + (wide ? ' wide' : '')} close-on-overlay-click close-on-esc>
+      <div className="dialog-content">{children}</div>
+    </mdui-dialog>
   )
 }
-
 function GlassDialog({ onDismiss, children, wide }: { onDismiss: () => void; children: ReactNode; wide?: boolean }) {
   const closing = useContext(DialogClosing)
   useEffect(() => {
@@ -389,13 +395,11 @@ export function ActionsDialog(props: { title: string; subtitle?: string; actions
       <h2 className="dialog-title">{props.title}</h2>
       {props.subtitle && <div className="dialog-sub">{props.subtitle}</div>}
       {design === 'MATERIAL' ? (
-        <md-list class="dialog-actions">
+        <mdui-list class="dialog-actions">
           {props.actions.map(([label, fn]) => (
-            <md-list-item key={label} type="button" onClick={() => { sound.tap(); fn() }}>
-              <div slot="headline">{label}</div>
-            </md-list-item>
+            <mdui-list-item key={label} rounded headline={label} onClick={() => { sound.tap(); fn() }} />
           ))}
-        </md-list>
+        </mdui-list>
       ) : (
         <div className="dialog-actions">
           {props.actions.map(([label, fn]) => (
@@ -443,15 +447,17 @@ function MdTextField(props: {
   }, [props.value])
   useEffect(() => {
     if (!props.autoFocus) return
-    const t = window.setTimeout(() => field.current?.focus(), 150)
+    const t = window.setTimeout(() => field.current?.focus(), 250)
     return () => window.clearTimeout(t)
   }, [])
   return (
-    <md-outlined-text-field
+    <mdui-text-field
       ref={field}
+      variant="outlined"
       class="text-field"
       label={props.label}
       type={props.password ? 'password' : 'text'}
+      toggle-password={props.password ? '' : undefined}
       maxlength={props.maxLength}
       value={props.value}
       placeholder={props.placeholder}

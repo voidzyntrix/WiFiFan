@@ -83,9 +83,10 @@ export function DevicesScreen(props: {
             />
             <p className="hint center">Click a device to control it. Right-click or long press to rename or forget it.</p>
             {material && (
-              <md-fab class="fab" label="Add a device" onClick={() => { sound.tap(); connection.scan() }}>
+              <mdui-fab extended class="fab" onClick={() => { sound.tap(); connection.scan() }}>
                 <span slot="icon" className="chip-icon"><AddIcon size={24} /></span>
-              </md-fab>
+                Add a device
+              </mdui-fab>
             )}
           </div>
         ) : (

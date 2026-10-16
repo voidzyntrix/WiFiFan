@@ -28,7 +28,7 @@ export function SettingsScreen({ onBack, onWhatsNew }: { onBack: () => void; onW
   const designs: Design[] = ['GLASS', 'MATERIAL']
 
   useEffect(() => {
-    const k = (e: KeyboardEvent) => { if (e.key === 'Escape' && !document.querySelector('.scrim, md-dialog[open]')) onBack() }
+    const k = (e: KeyboardEvent) => { if (e.key === 'Escape' && !document.querySelector('.scrim, mdui-dialog[open]')) onBack() }
     window.addEventListener('keydown', k)
     return () => window.removeEventListener('keydown', k)
   }, [onBack])

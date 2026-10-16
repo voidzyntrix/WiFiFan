@@ -71,19 +71,18 @@ export function applyTheme(s: Settings, systemDark: boolean, systemAccent: strin
   r.setProperty('--on-active', hex(C.onSecondaryContainer))
   r.setProperty('--active-strong', hex(C.primaryContainer))
   r.setProperty('--on-active-strong', hex(C.onPrimaryContainer))
-  // The Material 3 widgets (@material/web) read the whole scheme as --md-sys-color-* tokens.
+  // The Material 3 widgets (mdui) read the whole scheme as --mdui-color-* tokens, each as "r, g, b".
+  const triplet = (c: typeof C.surface) => { const n = c.getArgb(scheme); return `${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}` }
   for (const name of MD_COLORS) {
     const kebab = name.replace(/[A-Z]/g, (c) => '-' + c.toLowerCase())
-    r.setProperty(`--md-sys-color-${kebab}`, hex((C as unknown as Record<string, typeof C.surface>)[name]))
+    r.setProperty(`--mdui-color-${kebab}`, triplet((C as unknown as Record<string, typeof C.surface>)[name]))
   }
   if (dark && s.pureBlack) {
-    r.setProperty('--md-sys-color-surface', bg)
-    r.setProperty('--md-sys-color-surface-container-high', '#141414')
-    r.setProperty('--md-sys-color-surface-container-highest', '#1c1c1c')
+    r.setProperty('--mdui-color-surface', '0, 0, 0')
+    r.setProperty('--mdui-color-background', '0, 0, 0')
+    r.setProperty('--mdui-color-surface-container-high', '20, 20, 20')
+    r.setProperty('--mdui-color-surface-container-highest', '28, 28, 28')
   }
-  r.setProperty('--md-sys-typescale-body-font', "'Roboto', system-ui, sans-serif")
-  r.setProperty('--md-ref-typeface-brand', "'Roboto', system-ui, sans-serif")
-  r.setProperty('--md-ref-typeface-plain', "'Roboto', system-ui, sans-serif")
   // Tonal surfaces for the Material design's cards, sheets and tiles.
   r.setProperty('--card', hex(C.surfaceContainerLow))
   r.setProperty('--card-high', hex(C.surfaceContainerHigh))
