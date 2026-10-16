@@ -18,6 +18,8 @@ export const MODE = {
   VISUALIZER: 9,
   /** Chase (firmware 1.6.0+): LED1's colour bounces between the two LEDs. */
   CHASE: 10,
+  /** Solar (ESP32 board, firmware 1.6.0+): the board follows a FoxESS inverter by itself. */
+  SOLAR: 11,
 } as const
 
 /** Board effects (firmware 1.4.0+): mode, button label, command. */
@@ -41,7 +43,7 @@ export const KELVIN_PRESETS = [1900, 2700, 3500, 4500, 5600, 6500]
 export const modeLabel = (mode: number): string =>
   ({
     [MODE.SOLID]: 'Solid', [MODE.RAINBOW]: 'Rainbow', [MODE.CANDLE]: 'Candle', [MODE.MUSIC]: 'Music',
-    [MODE.VISUALIZER]: 'Visualizer', [MODE.SCREEN]: 'Screen',
+    [MODE.VISUALIZER]: 'Visualizer', [MODE.SCREEN]: 'Screen', [MODE.SOLAR]: 'Solar',
   } as Record<number, string>)[mode] ?? ALL_EFFECTS.find((e) => e[0] === mode)?.[1] ?? 'Solid'
 
 /** Text commands for the board's colours. */

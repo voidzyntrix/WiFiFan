@@ -7,6 +7,7 @@ import { useEffect, useReducer, useRef, useState } from 'react'
 import { board, useBoard } from './board'
 import { kelvinToHueSat, hexToHsv, normHue } from '../../lib/color'
 import { ALL_EFFECTS, LedCommands, MIN_VISIBLE, MODE, SYNC_MODES } from './modes'
+import { solarCommand, solarFlags } from './solar'
 import {
   capsOf, canSaveScene, ledOptionsOf, loadScenes, resolveScene, saveScenes, sceneMatches, stateCommands, stateToScene,
   type LedState, type Scene,
@@ -112,6 +113,7 @@ export function useLed() {
       case MODE.OCEAN:
       case MODE.PARTY:
       case MODE.AURORA: return sendEffect(m)
+      case MODE.SOLAR: return send(solarCommand({ on: true, bri: Math.round(st.current.bri * 100) }))   // the board does it itself
       case MODE.MUSIC:
       case MODE.VISUALIZER:
       case MODE.SCREEN: return            // their engines send the colour
@@ -226,6 +228,7 @@ export function useLed() {
       case MODE.SCREEN:
         if (s.mode === MODE.SCREEN && sync.active === 'SCREEN') return
         return startSync(startScreen, { mode: MODE.SCREEN, kelvinMode: false })
+      case MODE.SOLAR: update({ mode: MODE.SOLAR, kelvinMode: false }); return sendCurrent()
       case MODE.CHASE: sendHsvColour(); return sendEffect(MODE.CHASE)
       default:
         if (s.kelvinMode) s.kelvinMode = false
@@ -350,7 +353,7 @@ export function useLed() {
     const v = Math.max(c1[2], c2[2]) / 100
     const patch: Partial<UiState> = {}
     const hueFar = (x: number, y: number) => { const d = Math.abs(x - y) % 360; return Math.min(d, 360 - d) > 3 }
-    if (Number(mode) !== s.mode && !SYNC_MODES.includes(s.mode)) patch.mode = Number(mode)
+    if (Number(mode) !== s.mode && !SYNC_MODES.includes(s.mode) && !(s.mode === MODE.SOLAR && solarFlags.setup)) patch.mode = Number(mode)
     if (Math.abs(v - s.bri) > 0.03) patch.bri = v
     // a colour that is off keeps the one it had; one with no saturation has no hue to show
     if (c1[2] > 0 && (Math.abs(c1[1] / 100 - s.sat) > 0.04 || (c1[1] > 4 && hueFar(c1[0], s.hue)))) { patch.hue = c1[0]; patch.sat = c1[1] / 100; patch.kelvinMode = false }

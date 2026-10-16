@@ -10,20 +10,23 @@ import { settings } from '../../settings/store'
 import { Hint, LevelBar, PillButton, SegmentedPill, SettingHeading, SettingSwitch, SliderLabel } from '../../ui/components/Controls'
 import { Swap, Txt } from '../../ui/motion'
 import { MODE } from './modes'
+import { SolarTab } from './SolarTab'
 import type { LedController } from './useLed'
 
 /** Does this mode have options to show? */
 export const hasTune = (mode: number) =>
-  mode === MODE.SOLID || mode === MODE.RAINBOW || mode === MODE.CANDLE || mode === MODE.MUSIC || mode === MODE.VISUALIZER || mode === MODE.SCREEN
+  mode === MODE.SOLID || mode === MODE.RAINBOW || mode === MODE.CANDLE || mode === MODE.MUSIC || mode === MODE.VISUALIZER || mode === MODE.SCREEN || mode === MODE.SOLAR
 
 export const tuneLabel = (mode: number) =>
   mode === MODE.SOLID ? 'Fade' : mode === MODE.RAINBOW ? 'Rainbow' : mode === MODE.CANDLE ? 'Candle'
-    : mode === MODE.MUSIC ? 'Music' : mode === MODE.VISUALIZER ? 'Visualizer' : 'Screen'
+    : mode === MODE.MUSIC ? 'Music' : mode === MODE.VISUALIZER ? 'Visualizer' : mode === MODE.SOLAR ? 'Solar' : 'Screen'
 
 export function TuneTab({ c }: { c: LedController }) {
   const { s, prefs, caps } = c
   const set = settings.set
   const needs = (fw: string) => <Hint>Needs board firmware {fw}</Hint>
+
+  if (s.mode === MODE.SOLAR) return <SolarTab c={c} />
 
   if (s.mode === MODE.SOLID) {
     return (

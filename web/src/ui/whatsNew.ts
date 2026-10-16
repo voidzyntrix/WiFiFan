@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.7.0',
+    notes: [
+      'Solar mode for the Wi-Fi board: paste your FoxESS API key under Modes > Solar and the board follows your inverter by itself, even with Glow closed. LED 1 shows the grid, LED 2 the battery, with pulses and red or green blinks. Needs board firmware 1.6.0.',
+      'Candle: Smooth flicker now really is smooth (it was ignored by the Wi-Fi board before).',
+    ],
+  },
+  {
     version: '2.6.2',
     notes: [
       'No more raw board messages (STATE, CLOUD and the like) popping up as toasts. Only messages written for people are shown.',

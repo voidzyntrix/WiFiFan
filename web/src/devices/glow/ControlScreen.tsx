@@ -85,15 +85,17 @@ export function ControlScreen(props: ControlScreenProps) {
   // A sync that starts shows its tab; a mode without options takes the tune tab away.
   const isSync = s.mode === MODE.MUSIC || s.mode === MODE.VISUALIZER || s.mode === MODE.SCREEN
   const tunable = hasTune(s.mode)
-  useEffect(() => { if (isSync) setTab('tune') }, [isSync])
+  useEffect(() => { if (isSync || s.mode === MODE.SOLAR) setTab('tune') }, [isSync, s.mode === MODE.SOLAR])
   useEffect(() => { if (!tunable) setTab((x) => (x === 'tune' ? 'modes' : x)) }, [tunable])
 
   // Desktop: keep running in the tray while a sync drives the LED.
   useEffect(() => { platform.keepRunning(c.connected && c.sync.active !== 'NONE') }, [c.connected, c.sync.active])
 
+  const isWifiBoard = useBoard().kind === 'wifi'
   const modeGroups: [string, [number, string, boolean][]][] = [
     ['Light', [[MODE.SOLID, 'Solid', true], [MODE.RAINBOW, 'Rainbow', true], [MODE.CANDLE, 'Candle', c.caps.candle]]],
     ['Board effects', [...LED_EFFECTS.map(([m, l]) => [m, l, c.caps.effects] as [number, string, boolean]), [LED_CHASE[0], LED_CHASE[1], c.caps.split]]],
+    ['Smart', [[MODE.SOLAR, 'Solar', isWifiBoard]]],
     ['Reactive', [
       [MODE.MUSIC, 'Music', platform.capture.microphone],
       [MODE.VISUALIZER, 'Visualizer', platform.capture.systemAudio],

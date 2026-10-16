@@ -56,3 +56,13 @@ lately, so recorded messages can't be replayed. Wi-Fi changes, Reset and firmwar
 local network (`ERR,local only` through the broker). `cloud\` reads and `cloud={...}\` writes the settings
 (`{"host","port","wsPort","tls","user","pass","key"}`; `{}` turns it off), local only. A public broker has no
 uptime promise; Glow's own-broker option takes any MQTT 3.1.1 broker with TLS and WebSocket.
+
+## Solar (runs on the board)
+
+Firmware 1.6.0 follows a FoxESS inverter by itself, with no app connected. The board asks the FoxESS
+Cloud Open API (`/op/v0/device/list`, `/op/v1/device/real/query`, signed with MD5 of
+`path \r\n key \r\n timestamp-ms`) every few minutes with the user's API key, and shows the grid on LED 1
+and the home battery on LED 2 (colours and pulses as in Glow's old Solar mode), with red or green blink
+alerts. Settings are kept in the board's flash (`Preferences`, namespace `glow`); Solar starts again at boot.
+`solar\` answers `SOLAR,{...}`; `solar={"key","sn","poll","low","bri","on"}\` changes any of them (the key
+only on the local network). Any colour or effect command ends Solar. Reset device clears it.
