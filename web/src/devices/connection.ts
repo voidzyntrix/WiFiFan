@@ -93,9 +93,7 @@ async function openLink(type: DeviceType, device: SavedDevice): Promise<BleLink>
     }
     // Not on its network: through the internet, if that is set up.
     if (cloud) {
-      const link = await openCloudLink(mac)
-      toast('Connected over the internet')
-      return link
+      return await openCloudLink(mac)
     }
     throw lanError ?? new Error('The board was not found on this network. Is it powered, and is this device on the same Wi-Fi?')
   }

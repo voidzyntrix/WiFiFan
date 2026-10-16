@@ -2,6 +2,14 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.5.1',
+    notes: [
+      'Updates are looked for every few seconds, for the app and (while connected) for the board firmware.',
+      'No more toast when Glow connects through the internet.',
+      'ESP32 board firmware 1.5.0: drives a WS2812B chain on GPIO4 in full colour, with every mode and effect.',
+    ],
+  },
+  {
     version: '2.5.0',
     notes: [
       'Internet access without an account or any payment: Settings > Internet access uses a free public broker, and everything is encrypted end to end so the broker only carries noise. Your own broker still works.',

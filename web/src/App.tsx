@@ -21,6 +21,8 @@ import { toast, useToasts } from './ui/toast'
 import { WHATS_NEW } from './ui/whatsNew'
 import { Swap, pulse, useExit, useFlip, useLeavingList } from './ui/motion'
 
+const UPDATE_CHECK_MS = 5000
+
 type DialogState =
   | { kind: 'rename'; device: SavedDevice }
   | { kind: 'deviceMenu'; device: SavedDevice }
@@ -86,10 +88,10 @@ export function App() {
     document.title = connected && conn.device ? `Glow · ${displayName(conn.device)}` : 'Glow'
   }, [connected, conn.device])
 
-  // App update checks at launch, then every 10 minutes, quietly.
+  // App update checks at launch, then every few seconds, quietly (the release feed has no rate limit).
   useEffect(() => {
     void checkAppUpdate(true)
-    const timer = window.setInterval(() => void checkAppUpdate(true), 10 * 60_000)
+    const timer = window.setInterval(() => void checkAppUpdate(true), UPDATE_CHECK_MS)
     return () => window.clearInterval(timer)
   }, [])
 

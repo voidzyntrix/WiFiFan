@@ -19,8 +19,15 @@ export const getBytes = (url: string, limit: number) => platform.net.bytes(url, 
 
 const exists = (url: string) => platform.net.exists(url)
 
-/** The newest asset named like [pattern] (first group = "1.2.3"); the API first, then the feed. */
+/**
+ * The newest asset named like [pattern] (first group = "1.2.3"). The release feed first: it has no rate
+ * limit, which matters as Glow looks every few seconds; the API (60 requests an hour) only if the feed fails.
+ */
 export async function newest(pattern: RegExp, kind: string, assetName: (v: string) => string): Promise<ReleaseAsset | null> {
+  try {
+    const fromFeed = await newestFromFeed(kind, assetName)
+    if (fromFeed) return fromFeed
+  } catch { /* fall through to the API */ }
   try {
     const releases = JSON.parse(await getText(RELEASES_URL)) as {
       draft: boolean; prerelease: boolean; tag_name: string; assets: { name: string; browser_download_url: string; size: number }[]
@@ -37,8 +44,7 @@ export async function newest(pattern: RegExp, kind: string, assetName: (v: strin
     }
     return best
   } catch (e) {
-    // The API allows 60 requests an hour; the release feed isn't limited.
-    return (await newestFromFeed(kind, assetName)) ?? Promise.reject(e)
+    return Promise.reject(e)
   }
 }
 

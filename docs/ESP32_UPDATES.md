@@ -1,5 +1,8 @@
 # ESP32 LED board: firmware updates over Wi-Fi
 
+LEDs: two WS2812B pixels chained on GPIO4 (data out of the first into the second), full colour; set with
+`-DLED_PIN=.. -DLED_COUNT=..`.
+
 The ESP32 board (sketch: `Projects/ESP32 Glow/main`) updates itself over the same Wi-Fi link Glow
 controls it with, from this repo's GitHub Releases, like the Bluetooth board (`FIRMWARE_UPDATES.md`).
 

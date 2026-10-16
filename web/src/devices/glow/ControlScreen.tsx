@@ -67,7 +67,12 @@ export function ControlScreen(props: ControlScreenProps) {
 
   // New board firmware: looked for on connect (quietly); a dot on Firmware says there is one.
   const fw = firmwareVersionOf(useBoard())
-  useEffect(() => { if (c.connected && fw && !c.isDemo) void checkFirmware(fw, true) }, [c.connected, fw])
+  useEffect(() => {
+    if (!c.connected || !fw || c.isDemo) return
+    void checkFirmware(fw, true)
+    const timer = window.setInterval(() => void checkFirmware(fw, true), 5000)   // every few seconds, quietly
+    return () => window.clearInterval(timer)
+  }, [c.connected, fw])
 
   // A sync that starts shows its tab; a mode without options takes the tune tab away.
   const isSync = s.mode === MODE.MUSIC || s.mode === MODE.VISUALIZER || s.mode === MODE.SCREEN
