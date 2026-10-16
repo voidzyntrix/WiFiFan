@@ -114,7 +114,7 @@ export async function pairBoard(ssid: string, password: string, onStep: (step: P
 
     onStep('find')
     // back on the home network (Windows: the PC goes back by itself once the board's network closes)
-    const found = await findWifi(mac, 60_000)
+    const found = await findWifi(mac, 60_000)   // (answers from the board's own network don't count)
     if (!found && !hostHint) throw new Error(`The board joined "${ssid}" but wasn't found there. Is this ${platform.kind === 'desktop' ? 'PC' : 'phone'} on that network?`)
     return { id: wifiId(mac), type: WIFI_TYPE_ID, name: null, advertised: found?.name ?? name ?? null, host: found?.host ?? hostHint }
   } finally {

@@ -40,7 +40,14 @@ const allProfiles = () => DEVICE_TYPES.flatMap((t) => t.ble)
 /** A Wi-Fi board's saved id. */
 export const wifiId = (mac: string) => `wifi:${mac}`
 
-/** Looks for one Wi-Fi board by its MAC; null when it doesn't answer within `ms`. */
+/** An address on a board's own setup network: where it is only while unpaired or while this device is still on that network. */
+const onSetupNet = (host?: string) => !!host && host.startsWith('192.168.4.')
+
+/**
+ * Looks for one Wi-Fi board by its MAC; null when it doesn't answer within `ms`. With `ready`, only
+ * an answer from the real network counts (not the board's own, which this device may still be on
+ * while it switches back after pairing).
+ */
 export function findWifi(mac: string, ms: number, ready = true): Promise<WifiDevice | null> {
   const wifi = platform.wifi
   if (!wifi) return Promise.resolve(null)
@@ -56,7 +63,7 @@ export function findWifi(mac: string, ms: number, ready = true): Promise<WifiDev
     }
     const timer = window.setTimeout(() => finish(null), ms)
     stop = wifi.discover((list) => {
-      const d = list.find((x) => x.id === mac && (!ready || x.state !== 'setup'))
+      const d = list.find((x) => x.id === mac && (!ready || (x.state !== 'setup' && !onSetupNet(x.host))))
       if (d) finish(d)
     })
   })
@@ -67,11 +74,17 @@ async function openLink(type: DeviceType, device: SavedDevice): Promise<BleLink>
   if (type.transport === 'wifi') {
     if (!platform.wifi) throw new Error("Wi-Fi devices can't be reached here")
     // its address may have changed since: ask the network first, fall back to the last one
-    const found = await findWifi(device.id.replace(/^wifi:/, ''), device.host ? 2500 : 6000)
-    const host = found?.host ?? device.host
-    if (!host) throw new Error('The board was not found on this network. Is it powered?')
+    // (waits for the network to be there: right after pairing the device is still switching back to it)
+    const found = await findWifi(device.id.replace(/^wifi:/, ''), device.host && !onSetupNet(device.host) ? 4000 : 20_000)
+    const host = found?.host ?? (onSetupNet(device.host) ? undefined : device.host)
+    if (!host) throw new Error('The board was not found on this network. Is it powered, and is this device on the same Wi-Fi?')
     device.host = host
-    return platform.wifi.connect(host, type.port ?? 4210)
+    let last: Error | null = null
+    for (let i = 0; i < 4; i++) {
+      try { return await platform.wifi.connect(host, type.port ?? 4210) } catch (e) { last = e as Error }
+      await new Promise((r) => setTimeout(r, 1500))   // the network may still be settling
+    }
+    throw last!
   }
   if (!platform.ble) throw new Error("Bluetooth isn't available here")
   return (await platform.ble.connect(device.id, type.ble)).link

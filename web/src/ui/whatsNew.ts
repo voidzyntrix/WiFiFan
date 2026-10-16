@@ -2,6 +2,12 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.2.4',
+    notes: [
+      'After setting up a Wi-Fi board, Glow waits until this device is back on your Wi-Fi before connecting (it used to try the board setup network and fail with ECONNABORTED).',
+    ],
+  },
+  {
     version: '2.2.3',
     notes: [
       'A Wi-Fi board that already has Wi-Fi shows up under Add a device on every Glow on the same network, so a second phone or PC can add it without resetting it.',
