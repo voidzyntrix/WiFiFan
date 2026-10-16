@@ -5,13 +5,35 @@ import { compareVersions } from './color'
 import { platform } from '../platform'
 
 const REPO = 'voidzyntrix/WiFiFan'
-const RELEASES_URL = `https://api.github.com/repos/${REPO}/releases?per_page=30`
+const RELEASES_URL = `https://api.github.com/repos/${REPO}/releases?per_page=100`
 const TAG_URL = `https://api.github.com/repos/${REPO}/releases/tags`
 const FEED_URL = `https://github.com/${REPO}/releases.atom`
 const DOWNLOAD_URL = `https://github.com/${REPO}/releases/download`
 export const RELEASES_PAGE = `https://github.com/${REPO}/releases`
 
 export interface ReleaseAsset { version: string; tag: string; downloadUrl: string; size: number }
+
+interface Release {
+  draft: boolean; prerelease: boolean; tag_name: string; assets: { name: string; browser_download_url: string; size: number }[]
+}
+
+// The release feed only lists the last ten releases, and firmware releases can fill it, so the app and
+// desktop releases drop out of it. The API lists them all: asked for at most every ten minutes, and the
+// last answer is kept (used when GitHub refuses).
+const LIST_TTL_MS = 10 * 60_000
+let listCache: { at: number; releases: Release[] } | null = null
+
+async function releaseList(): Promise<Release[]> {
+  if (listCache && Date.now() - listCache.at < LIST_TTL_MS) return listCache.releases
+  try {
+    const releases = JSON.parse(await getText(RELEASES_URL)) as Release[]
+    listCache = { at: Date.now(), releases }
+    return releases
+  } catch (e) {
+    if (listCache) return listCache.releases
+    throw e
+  }
+}
 
 // Glow looks every few seconds, so requests are kept few: one release feed shared by every check made
 // within a few seconds, a release file that exists is remembered, and after GitHub refuses (403/429)
@@ -55,9 +77,7 @@ export async function newest(pattern: RegExp, kind: string, assetName: (v: strin
     if (fromFeed) return fromFeed
   } catch { /* fall through to the API */ }
   try {
-    const releases = JSON.parse(await getText(RELEASES_URL)) as {
-      draft: boolean; prerelease: boolean; tag_name: string; assets: { name: string; browser_download_url: string; size: number }[]
-    }[]
+    const releases = await releaseList()
     let best: ReleaseAsset | null = null
     for (const rel of releases) {
       if (rel.draft || rel.prerelease) continue

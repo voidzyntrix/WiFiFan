@@ -2,6 +2,12 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.8.5',
+    notes: [
+      'Fixes app updates not being offered: GitHub's update feed only lists the last ten releases, so app releases were missed once firmware releases filled it. The app now reads the full release list (refreshed every ten minutes).',
+    ],
+  },
+  {
     version: '2.8.4',
     notes: [
       'Solar: a Test the LEDs button checks each LED on the board, and the LEDs now latch their colour properly so a chain of two lights up together.',
