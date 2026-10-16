@@ -4,6 +4,7 @@
 
 import { useEffect, useSyncExternalStore } from 'react'
 import { platform, type WifiDevice } from '../platform'
+import type { SavedDevice } from './types'
 import { SETUP_PREFIX, pairing } from './glow/pair'
 
 export interface NearbyWifi {
@@ -60,4 +61,20 @@ export function useNearbyWifi(on: boolean): NearbyWifi {
     return () => { if (--users === 0) stop() }
   }, [on])
   return useSyncExternalStore(subscribe, snapshot)
+}
+
+/** The last four hex digits of a board's id, as they end its network's name ("Glow-694C"). */
+const suffix = (id: string) => id.replace(/^wifi:/, '').slice(-4).toLowerCase()
+
+/**
+ * Networks of boards that still need Wi-Fi. A board that was given a network is left out: it is saved
+ * here, or it answers on this network, and its own network may linger in the system's scan list for
+ * a while after it closes.
+ */
+export function unpairedBoards(around: NearbyWifi, saved: SavedDevice[]): string[] {
+  const paired = new Set([
+    ...saved.filter((d) => d.id.startsWith('wifi:')).map((d) => suffix(d.id)),
+    ...around.boards.filter((b) => b.state !== 'setup').map((b) => suffix(b.id)),
+  ])
+  return around.setups.filter((ssid) => !paired.has(ssid.slice(-4).toLowerCase()))
 }

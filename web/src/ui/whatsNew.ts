@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.2.2',
+    notes: [
+      'A Wi-Fi board that still needs setting up now shows in the list after Add a device, not on the home screen.',
+      'A board stops showing up once it has been given a Wi-Fi network. Use Reset device to make it show up again.',
+    ],
+  },
+  {
     version: '2.2.1',
     notes: [
       'Wi-Fi boards that are not set up yet now show in the device list by themselves, no need to press Add a device.',
