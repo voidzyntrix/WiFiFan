@@ -4,7 +4,7 @@ export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
     version: '2.8.5',
     notes: [
-      'Fixes app updates not being offered: GitHub's update feed only lists the last ten releases, so app releases were missed once firmware releases filled it. The app now reads the full release list (refreshed every ten minutes).',
+      'Fixes app updates not being offered: GitHub’s update feed only lists the last ten releases, so app releases were missed once firmware releases filled it. The app now reads the full release list (refreshed every ten minutes).',
     ],
   },
   {
