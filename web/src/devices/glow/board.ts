@@ -9,11 +9,8 @@
 
 import { useSyncExternalStore } from 'react'
 import type { BleLink } from '../../platform'
-import { toast } from '../../ui/toast'
 
 const MAX_PENDING_BYTES = 1024
-/** Replies used by the app itself (version check, firmware update): no toast. */
-const PROTOCOL_PREFIXES = ['VER,', 'OTA', 'BOOT,', 'OK,', 'ERR,', 'DONE', 'INFO,', 'WIFI,', 'SETTINGS,']
 
 export type LinkState = 'disconnected' | 'connected'
 
@@ -189,7 +186,7 @@ class Board {
       if (line.startsWith('VER,')) this.set({ firmwareVersion: line.slice(4) })
       else if (line.startsWith('INFO,')) this.set({ deviceVersion: line.split(',')[3] ?? null })
       this.lineListeners.forEach((l) => l(line))
-      if (!this.quiet && !PROTOCOL_PREFIXES.some((p) => line.startsWith(p))) toast(`Received: ${line}`)
+      // (lines from the board are protocol: STATE, CLOUD, INFO, ... They are never shown as toasts.)
     }
     this.rx = found ? buf.slice(start) : buf
     // Something that never sends the delimiter (older firmware): don't grow forever.

@@ -2,6 +2,12 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.6.2',
+    notes: [
+      'No more raw board messages (STATE, CLOUD and the like) popping up as toasts. Only messages written for people are shown.',
+    ],
+  },
+  {
     version: '2.6.1',
     notes: [
       'Fixes Wi-Fi board firmware updates failing with Could Not Activate The Firmware: Glow sent a state read in the middle of the firmware file, corrupting it. Nothing else is sent during an update now.',
