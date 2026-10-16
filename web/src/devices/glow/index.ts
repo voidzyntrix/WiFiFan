@@ -6,6 +6,7 @@
 import { BulbIcon } from '../../ui/components/Icons'
 import type { DeviceType } from '../types'
 import { board, demoLink } from './board'
+import { startSettingsSync } from './boardSettings'
 import { ControlScreen } from './ControlScreen'
 import { WIFI_PORT, WIFI_TYPE_ID } from './pair'
 import { stopSync } from './sync'
@@ -40,10 +41,13 @@ export const glowWifiBoard: DeviceType = {
   ble: [],
   port: WIFI_PORT,
   match: () => 0,
-  open(link) {
-    board.attach(link, false)
+  open(link, device) {
+    board.attach(link, false, 'wifi')
+    board.sendData('info')    // its own firmware version
+    const stopSettings = startSettingsSync(device)
     return {
       close() {
+        stopSettings()
         stopSync()
         board.detach()
       },

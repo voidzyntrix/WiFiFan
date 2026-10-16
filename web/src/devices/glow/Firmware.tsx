@@ -8,13 +8,13 @@ import { settings, useSettings } from '../../settings/store'
 import { Dialog, PillButton, ProgressBar } from '../../ui/components/Controls'
 import { Presence, Swap, Txt } from '../../ui/motion'
 import { useBoard } from './board'
-import { checkFirmware, otaBusy, startFirmwareUpdate, useOta, type OtaState } from './ota'
+import { checkFirmware, firmwareVersionOf, otaBusy, startFirmwareUpdate, useOta, type OtaState } from './ota'
 
 export function FirmwareDialog({ onDismiss }: { onDismiss: () => void }) {
   const conn = useBoard()
   const ota = useOta()
   const p = useSettings()
-  const version = conn.firmwareVersion ?? (conn.deviceId ? p.boardVersions[conn.deviceId] ?? null : null)
+  const version = firmwareVersionOf(conn) ?? (conn.kind === 'ble' && conn.deviceId ? p.boardVersions[conn.deviceId] ?? null : null)
   return (
     <Dialog onDismiss={onDismiss}>
       <h2 className="dialog-title">Board firmware</h2>
@@ -33,7 +33,8 @@ function FirmwareBlock({ state, version, connected }: { state: OtaState; version
         : state.kind === 'upToDate' ? `Up to date (latest release is v${state.latest}).`
           : state.kind === 'available' ? `Version ${state.release.version} is available.`
             : state.kind === 'downloading' ? 'Downloading…'
-              : state.kind === 'bootloader' ? 'Restarting the board into update mode…'
+              : state.kind === 'preparing' ? 'Getting the board ready…'
+                : state.kind === 'bootloader' ? 'Restarting the board into update mode…'
                 : state.kind === 'uploading' ? `Sending… ${Math.floor((state.sent * 100) / Math.max(1, state.total))} % — keep Glow open`
                   : state.kind === 'verifying' ? 'Checking the new firmware…'
                     : state.kind === 'done' ? `Updated to v${state.version}.` : state.message

@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.3.0',
+    notes: [
+      'Wi-Fi LED boards update their own firmware: open Firmware under the LED, and Glow downloads the new version, sends it over Wi-Fi and reconnects. A dot shows when one is available.',
+      'Board settings live on the board: its name, fade time, separate LEDs and candle and rainbow options are stored in the ESP32. Glow reads them when it connects, so every phone and PC shows the same, and writes your changes back.',
+    ],
+  },
+  {
     version: '2.2.4',
     notes: [
       'After setting up a Wi-Fi board, Glow waits until this device is back on your Wi-Fi before connecting (it used to try the board setup network and fail with ECONNABORTED).',

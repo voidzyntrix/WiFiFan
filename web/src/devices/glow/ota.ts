@@ -7,11 +7,19 @@
 // 5. "ver"                 -> "VER,<new version>" confirms it
 // Frames: A5 5A | cmd | len u16 | payload | crc32 (little-endian, CRC-32 over cmd..payload).
 // An interrupted update leaves the board in its bootloader (blue LED); starting again finishes it.
+//
+// The ESP32 board (over Wi-Fi) updates itself, no bootloader dance (runEspUpdate):
+// 1. "ota=<size>"          -> "OTA,READY"
+// 2. the image, as raw bytes on the same connection
+// 3.                       -> "OTA,DONE", then the board restarts; Glow reconnects and "info" confirms it
+// An interrupted update changes nothing: the running firmware stays until a whole, valid image arrived.
 
 import { useSyncExternalStore } from 'react'
-import { board, sleep } from './board'
+import { board, sleep, type BoardSnapshot } from './board'
+import { connection } from '../connection'
 import { compareVersions } from '../../lib/color'
 import { getBytes, newest, type ReleaseAsset } from '../../lib/github'
+import { toast } from '../../ui/toast'
 
 export type OtaState =
   | { kind: 'idle' }
@@ -19,17 +27,27 @@ export type OtaState =
   | { kind: 'upToDate'; latest: string }
   | { kind: 'available'; release: ReleaseAsset }
   | { kind: 'downloading' }
+  | { kind: 'preparing' }
   | { kind: 'bootloader' }
   | { kind: 'uploading'; sent: number; total: number }
   | { kind: 'verifying' }
   | { kind: 'done'; version: string }
   | { kind: 'error'; message: string }
 
-export const otaBusy = (s: OtaState) => ['downloading', 'bootloader', 'uploading', 'verifying'].includes(s.kind)
+export const otaBusy = (s: OtaState) => ['downloading', 'preparing', 'bootloader', 'uploading', 'verifying'].includes(s.kind)
 
 const APP_MAX = 56 * 1024
 const APP_BASE = 0x2000
 const ASSET = /wififan-fw-(\d+\.\d+\.\d+)\.bin/
+// The ESP32 board: glow-esp32-<version>.bin (the Arduino build's app image) in releases tagged esp-v<version>.
+const ESP_ASSET = /glow-esp32-(\d+\.\d+\.\d+)\.bin/
+const ESP_MAX = 0x140000   // the app slot of the default partition table
+const ESP_BLOCK = 8192
+
+const isWifi = () => board.snapshot.kind === 'wifi'
+
+/** The version the board's own firmware reports (the ESP32's, or the CH32's command-set version). */
+export const firmwareVersionOf = (s: BoardSnapshot) => (s.kind === 'wifi' ? s.deviceVersion : s.firmwareVersion)
 const CMD_START = 0x01, CMD_DATA = 0x02, CMD_END = 0x03, CMD_INFO = 0x05
 const BLOCK = 256
 const RETRIES = 5
@@ -45,7 +63,9 @@ export async function checkFirmware(boardVersion: string | null, quiet = false) 
   if (otaBusy(state) || state.kind === 'checking') return
   if (!quiet) set({ kind: 'checking' })
   try {
-    const latest = await newest(ASSET, 'fw', (v) => `wififan-fw-${v}.bin`)
+    const latest = isWifi()
+      ? await newest(ESP_ASSET, 'esp', (v) => `glow-esp32-${v}.bin`)
+      : await newest(ASSET, 'fw', (v) => `wififan-fw-${v}.bin`)
     if (!latest) { if (!quiet) set({ kind: 'error', message: 'No firmware found in the GitHub releases' }); return }
     if (otaBusy(state)) return
     if (boardVersion != null && compareVersions(latest.version, boardVersion) <= 0) set({ kind: 'upToDate', latest: latest.version })
@@ -58,6 +78,11 @@ export async function checkFirmware(boardVersion: string | null, quiet = false) 
 /** null if the image can be flashed, otherwise why not. */
 export function validateImage(image: Uint8Array): string | null {
   if (image.length < 8) return 'Firmware file is empty'
+  if (isWifi()) {
+    if (image[0] !== 0xe9) return "That isn't an ESP32 app image (it should be the .ino.bin file, not the merged one)"
+    if (image.length > ESP_MAX) return `Firmware is ${image.length} bytes, the board holds ${ESP_MAX}`
+    return null
+  }
   if (image.length > APP_MAX) return `Firmware is ${image.length} bytes, the board holds ${APP_MAX}`
   const base = new DataView(image.buffer, image.byteOffset).getUint32(4, true)
   if (base !== APP_BASE) return `Firmware is built for address 0x${base.toString(16)}, not 0x${APP_BASE.toString(16)}`
@@ -81,10 +106,11 @@ class BoardError extends Error {}
 
 async function runUpdate(release: ReleaseAsset | null, file?: Uint8Array, expectVersion?: string): Promise<OtaState> {
   set({ kind: 'downloading' })
-  const image = file ?? await getBytes(release!.downloadUrl, APP_MAX + 1)
+  const image = file ?? await getBytes(release!.downloadUrl, (isWifi() ? ESP_MAX : APP_MAX) + 1)
   const problem = validateImage(image)
   if (problem) throw new Error(problem)
   const wanted = release?.version ?? expectVersion ?? null
+  if (isWifi()) return runEspUpdate(image, wanted)
 
   // 1. Into the bootloader (already there after an interrupted update: it answers INFO).
   set({ kind: 'bootloader' })
@@ -128,6 +154,45 @@ async function runUpdate(release: ReleaseAsset | null, file?: Uint8Array, expect
     }
   }
   throw new Error("the board didn't report its version after the update")
+}
+
+/** The ESP32 board: tells it the size, streams the image, waits for it to restart and come back. */
+async function runEspUpdate(image: Uint8Array, wanted: string | null): Promise<OtaState> {
+  const device = connection.get().device
+  set({ kind: 'preparing' })
+  const ready = await request(6000, async () => board.sendData(`ota=${image.length}`), (l) => l === 'OTA,READY' || l.startsWith('ERR,OTA'))
+  if (ready == null) throw new Error("the board didn't answer (is its firmware too old for updates? Update it once over USB)")
+  if (ready !== 'OTA,READY') throw new BoardError(`the board refused: ${ready.slice(8) || ready}`)
+
+  // listen for the end before the last byte is out
+  const finished = new Promise<string | null>((resolve) => {
+    let done = false
+    const end = (v: string | null) => { if (!done) { done = true; off(); window.clearTimeout(timer); resolve(v) } }
+    const off = board.onLine((l) => { if (l === 'OTA,DONE' || l.startsWith('ERR,OTA')) end(l) })
+    const timer = window.setTimeout(() => end(null), 60_000)
+    board.onceClosed(() => end('OTA,DONE'))   // it restarts the moment it is done: the link may drop first
+  })
+  for (let off = 0; off < image.length; off += ESP_BLOCK) {
+    set({ kind: 'uploading', sent: off, total: image.length })
+    await board.writeRaw(image.subarray(off, Math.min(off + ESP_BLOCK, image.length)))
+  }
+  set({ kind: 'verifying' })
+  const end = await finished
+  if (end == null) throw new Error("the board didn't confirm the update")
+  if (end !== 'OTA,DONE') throw new BoardError(`the board stopped the update: ${end.slice(8)}`)
+
+  // It restarts into the new firmware; connect again and ask what runs now.
+  if (!device) return { kind: 'done', version: wanted ?? '?' }
+  await sleep(3000)
+  let back = false
+  for (let i = 0; i < 8 && !back; i++) back = await connection.connect({ ...device })
+  if (!back) throw new Error("the board didn't come back after the update. Give it a moment, then connect to it again")
+  for (let i = 0; i < 20 && !board.snapshot.deviceVersion; i++) await sleep(250)
+  const v = board.snapshot.deviceVersion
+  if (!v) throw new Error("the board didn't report its version after the update")
+  if (wanted && v !== wanted) return { kind: 'error', message: `The board reports version ${v} after the update, expected ${wanted}` }
+  toast(`Board updated to v${v}`)
+  return { kind: 'done', version: v }
 }
 
 /** Sends a frame; garbled frames and missing replies are retried, other ERR lines are fatal. */

@@ -13,7 +13,7 @@ import { toast } from '../../ui/toast'
 
 const MAX_PENDING_BYTES = 1024
 /** Replies used by the app itself (version check, firmware update): no toast. */
-const PROTOCOL_PREFIXES = ['VER,', 'OTA', 'BOOT,', 'OK,', 'ERR,', 'DONE', 'INFO,', 'WIFI,']
+const PROTOCOL_PREFIXES = ['VER,', 'OTA', 'BOOT,', 'OK,', 'ERR,', 'DONE', 'INFO,', 'WIFI,', 'SETTINGS,']
 
 export type LinkState = 'disconnected' | 'connected'
 
@@ -21,8 +21,12 @@ export interface BoardSnapshot {
   state: LinkState
   deviceId: string | null
   deviceName: string | null
-  /** From the board's "VER,<x>" reply; null until it answered. */
+  /** From the board's "VER,<x>" reply (the command set it speaks); null until it answered. */
   firmwareVersion: string | null
+  /** Over Bluetooth (the CH32 board) or Wi-Fi (the ESP32 board). */
+  kind: 'ble' | 'wifi'
+  /** Wi-Fi board: its own firmware version, from "INFO,<id>,<name>,<version>,…"; null until it answered. */
+  deviceVersion: string | null
 }
 
 interface WriteOp {
@@ -33,7 +37,7 @@ interface WriteOp {
 }
 
 class Board {
-  private snap: BoardSnapshot = { state: 'disconnected', deviceId: null, deviceName: null, firmwareVersion: null }
+  private snap: BoardSnapshot = { state: 'disconnected', deviceId: null, deviceName: null, firmwareVersion: null, kind: 'ble', deviceVersion: null }
   private listeners = new Set<() => void>()
   private lineListeners = new Set<(line: string) => void>()
   private link: BleLink | null = null
@@ -66,14 +70,14 @@ class Board {
   }
 
   /** Takes over an open link (the device type's session start). */
-  attach(link: BleLink, demo: boolean) {
+  attach(link: BleLink, demo: boolean, kind: 'ble' | 'wifi' = 'ble') {
     this.detach()
     this.link = link
     this.demo = demo
     const offData = link.onData((d) => this.handleIncoming(d))
     const offClose = link.onClose(() => this.detach())
     this.unlink = () => { offData(); offClose() }
-    this.set({ state: 'connected', deviceId: link.id, deviceName: link.name, firmwareVersion: null })
+    this.set({ state: 'connected', deviceId: link.id, deviceName: link.name, firmwareVersion: null, kind, deviceVersion: null })
     this.sendData('ver')     // which firmware the board runs
   }
 
@@ -84,12 +88,19 @@ class Board {
     this.demo = false
     this.rx = []
     this.clearQueue()
-    if (this.snap.state !== 'disconnected') this.set({ state: 'disconnected', firmwareVersion: null })
+    if (this.snap.state !== 'disconnected') this.set({ state: 'disconnected', firmwareVersion: null, deviceVersion: null })
   }
 
   /** Send a command; the board's line delimiter (\) is appended. */
   sendData(text: string) {
     this.enqueue(new TextEncoder().encode(text + '\\'), 0, null)
+  }
+
+  /** Runs `fn` once, when the link drops (or at once when there is none). */
+  onceClosed(fn: () => void) {
+    const link = this.link
+    if (!link) { fn(); return }
+    const off = link.onClose(() => { off(); fn() })
   }
 
   /** The next line from the board that starts with `prefix`; rejects after `ms`. */
@@ -172,6 +183,7 @@ class Board {
       found = true
       if (!line) continue
       if (line.startsWith('VER,')) this.set({ firmwareVersion: line.slice(4) })
+      else if (line.startsWith('INFO,')) this.set({ deviceVersion: line.split(',')[3] ?? null })
       this.lineListeners.forEach((l) => l(line))
       if (!this.quiet && !PROTOCOL_PREFIXES.some((p) => line.startsWith(p))) toast(`Received: ${line}`)
     }

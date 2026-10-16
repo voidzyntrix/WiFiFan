@@ -25,14 +25,14 @@ import { sound } from '../../ui/sound'
 import { toast } from '../../ui/toast'
 import type { ControlScreenProps } from '../types'
 import { displayName } from '../connection'
+import { useBoard } from './board'
 import { FirmwareDialog } from './Firmware'
-import { WIFI_TYPE_ID } from './pair'
 import { LedPreview, LedPreviewPair } from './LedPreview'
 import { KELVIN_PRESETS, LED_CHASE, LED_EFFECTS, LED_PRESETS, MODE, modeLabel } from './modes'
 import { previewOf } from './preview'
 import { sceneSwatch, type Scene } from './scenes'
 import { hasTune, TuneTab, tuneLabel } from './Tune'
-import { checkFirmware, useOta } from './ota'
+import { checkFirmware, firmwareVersionOf, useOta } from './ota'
 import { type LedController, useLed } from './useLed'
 
 const ANIMATED = [MODE.RAINBOW, MODE.CANDLE, MODE.BREATHE, MODE.OCEAN, MODE.PARTY, MODE.AURORA, MODE.CHASE]
@@ -66,9 +66,8 @@ export function ControlScreen(props: ControlScreenProps) {
   const ota = useOta()
 
   // New board firmware: looked for on connect (quietly); a dot on Firmware says there is one.
-  // (The Wi-Fi board's firmware is flashed from the computer, not through Glow.)
-  const updatable = props.device.type !== WIFI_TYPE_ID
-  useEffect(() => { if (updatable && c.connected && c.fwVersion && !c.isDemo) void checkFirmware(c.fwVersion, true) }, [c.connected, c.fwVersion])
+  const fw = firmwareVersionOf(useBoard())
+  useEffect(() => { if (c.connected && fw && !c.isDemo) void checkFirmware(fw, true) }, [c.connected, fw])
 
   // A sync that starts shows its tab; a mode without options takes the tune tab away.
   const isSync = s.mode === MODE.MUSIC || s.mode === MODE.VISUALIZER || s.mode === MODE.SCREEN
@@ -143,7 +142,7 @@ export function ControlScreen(props: ControlScreenProps) {
           c={c}
           firmwareDot={ota.kind === 'available'}
           onDisconnect={props.onDisconnect}
-          onFirmware={updatable ? () => setDialog({ kind: 'firmware' }) : undefined}
+          onFirmware={() => setDialog({ kind: 'firmware' })}
           onReset={props.onReset}
         />
 
