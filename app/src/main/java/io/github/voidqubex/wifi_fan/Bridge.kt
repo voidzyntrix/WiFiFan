@@ -19,13 +19,17 @@ import kotlin.concurrent.thread
  */
 class Bridge(private val activity: MainActivity, private val web: WebView) {
     private val ble = Ble(activity, ::emit)
+    private val wifi = Wifi(activity, ::emit)
 
     fun emit(name: String, data: JSONObject) {
         val js = "window.__glowEmit && window.__glowEmit(${JSONObject.quote(name)}, ${JSONObject.quote(data.toString())})"
         web.post { web.evaluateJavascript(js, null) }
     }
 
-    fun close() = ble.disconnect()
+    fun close() {
+        ble.disconnect()
+        wifi.shutdown()
+    }
 
     @JavascriptInterface
     fun info(): String {
@@ -46,6 +50,15 @@ class Bridge(private val activity: MainActivity, private val web: WebView) {
     @JavascriptInterface fun bleConnect(id: String, profiles: String) = ble.connect(id, profiles)
     @JavascriptInterface fun bleWrite(request: String, base64: String) = ble.write(request, Base64.decode(base64, Base64.NO_WRAP))
     @JavascriptInterface fun bleDisconnect() = ble.disconnect()
+
+    // --- Wi-Fi boards -----------------------------------------------------------------------------
+
+    @JavascriptInterface fun wifiDiscover(on: Boolean) = wifi.discover(on)
+    @JavascriptInterface fun tcpConnect(request: String, host: String, port: Int) = wifi.connect(request, host, port)
+    @JavascriptInterface fun tcpWrite(request: String, socket: String, base64: String) = wifi.write(request, socket, Base64.decode(base64, Base64.NO_WRAP))
+    @JavascriptInterface fun tcpClose(socket: String) = wifi.close(socket)
+    @JavascriptInterface fun wifiJoinSetup(request: String, prefix: String, password: String) = wifi.joinSetup(request, prefix, password)
+    @JavascriptInterface fun wifiLeaveSetup() = wifi.leaveSetup()
 
     // --- Network (GitHub releases; the WebView would hit CORS) ----------------------------------
 

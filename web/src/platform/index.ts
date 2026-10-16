@@ -4,13 +4,15 @@
 
 import { androidPlatform } from './android'
 import type { Platform } from './types'
+import { socketWifi, type SocketBridge } from './wifi'
 import { webBluetooth, type DevicePicker } from './webBluetooth'
 
-export type { BleLink, BleProfile, BtDevice, Platform } from './types'
+export type { BleLink, BleProfile, BtDevice, Platform, WifiDevice } from './types'
 
 /** What desktop/electron/preload.cjs exposes. */
 interface ElectronGlow {
   bluetooth: DevicePicker
+  wifi: SocketBridge
   capture: { displays(): Promise<{ index: number; label: string }[]>; setDisplay(index: number): void }
   power: { keepAwake(on: boolean): void }
   net: { text(url: string): Promise<string>; bytes(url: string, limit?: number): Promise<Uint8Array>; exists(url: string): Promise<boolean> }
@@ -35,6 +37,7 @@ function desktopPlatform(g: ElectronGlow): Platform {
     kind: 'desktop',
     name: 'Glow for Windows',
     ble: webBluetooth(g.bluetooth),
+    wifi: socketWifi(g.wifi),
     net: { text: g.net.text, bytes: (url, limit) => g.net.bytes(url, limit), exists: g.net.exists },
     openExternal: g.openExternal,
     accentColor: () => g.theme.accent(),
@@ -70,6 +73,7 @@ function browserPlatform(): Platform {
     kind: 'browser',
     name: 'Glow',
     ble: webBluetooth(null),
+    wifi: null,
     net: {
       text: async (url) => (await fetchOk(url)).text(),
       bytes: async (url, limit) => {

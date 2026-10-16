@@ -40,6 +40,34 @@ export interface BleCentral {
   connect(id: string, profiles: BleProfile[]): Promise<{ link: BleLink; profile: BleProfile }>
 }
 
+/** A Wi-Fi board that answered the discovery broadcast. */
+export interface WifiDevice {
+  /** Its MAC, lower-case hex. */
+  id: string
+  name: string | null
+  host: string
+  version: string | null
+  /** 'setup': waiting to be paired; 'joining': has a network but isn't on it yet; 'ready'. */
+  state: string
+}
+
+/**
+ * Wi-Fi boards on the local network: found by a UDP broadcast, driven over TCP. The link is the
+ * same byte pipe a Bluetooth link is, so a device type's protocol runs on either.
+ */
+export interface WifiTransport {
+  /** Broadcasts for boards until stopped; `onDevices` gets the whole list each time it changes. */
+  discover(onDevices: (devices: WifiDevice[]) => void): () => void
+  /** Opens a TCP link (through the setup network while one is joined, see joinSetup). */
+  connect(host: string, port: number): Promise<BleLink>
+  /**
+   * Android: asks the system to join an unpaired board's own network ("Glow-…", by name prefix)
+   * for this app only. Resolves with its name once joined; `leave` drops it. Absent where the user
+   * joins that network themselves (Windows).
+   */
+  joinSetup?(prefix: string, password: string): Promise<{ ssid: string | null; leave(): void }>
+}
+
 export interface UpdateChannel {
   /** Matches the release file name; the first group is the version. */
   asset: RegExp
@@ -58,6 +86,8 @@ export interface Platform {
   /** For "Glow for Windows" style labels. */
   name: string
   ble: BleCentral | null
+  /** Wi-Fi boards on the local network (not in a plain browser: it can't open sockets). */
+  wifi: WifiTransport | null
   net: {
     text(url: string): Promise<string>
     bytes(url: string, limit: number): Promise<Uint8Array>

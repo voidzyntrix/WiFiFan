@@ -1,7 +1,8 @@
 // The WiFiFan LED board's serial protocol, on whatever link connects it (devices/connection.ts
 // opens it; the link moves bytes, this speaks the board's language).
 //
-// The board's module is a BLE serial bridge: service FFE0, write FFE1, notify FFE2. Commands are
+// The board's module is a BLE serial bridge: service FFE0, write FFE1, notify FFE2 (the ESP32 board
+// takes the same commands over a TCP link instead). Commands are
 // text ending in `\`; replies come back the same way. Writes go through one queue so commands sent
 // in quick succession (dragging a slider) are never dropped, and a stream of colours can skip a
 // frame instead of queueing stale ones (`backlogged`).
@@ -12,7 +13,7 @@ import { toast } from '../../ui/toast'
 
 const MAX_PENDING_BYTES = 1024
 /** Replies used by the app itself (version check, firmware update): no toast. */
-const PROTOCOL_PREFIXES = ['VER,', 'OTA', 'BOOT,', 'OK,', 'ERR,', 'DONE']
+const PROTOCOL_PREFIXES = ['VER,', 'OTA', 'BOOT,', 'OK,', 'ERR,', 'DONE', 'INFO,', 'WIFI,']
 
 export type LinkState = 'disconnected' | 'connected'
 
@@ -91,6 +92,17 @@ class Board {
     this.enqueue(new TextEncoder().encode(text + '\\'), 0, null)
   }
 
+  /** The next line from the board that starts with `prefix`; rejects after `ms`. */
+  waitFor(prefix: string, ms: number): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const off = this.onLine((line) => {
+        if (!line.startsWith(prefix)) return
+        off(); window.clearTimeout(timer); resolve(line)
+      })
+      const timer = window.setTimeout(() => { off(); reject(new Error("The board didn't answer")) }, ms)
+    })
+  }
+
   /** A command already waits behind the one being written (a colour stream skips a frame then). */
   get backlogged() { return this.queue.length > 0 }
 
@@ -146,7 +158,7 @@ class Board {
   private clearQueue() {
     const q = this.queue
     this.queue = []
-    q.forEach((op) => this.fail(op, new Error('Bluetooth link closed')))
+    q.forEach((op) => this.fail(op, new Error('Link closed')))
   }
 
   private handleIncoming(bytes: Uint8Array) {

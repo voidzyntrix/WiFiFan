@@ -1,13 +1,14 @@
 // The one device Glow is connected to, and the devices it knows. Generic: it scans with the profiles
-// of every registered type, connects through the platform's transport, hands the open link to the
-// device's type (registry.ts) and remembers the device. It never looks inside a session.
+// of every registered type (and looks for Wi-Fi boards on the network), connects through the
+// platform's transport for the device's type, hands the open link to the type (registry.ts) and
+// remembers the device. It never looks inside a session.
 
 import { useSyncExternalStore } from 'react'
-import { platform, type BtDevice } from '../platform'
+import { platform, type BleLink, type BtDevice, type WifiDevice } from '../platform'
 import { settings } from '../settings/store'
 import { toast } from '../ui/toast'
-import { DEVICE_TYPES, deviceType, guessType } from './registry'
-import type { DeviceSession, SavedDevice } from './types'
+import { DEVICE_TYPES, deviceType, guessType, wifiType } from './registry'
+import type { DeviceSession, DeviceType, SavedDevice } from './types'
 
 export type Phase = 'idle' | 'scanning' | 'connecting' | 'connected'
 
@@ -15,13 +16,15 @@ export interface ConnectionState {
   phase: Phase
   /** Devices heard by the open scan. */
   nearby: BtDevice[]
+  /** Wi-Fi boards that answered the open scan. */
+  nearbyWifi: WifiDevice[]
   /** The device being connected or connected; stays set when the link drops, for "Reconnecting". */
   device: SavedDevice | null
   session: DeviceSession | null
   demo: boolean
 }
 
-let state: ConnectionState = { phase: 'idle', nearby: [], device: null, session: null, demo: false }
+let state: ConnectionState = { phase: 'idle', nearby: [], nearbyWifi: [], device: null, session: null, demo: false }
 const listeners = new Set<() => void>()
 function set(patch: Partial<ConnectionState>) {
   state = { ...state, ...patch }
@@ -29,9 +32,50 @@ function set(patch: Partial<ConnectionState>) {
 }
 
 let stopScan: (() => void) | null = null
+let stopWifiScan: (() => void) | null = null
 let closeLink: (() => void) | null = null
 
 const allProfiles = () => DEVICE_TYPES.flatMap((t) => t.ble)
+
+/** A Wi-Fi board's saved id. */
+export const wifiId = (mac: string) => `wifi:${mac}`
+
+/** Looks for one Wi-Fi board by its MAC; null when it doesn't answer within `ms`. */
+export function findWifi(mac: string, ms: number, ready = true): Promise<WifiDevice | null> {
+  const wifi = platform.wifi
+  if (!wifi) return Promise.resolve(null)
+  return new Promise((resolve) => {
+    let done = false
+    let stop: (() => void) | null = null
+    const finish = (d: WifiDevice | null) => {
+      if (done) return
+      done = true
+      window.clearTimeout(timer)
+      queueMicrotask(() => stop?.())
+      resolve(d)
+    }
+    const timer = window.setTimeout(() => finish(null), ms)
+    stop = wifi.discover((list) => {
+      const d = list.find((x) => x.id === mac && (!ready || x.state !== 'setup'))
+      if (d) finish(d)
+    })
+  })
+}
+
+/** Opens the transport's link to a device of the given type. */
+async function openLink(type: DeviceType, device: SavedDevice): Promise<BleLink> {
+  if (type.transport === 'wifi') {
+    if (!platform.wifi) throw new Error("Wi-Fi devices can't be reached here")
+    // its address may have changed since: ask the network first, fall back to the last one
+    const found = await findWifi(device.id.replace(/^wifi:/, ''), device.host ? 2500 : 6000)
+    const host = found?.host ?? device.host
+    if (!host) throw new Error('The board was not found on this network. Is it powered?')
+    device.host = host
+    return platform.wifi.connect(host, type.port ?? 4210)
+  }
+  if (!platform.ble) throw new Error("Bluetooth isn't available here")
+  return (await platform.ble.connect(device.id, type.ble)).link
+}
 
 /** Saved devices, newest first as added. */
 export const savedDevices = () => settings.get().devices
@@ -47,18 +91,30 @@ export const connection = {
   get: () => state,
   subscribe(l: () => void) { listeners.add(l); return () => { listeners.delete(l) } },
 
-  /** Lists nearby devices (state.nearby) until a device is picked or the scan is cancelled. */
+  /** Lists nearby devices (state.nearby, state.nearbyWifi) until one is picked or the scan is cancelled. */
   scan() {
-    if (!platform.ble) { toast("Bluetooth isn't available here."); return }
+    if (!platform.ble && !platform.wifi) { toast("Bluetooth isn't available here."); return }
     this.cancelScan()
-    set({ phase: 'scanning', nearby: [] })
-    stopScan = platform.ble.scan((nearby) => set({ nearby }), allProfiles())
+    set({ phase: 'scanning', nearby: [], nearbyWifi: [] })
+    if (platform.ble) stopScan = platform.ble.scan((nearby) => set({ nearby }), allProfiles())
+    if (platform.wifi) stopWifiScan = platform.wifi.discover((nearbyWifi) => set({ nearbyWifi }))
   },
 
   cancelScan() {
     stopScan?.()
     stopScan = null
-    if (state.phase === 'scanning') set({ phase: 'idle', nearby: [] })
+    stopWifiScan?.()
+    stopWifiScan = null
+    if (state.phase === 'scanning') set({ phase: 'idle', nearby: [], nearbyWifi: [] })
+  },
+
+  /** Connects to a Wi-Fi board from the scan list (one already paired to this network). */
+  async pickWifi(found: WifiDevice) {
+    const type = wifiType()
+    if (!type) return
+    const id = wifiId(found.id)
+    const saved = savedDevices().find((d) => d.id === id)
+    await this.connect({ ...(saved ?? { id, type: type.id, name: null }), advertised: found.name, host: found.host })
   },
 
   /** Connects to a device from the scan list (its type is guessed from what it advertises). */
@@ -71,15 +127,19 @@ export const connection = {
   /** Connects to a saved (or just picked) device. */
   async connect(device: SavedDevice): Promise<boolean> {
     const type = deviceType(device.type)
-    if (!type || !platform.ble) { toast("This device can't be reached here."); return false }
+    if (!type || !(type.transport === 'wifi' ? platform.wifi : platform.ble)) { toast("This device can't be reached here."); return false }
     if (state.phase === 'connected' || state.device) this.disconnect()
     // a pick from an open scan finishes that scan (the transport needs it to pick the device)
-    const fromScan = !!stopScan
-    stopScan = null
-    set({ phase: 'connecting', device, nearby: fromScan ? state.nearby : [] })
+    const fromScan = !!stopScan && type.transport === 'ble'
+    if (fromScan) stopScan = null
+    stopWifiScan?.()
+    stopWifiScan = null
+    if (!fromScan) { stopScan?.(); stopScan = null }
+    set({ phase: 'connecting', device, nearby: fromScan ? state.nearby : [], nearbyWifi: [] })
     try {
-      const { link } = await platform.ble.connect(device.id, type.ble)
-      const known = { ...device, advertised: link.name ?? device.advertised }
+      device = { ...device }
+      const link = await openLink(type, device)
+      const known = { ...device, advertised: (type.transport === 'ble' ? link.name : null) ?? device.advertised }
       const session = type.open(link, known)
       closeLink = () => link.close()
       link.onClose(() => {
@@ -93,7 +153,7 @@ export const connection = {
       set({ phase: 'connected', device: known, session, nearby: [], demo: false })
       return true
     } catch (e) {
-      set({ phase: 'idle', device: null, nearby: [] })
+      set({ phase: 'idle', device: null, nearby: [], nearbyWifi: [] })
       toast(`Couldn't connect: ${(e as Error).message}`)
       return false
     }
@@ -123,6 +183,27 @@ export const connection = {
   rename(id: string, name: string) {
     settings.set({ devices: savedDevices().map((d) => (d.id === id ? { ...d, name: name.trim() || null } : d)) })
     if (state.device?.id === id) set({ device: { ...state.device, name: name.trim() || null } })
+  },
+
+  /**
+   * Resets a device (clears its Wi-Fi; it goes back to pairing) and forgets it. Connects first when
+   * it isn't the connected one. Resolves false when that didn't work.
+   */
+  async reset(device: SavedDevice): Promise<boolean> {
+    if (state.device?.id !== device.id || state.phase !== 'connected') {
+      if (!(await this.connect(device))) return false
+    }
+    const session = state.session
+    if (!session?.reset) { toast("This device can't be reset from Glow."); return false }
+    try {
+      await session.reset()
+    } catch (e) {
+      toast(`Couldn't reset: ${(e as Error).message}`)
+      return false
+    }
+    this.forget(device.id)
+    toast(`${displayName(device)} was reset. Set it up again to use it.`)
+    return true
   },
 
   forget(id: string) {

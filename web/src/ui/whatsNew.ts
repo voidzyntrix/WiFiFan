@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.2.0',
+    notes: [
+      'Wi-Fi LED boards: Glow now controls an ESP32 LED board over Wi-Fi. Add a device > Set up a new Wi-Fi LED board, enter your Wi-Fi once, and the board remembers it.',
+      'Reset device (on the board screen and in its long-press menu) makes the board forget its Wi-Fi so it can be set up again.',
+    ],
+  },
+  {
     version: '2.1.3',
     notes: [
       'Settings cards stay where they are: two fixed columns, so opening or closing one never moves the others.',

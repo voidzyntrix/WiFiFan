@@ -1,11 +1,15 @@
 // The WiFiFan LED board as a Glow device type: a BLE serial module (FFE0 / FFE1 / FFE2) in front of
 // the board's firmware, its own control screen (every option of every mode lives on it).
+// The ESP32 LED board is the same board on Wi-Fi: the same commands over TCP, paired with
+// WifiSetup, and it can be reset (forgets its Wi-Fi).
 
 import { BulbIcon } from '../../ui/components/Icons'
 import type { DeviceType } from '../types'
 import { board, demoLink } from './board'
 import { ControlScreen } from './ControlScreen'
+import { WIFI_PORT, WIFI_TYPE_ID } from './pair'
 import { stopSync } from './sync'
+import { WifiSetup } from './WifiSetup'
 
 export const glowBoard: DeviceType = {
   id: 'glow-led',
@@ -26,4 +30,31 @@ export const glowBoard: DeviceType = {
   },
   ControlScreen,
   demoLink,
+}
+
+export const glowWifiBoard: DeviceType = {
+  id: WIFI_TYPE_ID,
+  label: 'Wi-Fi LED board',
+  Icon: BulbIcon,
+  transport: 'wifi',
+  ble: [],
+  port: WIFI_PORT,
+  match: () => 0,
+  open(link) {
+    board.attach(link, false)
+    return {
+      close() {
+        stopSync()
+        board.detach()
+      },
+      async reset() {
+        stopSync()
+        const done = board.waitFor('OK,reset', 4000)
+        board.sendData('reset')
+        await done
+      },
+    }
+  },
+  ControlScreen,
+  Setup: WifiSetup,
 }

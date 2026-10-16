@@ -3,7 +3,7 @@
 // Nothing scrolls: tiles and nearby devices page (Pager) when there are more than fit.
 
 import { connection, displayName, useConnection } from '../../devices/connection'
-import { deviceType, guessType } from '../../devices/registry'
+import { DEVICE_TYPES, deviceType, guessType } from '../../devices/registry'
 import type { SavedDevice } from '../../devices/types'
 import { platform } from '../../platform'
 import { useSettings } from '../../settings/store'
@@ -13,7 +13,11 @@ import { Pager } from '../components/Pager'
 import { Swap, Txt } from '../motion'
 import { sound } from '../sound'
 
-export function DevicesScreen(props: { onSettings: () => void; onOpen: (d: SavedDevice) => void; onMenu: (d: SavedDevice) => void }) {
+export function DevicesScreen(props: {
+  onSettings: () => void; onOpen: (d: SavedDevice) => void; onMenu: (d: SavedDevice) => void
+  /** Opens a type's pairing dialog ("Set up a new …"). */
+  onSetup: (typeId: string) => void
+}) {
   const { devices } = useSettings()
   const conn = useConnection()
   const material = useDesign() === 'MATERIAL'
@@ -29,7 +33,7 @@ export function DevicesScreen(props: { onSettings: () => void; onOpen: (d: Saved
         <CircleIconButton label="Settings" onClick={props.onSettings}><SettingsIcon /></CircleIconButton>
       </header>
 
-      {!platform.ble && (
+      {!platform.ble && !platform.wifi && (
         <div className="panel warn">
           Bluetooth isn't available here. Use Glow for Windows or Glow for Android (or Chrome with Web Bluetooth).
         </div>
@@ -37,7 +41,7 @@ export function DevicesScreen(props: { onSettings: () => void; onOpen: (d: Saved
 
       <Swap k={picking ? 'pick' : devices.length > 0 ? 'devices' : 'empty'} className="fill">
         {picking ? (
-          <NearbyList />
+          <NearbyList onSetup={props.onSetup} />
         ) : devices.length > 0 ? (
           <div className="device-area">
             <div className="grid-head">
@@ -99,31 +103,45 @@ export function DevicesScreen(props: { onSettings: () => void; onOpen: (d: Saved
   )
 }
 
-/** Devices heard while scanning; picking one connects to it. */
-function NearbyList() {
+type Nearby = { id: string; name: string | null; detail: string; pick(): void }
+
+/** Devices heard while scanning (Bluetooth, and Wi-Fi boards on this network); picking one connects to it. */
+function NearbyList({ onSetup }: { onSetup: (typeId: string) => void }) {
   const conn = useConnection()
+  const setups = DEVICE_TYPES.filter((t) => t.Setup && (t.transport !== 'wifi' || platform.wifi))
+  const items: Nearby[] = [
+    ...conn.nearbyWifi.map((d): Nearby => ({
+      id: 'wifi:' + d.id, name: d.name,
+      detail: d.state === 'setup' ? 'Wi-Fi · waiting to be set up' : `Wi-Fi · ${d.host}`,
+      pick: () => {
+        const t = DEVICE_TYPES.find((x) => x.transport === 'wifi')
+        if (d.state === 'setup') { if (t) onSetup(t.id) } else void connection.pickWifi(d)
+      },
+    })),
+    ...conn.nearby.map((d): Nearby => ({ id: d.id, name: d.name, detail: `${guessType(d).label} · ${d.id}`, pick: () => void connection.pick(d) })),
+  ]
   return (
     <div className="panel nearby">
       <div className="panel-head">
         <span>{conn.phase === 'connecting' ? 'Connecting…' : 'Nearby devices'}</span>
         <span className="scan-dots"><span /><span /><span /></span>
       </div>
-      <Swap k={conn.nearby.length === 0 ? 'empty' : 'list'} className="fill">
-        {conn.nearby.length === 0 ? (
+      <Swap k={items.length === 0 ? 'empty' : 'list'} className="fill">
+        {items.length === 0 ? (
           <div className="nearby-empty">
             <div>Looking for devices…</div>
-            <p className="hint">Is the device powered and close by? Is Bluetooth on?</p>
+            <p className="hint">Is the device powered and close by? Is Bluetooth on?{platform.wifi ? ' Wi-Fi boards show up once they are set up.' : ''}</p>
           </div>
         ) : (
           <Pager
-            items={conn.nearby}
+            items={items}
             itemWidth={220}
             itemHeight={58}
             gap={6}
             render={(d) => (
-              <button key={d.id} className="nearby-row" disabled={conn.phase === 'connecting'} onClick={() => { sound.tap(); void connection.pick(d) }}>
+              <button key={d.id} className="nearby-row" disabled={conn.phase === 'connecting'} onClick={() => { sound.tap(); d.pick() }}>
                 <span className="nearby-name">{d.name ?? 'Unknown device'}</span>
-                <span className="nearby-id">{guessType(d).label} · {d.id}</span>
+                <span className="nearby-id">{d.detail}</span>
               </button>
             )}
           />
@@ -131,6 +149,7 @@ function NearbyList() {
       </Swap>
       <div className="dialog-buttons">
         <PillButton text="Cancel" onClick={() => connection.cancelScan()} />
+        {setups.map((t) => <PillButton key={t.id} text={`Set up a new ${t.label}`} highlighted onClick={() => onSetup(t.id)} />)}
       </div>
     </div>
   )

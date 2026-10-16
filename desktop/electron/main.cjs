@@ -12,6 +12,7 @@
 //    the keyguard).
 //  - Tray: while Music, Visualizer, Screen sync or Auto light runs, closing the window keeps Glow
 //    running in the tray (the stand-in for the foreground services and their notifications).
+//  - Wi-Fi boards: UDP discovery and TCP links (wifi.cjs).
 //  - Network: GitHub release files are fetched here, where browser CORS rules don't apply.
 //  - Updates: the UI's "Update" downloads the new Glow.exe, swaps it in and restarts (updater.cjs).
 
@@ -21,6 +22,7 @@ const {
 } = require('electron')
 const path = require('node:path')
 const updater = require('./updater.cjs')
+const { setupWifi } = require('./wifi.cjs')
 
 const DEV_URL = process.env.GLOW_DEV_URL   // set by scripts/dev.mjs
 let win = null
@@ -242,6 +244,7 @@ app.whenReady().then(() => {
   setupCapture()
   setupPower()
   setupNet()
+  setupWifi(() => win)
   createWindow()
 })
 

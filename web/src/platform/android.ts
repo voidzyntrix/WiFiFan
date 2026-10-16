@@ -2,7 +2,8 @@
 // (calls into Kotlin) and calls `window.__glowEmit(name, json)` with events back (results of those
 // calls, Bluetooth data, download progress). This turns that into a Platform.
 
-import type { BleCentral, BleLink, BleProfile, BtDevice, Platform } from './types'
+import type { BleCentral, BleLink, BleProfile, BtDevice, Platform, WifiDevice } from './types'
+import { socketWifi, type SocketBridge } from './wifi'
 
 /** What MainActivity's JavascriptInterface offers. Everything is strings and numbers. */
 export interface AndroidBridge {
@@ -13,6 +14,14 @@ export interface AndroidBridge {
   bleConnect(id: string, profiles: string): void
   bleWrite(request: string, base64: string): void
   bleDisconnect(): void
+  wifiDiscover(on: boolean): void
+  /** Answers with a "tcp" event: { request, ok, socket | error } */
+  tcpConnect(request: string, host: string, port: number): void
+  tcpWrite(request: string, socket: string, base64: string): void
+  tcpClose(socket: string): void
+  /** Answers with a "wifiSetup" event: { request, ok, ssid | error } */
+  wifiJoinSetup(request: string, prefix: string, password: string): void
+  wifiLeaveSetup(): void
   /** kind: "text" | "bytes" | "exists" */
   net(request: string, kind: string, url: string, limit: number): void
   openExternal(url: string): void
@@ -125,6 +134,20 @@ function androidBle(bridge: AndroidBridge): BleCentral {
   }
 }
 
+function androidSockets(bridge: AndroidBridge): SocketBridge {
+  return {
+    discover: (on) => bridge.wifiDiscover(on),
+    onFound: (fn) => on('wifiFound', (d: WifiDevice) => fn(d)),
+    connect: (host, port) => ask<{ socket: string }>('tcp', (r) => bridge.tcpConnect(r, host, port)).then((d) => d.socket),
+    write: (socket, data) => ask<void>('tcpWritten', (r) => bridge.tcpWrite(r, socket, toBase64(data))).then(() => {}),
+    close: (socket) => bridge.tcpClose(socket),
+    onData: (fn) => on('tcpData', (d) => fn(d.socket, fromBase64(d.base64))),
+    onClosed: (fn) => on('tcpClosed', (d) => fn(d.socket)),
+    joinSetup: (prefix, password) => ask<{ ssid: string | null }>('wifiSetup', (r) => bridge.wifiJoinSetup(r, prefix, password)),
+    leaveSetup: () => bridge.wifiLeaveSetup(),
+  }
+}
+
 export function androidPlatform(bridge: AndroidBridge): Platform {
   window.__glowEmit = (name, json) => {
     const data = json ? JSON.parse(json) : null
@@ -141,6 +164,7 @@ export function androidPlatform(bridge: AndroidBridge): Platform {
     kind: 'android',
     name: 'Glow for Android',
     ble: androidBle(bridge),
+    wifi: socketWifi(androidSockets(bridge)),
     net: {
       text: (url) => ask<{ text: string }>('net', (r) => bridge.net(r, 'text', url, 0)).then((d) => d.text),
       bytes: (url, limit) => ask<{ base64: string }>('net', (r) => bridge.net(r, 'bytes', url, limit)).then((d) => fromBase64(d.base64)),

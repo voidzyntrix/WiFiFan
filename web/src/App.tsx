@@ -4,7 +4,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { connection, displayName, useConnection } from './devices/connection'
-import { deviceType } from './devices/registry'
+import { DEVICE_TYPES, deviceType } from './devices/registry'
 import type { SavedDevice } from './devices/types'
 import { APP_VERSION, platform } from './platform'
 import { compareVersions } from './lib/color'
@@ -24,6 +24,8 @@ import { Swap, pulse, useExit, useFlip, useLeavingList } from './ui/motion'
 type DialogState =
   | { kind: 'rename'; device: SavedDevice }
   | { kind: 'deviceMenu'; device: SavedDevice }
+  | { kind: 'setup'; typeId: string }
+  | { kind: 'reset'; device: SavedDevice }
   | { kind: 'whatsNew' }
   | { kind: 'update' }
   | null
@@ -121,7 +123,7 @@ export function App() {
   // Android's back button: close a dialog, leave Settings, leave the control screen, stop a scan.
   const back = useRef<() => boolean>(() => false)
   back.current = () => {
-    if (dialog) { setDialog(null); return true }
+    if (dialog) { if (dialog.kind !== 'reset' || !resetting) setDialog(null); return true }
     if (showSettings) { setShowSettings(false); return true }
     if (connected && deviceOpen) { setDeviceOpen(false); return true }
     if (conn.phase === 'scanning') { connection.cancelScan(); return true }
@@ -139,6 +141,13 @@ export function App() {
 
   const type = conn.device ? deviceType(conn.device.type) : undefined
   const Control = type?.ControlScreen
+  const [resetting, setResetting] = useState(false)
+  const doReset = async (device: SavedDevice) => {
+    setResetting(true)
+    const ok = await connection.reset(device)
+    setResetting(false)
+    if (ok) setDialog(null)
+  }
 
   return (
     <>
@@ -166,6 +175,7 @@ export function App() {
             onSettings={() => setShowSettings(true)}
             onDisconnect={() => connection.disconnect()}
             onRename={() => conn.device && setDialog({ kind: 'rename', device: conn.device })}
+            onReset={conn.session?.reset ? () => conn.device && setDialog({ kind: 'reset', device: conn.device }) : undefined}
           />
         ) : (
           <DevicesScreen
@@ -175,6 +185,7 @@ export function App() {
               else void connection.connect(d)
             }}
             onMenu={(d) => setDialog({ kind: 'deviceMenu', device: d })}
+            onSetup={(typeId) => { connection.cancelScan(); setDialog({ kind: 'setup', typeId }) }}
           />
         )}
       </main>
@@ -198,10 +209,39 @@ export function App() {
               subtitle={`${deviceType(d.device.type)?.label ?? 'Device'} · ${d.device.id}`}
               actions={[
                 ['Rename', () => setDialog({ kind: 'rename', device: d.device })],
+                ...(deviceType(d.device.type)?.transport === 'wifi'
+                  ? [['Reset device', () => setDialog({ kind: 'reset', device: d.device })] as [string, () => void]]
+                  : []),
                 ['Forget', () => { connection.forget(d.device.id); setDialog(null) }],
               ]}
               onDismiss={() => setDialog(null)}
             />
+          )}
+          {d.kind === 'setup' && (() => {
+            const Setup = DEVICE_TYPES.find((t) => t.id === d.typeId)?.Setup
+            return Setup && (
+              <Setup
+                onDismiss={() => setDialog(null)}
+                onDone={(device) => { setDialog(null); void connection.connect(device) }}
+              />
+            )
+          })()}
+          {d.kind === 'reset' && (
+            <Dialog onDismiss={() => { if (!resetting) setDialog(null) }}>
+              <h2 className="dialog-title">Reset {displayName(d.device)}?</h2>
+              <div className="dialog-sub">
+                It forgets its Wi-Fi network and opens its own setup network again, and Glow forgets it.
+                Set it up again to use it.
+              </div>
+              <Swap k={resetting ? 'busy' : 'ask'} className="stack">
+                {resetting ? <ProgressBar fraction={null} /> : (
+                  <div className="dialog-buttons">
+                    <PillButton text="Cancel" onClick={() => setDialog(null)} />
+                    <PillButton text="Reset" highlighted onClick={() => void doReset(d.device)} />
+                  </div>
+                )}
+              </Swap>
+            </Dialog>
           )}
           {d.kind === 'whatsNew' && (
             <Dialog onDismiss={() => setDialog(null)} wide>

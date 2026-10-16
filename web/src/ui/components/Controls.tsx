@@ -410,7 +410,7 @@ export function ActionsDialog(props: { title: string; subtitle?: string; actions
 /** A text input: our own in glass, Material's outlined field otherwise. Never the browser's. */
 export function TextField(props: {
   label: string; value: string; onChange: (v: string) => void; placeholder?: string; maxLength?: number
-  onEnter?: () => void; autoFocus?: boolean; mono?: boolean
+  onEnter?: () => void; autoFocus?: boolean; mono?: boolean; password?: boolean
 }) {
   const design = useDesign()
   return design === 'MATERIAL' ? <MdTextField {...props} /> : (
@@ -418,6 +418,7 @@ export function TextField(props: {
       <span>{props.label}</span>
       <input
         className="text-field"
+        type={props.password ? 'password' : 'text'}
         style={props.mono ? { fontFamily: "'JetBrains Mono', monospace" } : undefined}
         autoFocus={props.autoFocus}
         maxLength={props.maxLength}
@@ -434,7 +435,7 @@ export function TextField(props: {
 
 function MdTextField(props: {
   label: string; value: string; onChange: (v: string) => void; placeholder?: string; maxLength?: number
-  onEnter?: () => void; autoFocus?: boolean
+  onEnter?: () => void; autoFocus?: boolean; password?: boolean
 }) {
   const field = useElementEvent<HTMLElement & { value: string; focus(): void }>('input', (el) => props.onChange(el.value))
   useEffect(() => {
@@ -450,6 +451,7 @@ function MdTextField(props: {
       ref={field}
       class="text-field"
       label={props.label}
+      type={props.password ? 'password' : 'text'}
       maxlength={props.maxLength}
       value={props.value}
       placeholder={props.placeholder}

@@ -4,15 +4,16 @@
 // device list, scanning, connecting, saving devices, routing to the control screen) is generic
 // and only knows this interface. Types are listed in registry.ts.
 //
-// Today there is one type, the WiFiFan LED board (glow/). A second type, say a Wi-Fi LED strip or
-// a Bluetooth speaker, is a new folder with its own DeviceType and a line in the registry.
+// Today there are two: the WiFiFan LED board over Bluetooth, and the ESP32 LED board over Wi-Fi
+// (both glow/: the same protocol and control screen on a different link). Another type is a new
+// folder with its own DeviceType and a line in the registry.
 
 import type { ComponentType } from 'react'
 import type { BleLink, BleProfile, BtDevice } from '../platform'
 
 /** A device the user connected to before (kept in Settings). */
 export interface SavedDevice {
-  /** The transport's id (Bluetooth: the device id / address). */
+  /** The transport's id (Bluetooth: the device id / address; Wi-Fi: "wifi:" + its MAC). */
   id: string
   /** Which DeviceType it is (DeviceType.id). */
   type: string
@@ -20,12 +21,16 @@ export interface SavedDevice {
   name: string | null
   /** The name it advertises. */
   advertised: string | null
+  /** Wi-Fi: its address when last seen (it is looked for again on every connect). */
+  host?: string
 }
 
 /** A connected device. The type's own session object is free to add whatever it needs. */
 export interface DeviceSession {
   /** Ends the session (the link is closed by the connection manager). */
   close(): void
+  /** Clears what the device remembers (its Wi-Fi) and sends it back to pairing. */
+  reset?(): Promise<void>
 }
 
 export interface ControlScreenProps {
@@ -36,6 +41,14 @@ export interface ControlScreenProps {
   onDisconnect(): void
   /** Opens a dialog to rename the device. */
   onRename(): void
+  /** Asks, then resets the device (types whose session can reset). */
+  onReset?(): void
+}
+
+/** A dialog that pairs a new device of the type (Wi-Fi boards: gives it the network's credentials). */
+export interface SetupProps {
+  onDone(device: SavedDevice): void
+  onDismiss(): void
 }
 
 export interface DeviceType {
@@ -45,10 +58,12 @@ export interface DeviceType {
   label: string
   /** Shown on the device's tile. */
   Icon: ComponentType<{ size?: number }>
-  /** How it is reached. Only Bluetooth LE exists today. */
-  transport: 'ble'
-  /** The GATT services and characteristics its link uses (tried in order). */
+  /** How it is reached. */
+  transport: 'ble' | 'wifi'
+  /** Bluetooth: the GATT services and characteristics its link uses (tried in order). */
   ble: BleProfile[]
+  /** Wi-Fi: the TCP port it listens on. */
+  port?: number
   /**
    * How likely a device heard while scanning is of this type (0 not at all .. 1 surely), by what
    * it advertises. A scan lists every device; this picks the type to connect it as.
@@ -58,6 +73,8 @@ export interface DeviceType {
   open(link: BleLink, device: SavedDevice): DeviceSession
   /** Its control screen (fills the window; nothing on it scrolls). */
   ControlScreen: ComponentType<ControlScreenProps>
+  /** Pairing a new one, for types that need it before they can be found ("Set up a new …"). */
+  Setup?: ComponentType<SetupProps>
   /** Its own section in Settings, if it has options. */
   SettingsSection?: ComponentType
   /** A pretend link for trying the controls without a device, if the type offers one. */

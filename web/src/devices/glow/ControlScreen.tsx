@@ -26,6 +26,7 @@ import { toast } from '../../ui/toast'
 import type { ControlScreenProps } from '../types'
 import { displayName } from '../connection'
 import { FirmwareDialog } from './Firmware'
+import { WIFI_TYPE_ID } from './pair'
 import { LedPreview, LedPreviewPair } from './LedPreview'
 import { KELVIN_PRESETS, LED_CHASE, LED_EFFECTS, LED_PRESETS, MODE, modeLabel } from './modes'
 import { previewOf } from './preview'
@@ -65,7 +66,9 @@ export function ControlScreen(props: ControlScreenProps) {
   const ota = useOta()
 
   // New board firmware: looked for on connect (quietly); a dot on Firmware says there is one.
-  useEffect(() => { if (c.connected && c.fwVersion && !c.isDemo) void checkFirmware(c.fwVersion, true) }, [c.connected, c.fwVersion])
+  // (The Wi-Fi board's firmware is flashed from the computer, not through Glow.)
+  const updatable = props.device.type !== WIFI_TYPE_ID
+  useEffect(() => { if (updatable && c.connected && c.fwVersion && !c.isDemo) void checkFirmware(c.fwVersion, true) }, [c.connected, c.fwVersion])
 
   // A sync that starts shows its tab; a mode without options takes the tune tab away.
   const isSync = s.mode === MODE.MUSIC || s.mode === MODE.VISUALIZER || s.mode === MODE.SCREEN
@@ -140,7 +143,8 @@ export function ControlScreen(props: ControlScreenProps) {
           c={c}
           firmwareDot={ota.kind === 'available'}
           onDisconnect={props.onDisconnect}
-          onFirmware={() => setDialog({ kind: 'firmware' })}
+          onFirmware={updatable ? () => setDialog({ kind: 'firmware' }) : undefined}
+          onReset={props.onReset}
         />
 
         <div className="control-deck entrance" style={{ ['--i' as string]: 2 }}>
@@ -268,7 +272,9 @@ export function ControlScreen(props: ControlScreenProps) {
 }
 
 /** The LED preview, its name, and the background colour that follows it: this is what animates. */
-function Preview({ c, firmwareDot, onDisconnect, onFirmware }: { c: LedController; firmwareDot: boolean; onDisconnect: () => void; onFirmware: () => void }) {
+function Preview({ c, firmwareDot, onDisconnect, onFirmware, onReset }: {
+  c: LedController; firmwareDot: boolean; onDisconnect: () => void; onFirmware?: () => void; onReset?: () => void
+}) {
   const { s } = c
   const t = useClock(c.connected && c.ledOn && (ANIMATED.includes(s.mode as 1) || c.sync.active !== 'NONE'))
   const preview = previewOf(c, t)
@@ -299,7 +305,10 @@ function Preview({ c, firmwareDot, onDisconnect, onFirmware }: { c: LedControlle
       <div className="mode-name">{modeName}</div>
       <div className="preview-links">
         <button className="quiet-link small" onClick={() => { sound.tap(); onDisconnect() }}>Disconnect</button>
-        {!c.isDemo && (
+        {!c.isDemo && onReset && (
+          <button className="quiet-link small" onClick={() => { sound.tap(); onReset() }}>Reset device</button>
+        )}
+        {!c.isDemo && onFirmware && (
           <button className="quiet-link small" onClick={() => { sound.tap(); onFirmware() }}>
             Firmware
             <Presence show={firmwareDot} className="inline badge"><span className="update-dot" /></Presence>
