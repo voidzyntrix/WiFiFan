@@ -39,13 +39,17 @@ changes back. Reset device clears them with the Wi-Fi.
 
 ## Internet access (cloud MQTT)
 
-Firmware 1.3.0 can also be reached from anywhere through a cloud MQTT broker (HiveMQ Cloud's free
-tier works). Enter the broker once in Glow under **Settings > Internet access**; every board gets
-it when Glow reaches it on its own Wi-Fi, and a Glow without it takes the board's.
+Firmware 1.4.0 can be reached from anywhere through an MQTT broker, with no account and no payment:
+**Settings > Internet access** picks a free public broker (`broker.emqx.io` or `broker.hivemq.com`), or
+your own. Glow makes a random key and gives it, with the broker, to each board when it reaches it on
+its own Wi-Fi; a Glow without it takes the board's. Glow tries the local network first (instant at
+home) and falls back to the broker.
 
-The board keeps one outgoing connection to the broker (TLS, verified against Let's Encrypt's root).
-Topics: `glow/<id>/cmd` (app to board, same text commands), `glow/<id>/out` (replies),
-`glow/<id>/online` (retained `1`, its will is `0`). Glow tries the local network first and falls back to the
-broker. Changing the Wi-Fi, resetting and updating a board only work on the local network
-(`ERR,local only` through the broker). `cloud\` reads and `cloud={...}\` writes the broker settings
-(local only; `{}` turns it off).
+Everything through the broker is end-to-end encrypted, so a public broker only sees noise. Messages are
+AES-128-GCM sealed (`iv(12) | ciphertext | tag(16)`) under the key; the topics (`g/<base>/c` commands,
+`/o` replies, `/s` presence) derive from SHA-256(key | board id). A command's plaintext starts with the
+sender's clock (8 bytes, ms): the board (NTP time) refuses any more than a minute off, and any iv it saw
+lately, so recorded messages can't be replayed. Wi-Fi changes, Reset and firmware updates only work on the
+local network (`ERR,local only` through the broker). `cloud\` reads and `cloud={...}\` writes the settings
+(`{"host","port","wsPort","tls","user","pass","key"}`; `{}` turns it off), local only. A public broker has no
+uptime promise; Glow's own-broker option takes any MQTT 3.1.1 broker with TLS and WebSocket.

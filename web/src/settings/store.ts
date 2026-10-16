@@ -28,8 +28,11 @@ export interface CloudConfig {
   /** The WebSocket port Glow uses. */
   wsPort: number
   tls: boolean
+  /** Optional: public brokers need none. */
   user: string
   pass: string
+  /** 32 hex digits: everything through the broker is encrypted with it (devices/cloud.ts). */
+  key: string
 }
 
 export interface Settings {

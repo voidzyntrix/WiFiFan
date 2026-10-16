@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.5.0',
+    notes: [
+      'Internet access without an account or any payment: Settings > Internet access uses a free public broker, and everything is encrypted end to end so the broker only carries noise. Your own broker still works.',
+      'Needs board firmware 1.4.0 (Firmware under the LED). Connect to each board once on its own Wi-Fi so it gets the key.',
+    ],
+  },
+  {
     version: '2.4.0',
     notes: [
       'Internet access: control Wi-Fi boards from anywhere. Add a free HiveMQ Cloud broker under Settings > Internet access; boards get it when you connect to them on their Wi-Fi, and Glow switches to the internet by itself when you are away.',
