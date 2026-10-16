@@ -80,10 +80,10 @@ export function SolarTab({ c }: { c: LedController }) {
           <SegmentedPill options={LOWS.map((p) => `${p} %`)} selected={LOWS.indexOf(st.low)} onSelect={(i) => send({ low: LOWS[i] })} />
           <SettingHeading title="What you see" />
           <Hint>
-            LED 1 is the grid: green exporting, lime balanced, yellow then red as you import more, blue when the grid is down,
-            pulsing above 1 kW of import. LED 2 is the battery: green above 75 %, yellow to 30 %, red below, breathing when the
-            battery alone runs the house (fast below 20 %). Two quick red blinks every 10 s mean a fault, a power cut, a low
-            battery or no reading for 6 minutes; green blinks mean the battery is full and the sun is exporting.
+            LED 1 is the grid: green exporting, lime balanced, yellow then red as you import more, blue when the grid is down
+            (with a red flash every 5 s), pulsing above 1 kW of import. LED 2 is the battery: green solid from 80 %, orange breathing
+            from 80 % to 70 %, yellow breathing from 70 % to 30 %, red below that; it breathes faster below 20 %, and fades fully
+            when the battery alone runs the house. Two quick red blinks every 10 s mean a fault, a low battery for 6 minutes; green blinks mean the battery is full and the sun is exporting.
           </Hint>
           <div className="button-row">
             <PillButton text="Change key" onClick={() => setChanging(true)} />

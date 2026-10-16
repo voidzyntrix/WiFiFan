@@ -2,6 +2,12 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.8.2',
+    notes: [
+      'Solar battery colours follow the charge: green solid from 80 %, orange breathing from 80 % to 70 %, yellow breathing from 70 % to 30 %, red below. Needs board firmware 1.6.4.',
+    ],
+  },
+  {
     version: '2.8.1',
     notes: [
       'Material You screens have decoration: soft glows and rings in your colours behind the controls, a gradient title, and a glow around the LED preview. Motion is reduced if your system asks for it.',
