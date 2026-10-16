@@ -98,6 +98,28 @@ class Bridge(private val activity: MainActivity, private val web: WebView) {
         }
     }
 
+    /** Solar: a JSON POST to the FoxESS cloud (the only address it may reach). */
+    @JavascriptInterface
+    fun netPost(request: String, url: String, headers: String, body: String) {
+        thread(name = "glow-net-post") {
+            val out = JSONObject().put("request", request)
+            try {
+                if (!url.startsWith("https://www.foxesscloud.com/")) throw Exception("That address is not allowed")
+                val conn = open(url, "POST")
+                val h = JSONObject(headers)
+                h.keys().forEach { conn.setRequestProperty(it, h.getString(it)) }
+                conn.doOutput = true
+                conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+                if (conn.responseCode !in 200..299) throw Exception("FoxESS answered HTTP ${conn.responseCode}")
+                out.put("ok", true).put("text", conn.inputStream.bufferedReader().use { it.readText() })
+                conn.disconnect()
+            } catch (e: Exception) {
+                out.put("ok", false).put("error", e.message ?: e.toString())
+            }
+            emit("net", out)
+        }
+    }
+
     // --- Everything else ------------------------------------------------------------------------
 
     @JavascriptInterface

@@ -64,6 +64,9 @@ export interface Settings {
   devices: SavedDevice[]
   /** Internet access to Wi-Fi boards; null until set up. */
   cloud: CloudConfig | null
+  /** Solar live data: the FoxESS web login (the password only as its MD5, never in plain text). */
+  foxUser: string
+  foxPassMd5: string
 
   // --- the LED board (devices/glow) ---
   rainbowSync: boolean
@@ -119,6 +122,8 @@ const DEFAULTS: Settings = {
   collapsed: {},
   devices: [],
   cloud: null,
+  foxUser: '',
+  foxPassMd5: '',
   rainbowSync: true,
   ledHue: 0,
   ledSat: 0,

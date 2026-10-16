@@ -2,6 +2,12 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.9.0',
+    notes: [
+      'Solar live data: sign in with your FoxESS username and password in Solar, and the board follows your inverter about every 5 seconds instead of every few minutes, by itself, even with Glow closed. The API key stays as the backup. Needs board firmware 1.7.0.',
+    ],
+  },
+  {
     version: '2.8.5',
     notes: [
       'Fixes app updates not being offered: GitHub’s update feed only lists the last ten releases, so app releases were missed once firmware releases filled it. The app now reads the full release list (refreshed every ten minutes).',

@@ -43,6 +43,7 @@ contextBridge.exposeInMainWorld('glow', {
     text: (url) => ipcRenderer.invoke('net:text', url),
     bytes: (url, limit) => ipcRenderer.invoke('net:bytes', url, limit),
     exists: (url) => ipcRenderer.invoke('net:exists', url),
+    post: (url, headers, body) => ipcRenderer.invoke('net:post', url, headers, body),
   },
   update: {
     install: (url, version) => ipcRenderer.invoke('update:install', url, version),

@@ -98,6 +98,8 @@ export interface Platform {
     text(url: string): Promise<string>
     bytes(url: string, limit: number): Promise<Uint8Array>
     exists(url: string): Promise<boolean>
+    /** A JSON POST with headers (only the FoxESS cloud is allowed); the answer's text. */
+    post(url: string, headers: Record<string, string>, body: string): Promise<string>
   }
   openExternal(url: string): void
   /** The system's accent colour (Android: the wallpaper's Material You colour; Windows: the accent), if it has one. */

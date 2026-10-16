@@ -8,6 +8,8 @@ import { Txt } from '../../ui/motion'
 import { board } from './board'
 import { MODE } from './modes'
 import { describeSolar, parseSolar, solarCommand, solarFlags, type SolarStatus } from './solar'
+import { parseFox, passwordMd5, refreshBoardToken, type FoxStatus } from './foxLogin'
+import { settings, useSettings } from '../../settings/store'
 import type { LedController } from './useLed'
 
 const POLLS = [2, 5, 10, 15]
@@ -27,6 +29,52 @@ export function SolarTab({ c }: { c: LedController }) {
   const [key, setKey] = useState('')
   const [changing, setChanging] = useState(false)
   const [gl, setGl] = useState<GridLoss | null>(null)
+  const prefs = useSettings()
+  const [fox, setFox] = useState<FoxStatus | null>(null)
+  const [foxUserIn, setFoxUserIn] = useState(prefs.foxUser)
+  const [foxPassIn, setFoxPassIn] = useState('')
+  const [signing, setSigning] = useState(false)
+  const [foxMsg, setFoxMsg] = useState<string | null>(null)
+
+  // the live-data stream's state on the board, every few seconds
+  useEffect(() => {
+    let live = true
+    const read = async () => {
+      const reply = board.waitFor('FOX,', 2000).catch(() => null)
+      board.sendData('fox')
+      const line = await reply
+      const v = line ? parseFox(line) : null
+      if (live && v) setFox(v)
+    }
+    void read()
+    const t = window.setInterval(() => void read(), 3000)
+    return () => { live = false; window.clearInterval(t) }
+  }, [])
+
+  const signIn = async () => {
+    const user = foxUserIn.trim()
+    if (!user || (!foxPassIn && !prefs.foxPassMd5)) return
+    setSigning(true); setFoxMsg(null)
+    try {
+      if (foxPassIn) settings.set({ foxUser: user, foxPassMd5: passwordMd5(foxPassIn) })
+      else settings.set({ foxUser: user })
+      await refreshBoardToken()
+      setFoxPassIn('')
+      setFoxMsg('Signed in. The board connects to the live stream now.')
+    } catch (e) {
+      setFoxMsg((e as Error).message)
+    } finally { setSigning(false) }
+  }
+  const signOut = () => {
+    board.sendData('fox={"off":true}')
+    settings.set({ foxUser: '', foxPassMd5: '' })
+    setFoxPassIn(''); setFoxMsg('Live data off. Solar uses the API key every few minutes.')
+  }
+  const liveText = !fox ? '' : fox.live === 2 ? 'Live, about every 5 seconds'
+    : fox.bad ? 'The sign-in expired: tap Sign in'
+      : fox.token && fox.live === 1 ? 'Connecting to the live stream…'
+        : fox.token && !fox.plant ? 'Finding your plant…'
+          : fox.token ? (fox.err || 'Waiting to connect') : 'Off: Solar asks FoxESS every few minutes'
 
   // the grid-loss pattern: read from the board once, and each change is saved on the board
   useEffect(() => {
@@ -110,6 +158,19 @@ export function SolarTab({ c }: { c: LedController }) {
             when the battery alone runs the house. Two quick red blinks every 10 s mean a fault, a low battery for 6 minutes; green blinks mean the battery is full and the sun is exporting.
           </Hint>
           <div className="button-row">
+            <SettingHeading title="Live data (about every 5 s)" subtitle={liveText} />
+            <Hint>
+              Sign in with your FoxESS Cloud username and password (the ones for foxesscloud.com). Glow signs in and gives the board
+              a session; the board then follows your inverter live by itself. Your API key stays as the backup. The password is kept
+              on this device only as its MD5.
+            </Hint>
+            <TextField label="FoxESS username" value={foxUserIn} onChange={setFoxUserIn} maxLength={60} />
+            <TextField label={prefs.foxPassMd5 ? 'Password (saved; type to change)' : 'FoxESS password'} value={foxPassIn} onChange={setFoxPassIn} maxLength={60} password onEnter={() => void signIn()} />
+            {foxMsg && <Hint>{foxMsg}</Hint>}
+            <div className="button-row">
+              {(prefs.foxUser || fox?.token) ? <PillButton text="Sign out" onClick={signOut} /> : null}
+              <PillButton text={signing ? 'Signing in…' : 'Sign in'} highlighted enabled={!signing && !!foxUserIn.trim() && (!!foxPassIn || !!prefs.foxPassMd5)} onClick={() => void signIn()} />
+            </div>
             {gl && (
               <>
                 <SettingHeading title="When the grid is lost" subtitle="Saved on the board, so it stays after restarts" />

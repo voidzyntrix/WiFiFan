@@ -15,7 +15,10 @@ interface ElectronGlow {
   wifi: SocketBridge
   capture: { displays(): Promise<{ index: number; label: string }[]>; setDisplay(index: number): void }
   power: { keepAwake(on: boolean): void }
-  net: { text(url: string): Promise<string>; bytes(url: string, limit?: number): Promise<Uint8Array>; exists(url: string): Promise<boolean> }
+  net: {
+    text(url: string): Promise<string>; bytes(url: string, limit?: number): Promise<Uint8Array>; exists(url: string): Promise<boolean>
+    post(url: string, headers: Record<string, string>, body: string): Promise<string>
+  }
   update: {
     install(url: string, version: string): Promise<void>
     onProgress(fn: (p: { received: number; total: number }) => void): () => void
@@ -32,13 +35,18 @@ declare global {
 
 export const APP_VERSION: string = __APP_VERSION__
 
+/** Electron's IPC wraps errors: "Error invoking remote method '…': Error: <message>" */
+function unwrapIpc(e: Error): never {
+  throw new Error(e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, ''))
+}
+
 function desktopPlatform(g: ElectronGlow): Platform {
   return {
     kind: 'desktop',
     name: 'Glow for Windows',
     ble: webBluetooth(g.bluetooth),
     wifi: socketWifi(g.wifi),
-    net: { text: g.net.text, bytes: (url, limit) => g.net.bytes(url, limit), exists: g.net.exists },
+    net: { text: g.net.text, bytes: (url, limit) => g.net.bytes(url, limit), exists: g.net.exists, post: (url, headers, body) => g.net.post(url, headers, body).catch(unwrapIpc) },
     openExternal: g.openExternal,
     accentColor: () => g.theme.accent(),
     haptic: null,
@@ -82,6 +90,11 @@ function browserPlatform(): Platform {
         return b
       },
       exists: async () => true,
+      post: async (url, headers, body) => {
+        const r = await fetch(url, { method: 'POST', headers, body })
+        if (!r.ok) throw new Error(`The server answered HTTP ${r.status}`)
+        return r.text()
+      },
     },
     openExternal: (url) => { window.open(url, '_blank', 'noopener') },
     accentColor: async () => null,

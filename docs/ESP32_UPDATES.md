@@ -66,3 +66,19 @@ and the home battery on LED 2 (colours and pulses as in Glow's old Solar mode), 
 alerts. Settings are kept in the board's flash (`Preferences`, namespace `glow`); Solar starts again at boot.
 `solar\` answers `SOLAR,{...}`; `solar={"key","sn","poll","low","bri","on"}\` changes any of them (the key
 only on the local network). Any colour or effect command ends Solar. Reset device clears it.
+
+## Solar live data (FoxESS web portal WebSocket)
+
+Firmware 1.7.0 can follow the inverter about every 5 s instead of every few minutes. FoxESS's web portal streams
+it over `wss://www.foxesscloud.com/dew/v0/wsmaitian?plantId=<id>&token=<token>&platform=web&lang=en`
+(the same undocumented stream nicois/foxess-control uses). Only the session token is needed for the stream; the
+sign-in itself must be signed by FoxESS's own WebAssembly module, which needs 16 MB of memory, so the **app**
+signs in (Solar tab, Live data: FoxESS username and password) and hands the board the token with `fox={"token","user"}`.
+The board keeps the stream open by itself, even with the app closed, and stores the token in its flash.
+
+- `fox` answers `FOX,{"live":0|1|2,"token","bad","plant","age","user","err"}` (live: off, connecting, live).
+- `fox={"off":true}` stops it. Reset device clears it.
+- The plant id comes from the Open API (`/op/v0/plant/list`), so the API key stays; it also still supplies the
+  inverter's fault and off-grid codes (every 5 min while live) and takes over when the token expires.
+- The app signs in again on its own when the board's token is refused or older than 6 h (while it is connected).
+- The signature module is downloaded once by the app from a pinned foxess-control commit and checked by SHA-256.

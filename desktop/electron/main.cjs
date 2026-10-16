@@ -141,6 +141,13 @@ function setupNet() {
   ipcMain.handle('net:exists', async (_e, url) => {
     try { await fetchChecked(url, 'HEAD'); return true } catch { return false }
   })
+  // Solar: the FoxESS cloud answers JSON POSTs (and nothing else may be reached this way).
+  ipcMain.handle('net:post', async (_e, url, headers, body) => {
+    if (new URL(url).origin !== 'https://www.foxesscloud.com') throw new Error('That address is not allowed')
+    const res = await net.fetch(url, { method: 'POST', headers: { ...headers, 'User-Agent': 'Glow-desktop' }, body })
+    if (!res.ok) throw new Error(`FoxESS answered HTTP ${res.status}`)
+    return res.text()
+  })
   // One-click update: download, swap the exe, restart. Errors reach the UI as the message text.
   ipcMain.handle('update:install', async (e, url, version) => {
     try {

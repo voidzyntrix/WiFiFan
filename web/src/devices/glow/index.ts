@@ -7,6 +7,7 @@ import { BulbIcon } from '../../ui/components/Icons'
 import type { DeviceType } from '../types'
 import { board, demoLink } from './board'
 import { provisionCloud, startSettingsSync } from './boardSettings'
+import { startFoxRefresh } from './foxLogin'
 import { ControlScreen } from './ControlScreen'
 import { WIFI_PORT, WIFI_TYPE_ID } from './pair'
 import { stopSync } from './sync'
@@ -46,9 +47,11 @@ export const glowWifiBoard: DeviceType = {
     board.sendData('info')    // its own firmware version
     const stopSettings = startSettingsSync(device)
     if (link.via !== 'cloud') provisionCloud()
+    const stopFox = startFoxRefresh()   // keeps the board's FoxESS live-data token fresh
     return {
       close() {
         stopSettings()
+        stopFox()
         stopSync()
         board.detach()
       },

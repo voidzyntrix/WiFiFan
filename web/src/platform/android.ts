@@ -26,6 +26,8 @@ export interface AndroidBridge {
   wifiScanSetup(request: string, prefix: string): void
   /** Answers with a "wifiCurrent" event: { request, ok, ssid, password } */
   wifiCurrent(request: string): void
+  /** A POST (FoxESS only); answers with a "net" event { request, ok, text | error }. headers: JSON object. */
+  netPost(request: string, url: string, headers: string, body: string): void
   /** kind: "text" | "bytes" | "exists" */
   net(request: string, kind: string, url: string, limit: number): void
   openExternal(url: string): void
@@ -175,6 +177,7 @@ export function androidPlatform(bridge: AndroidBridge): Platform {
       text: (url) => ask<{ text: string }>('net', (r) => bridge.net(r, 'text', url, 0)).then((d) => d.text),
       bytes: (url, limit) => ask<{ base64: string }>('net', (r) => bridge.net(r, 'bytes', url, limit)).then((d) => fromBase64(d.base64)),
       exists: (url) => ask<{ exists: boolean }>('net', (r) => bridge.net(r, 'exists', url, 0)).then((d) => d.exists, () => false),
+      post: (url, headers, body) => ask<{ text: string }>('net', (r) => bridge.netPost(r, url, JSON.stringify(headers), body)).then((d) => d.text),
     },
     openExternal: (url) => bridge.openExternal(url),
     accentColor: async () => info.accent,
