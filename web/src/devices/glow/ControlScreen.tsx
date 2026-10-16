@@ -66,6 +66,14 @@ export function ControlScreen(props: ControlScreenProps) {
   const ota = useOta()
 
   // New board firmware: looked for on connect (quietly); a dot on Firmware says there is one.
+  // Said once per version: a board running older firmware may not do everything (colours, for one).
+  const told = useRef('')
+  useEffect(() => {
+    if (ota.kind !== 'available' || told.current === ota.release.version) return
+    told.current = ota.release.version
+    toast(`Board firmware v${ota.release.version} is available. Open Firmware under the LED to update.`)
+  }, [ota])
+
   const fw = firmwareVersionOf(useBoard())
   useEffect(() => {
     if (!c.connected || !fw || c.isDemo) return

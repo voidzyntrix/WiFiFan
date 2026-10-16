@@ -78,7 +78,9 @@ export function useLed() {
     rerender()
   }
 
-  const send = (cmd: string) => { if (board.snapshot.state === 'connected') board.sendData(cmd) }
+  /** When this app last told the board something: a read of its state right after would undo it. */
+  const touched = useRef(0)
+  const send = (cmd: string) => { touched.current = performance.now(); if (board.snapshot.state === 'connected') board.sendData(cmd) }
 
   // -------------------------------------------------------------------------
   // Sending
@@ -318,6 +320,43 @@ export function useLed() {
       settings.set({ boardVersions: { ...s.boardVersions, [conn.deviceId]: conn.firmwareVersion } })
     }
   }, [connected, conn.deviceId, conn.firmwareVersion])
+
+  // The Wi-Fi board can be changed by someone else (another phone, the internet): read what it shows
+  // every few seconds (colours, mode, brightness) and take it over unless this app just changed it.
+  useEffect(() => {
+    if (!connected || board.isDemo || conn.kind !== 'wifi' || sync.active !== 'NONE') return
+    let busy = false
+    const read = async () => {
+      if (busy || performance.now() - touched.current < 3000) return
+      busy = true
+      try {
+        const reply = board.waitFor('STATE,', 2000).catch(() => null)
+        board.sendData('state')
+        const line = await reply
+        if (line && performance.now() - touched.current >= 3000) takeBoardState(line)
+      } finally { busy = false }
+    }
+    const first = window.setTimeout(() => void read(), 600)
+    const timer = window.setInterval(() => void read(), 5000)
+    return () => { window.clearTimeout(first); window.clearInterval(timer) }
+  }, [connected, conn.kind, sync.active])
+
+  /** "STATE,<mode>,<h>/<s>/<v>,<h>/<s>/<v>" from the board into the controls (nothing is sent back). */
+  function takeBoardState(line: string) {
+    const [, mode, a, b] = line.split(',')
+    const c1 = a?.split('/').map(Number), c2 = b?.split('/').map(Number)
+    if (!c1 || !c2 || c1.length !== 3 || c2.length !== 3 || [mode, ...c1, ...c2].some((x) => Number.isNaN(Number(x)))) return
+    const s = st.current
+    const v = Math.max(c1[2], c2[2]) / 100
+    const patch: Partial<UiState> = {}
+    const hueFar = (x: number, y: number) => { const d = Math.abs(x - y) % 360; return Math.min(d, 360 - d) > 3 }
+    if (Number(mode) !== s.mode && !SYNC_MODES.includes(s.mode)) patch.mode = Number(mode)
+    if (Math.abs(v - s.bri) > 0.03) patch.bri = v
+    // a colour that is off keeps the one it had; one with no saturation has no hue to show
+    if (c1[2] > 0 && (Math.abs(c1[1] / 100 - s.sat) > 0.04 || (c1[1] > 4 && hueFar(c1[0], s.hue)))) { patch.hue = c1[0]; patch.sat = c1[1] / 100; patch.kelvinMode = false }
+    if (c2[2] > 0 && (Math.abs(c2[1] / 100 - s.sat2) > 0.04 || (c2[1] > 4 && hueFar(c2[0], s.hue2)))) { patch.hue2 = c2[0]; patch.sat2 = c2[1] / 100; patch.kelvinMode2 = false }
+    if (Object.keys(patch).length) update(patch)
+  }
 
   // Fade time: sent when the board connects and whenever it's changed.
   useEffect(() => {

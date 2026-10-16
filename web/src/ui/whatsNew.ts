@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.5.2',
+    notes: [
+      'Glow reads the Wi-Fi board every 5 seconds (colours, mode, brightness) and shows what the board really does, so changes from another phone or the internet show up.',
+      'A toast tells you when your board has newer firmware. Board firmware 1.5.0 or newer is needed for colours on a WS2812B; older firmware only switches the LED on and off.',
+    ],
+  },
+  {
     version: '2.5.1',
     notes: [
       'Updates are looked for every few seconds, for the app and (while connected) for the board firmware.',
