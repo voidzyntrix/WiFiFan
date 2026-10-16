@@ -656,6 +656,24 @@ input.text-field:focus { border-color: var(--primary); background: var(--on-bg-8
 /* ═══ Design: Material ══════════════════════════════════════ */
 
 :root[data-design='material'] .backdrop, :root[data-design='material'] .glass-canvas { display: none; }
+/* Material decoration: tonal glows, rings and dots behind the screens (MaterialDecor in App.tsx) */
+.md-decor { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+.md-decor > span { position: absolute; display: block; }
+.md-decor-glow { width: 62vmax; height: 62vmax; border-radius: 50%; filter: blur(70px); opacity: 0.55; animation: md-drift 26s ease-in-out infinite alternate; }
+.md-decor-glow.a { background: rgb(var(--mdui-color-primary-container)); top: -22vmax; right: -18vmax; }
+.md-decor-glow.b { background: rgb(var(--mdui-color-tertiary-container)); bottom: -26vmax; left: -22vmax; opacity: 0.4; animation-duration: 34s; animation-delay: -10s; }
+.md-decor-ring { border-radius: 50%; border: 1px solid rgb(var(--mdui-color-outline-variant) / 0.45); }
+.md-decor-ring.r1 { width: 46vmax; height: 46vmax; top: 8%; left: 50%; transform: translate(-50%, -20%); }
+.md-decor-ring.r2 { width: 72vmax; height: 72vmax; top: 6%; left: 50%; transform: translate(-50%, -30%); border-style: dashed; opacity: 0.6; animation: md-spin 120s linear infinite; }
+.md-decor-dot { width: 8px; height: 8px; border-radius: 50%; background: rgb(var(--mdui-color-primary)); opacity: 0.5; }
+.md-decor-dot.d1 { top: 18%; left: 12%; }
+.md-decor-dot.d2 { bottom: 16%; right: 14%; background: rgb(var(--mdui-color-tertiary)); }
+@keyframes md-drift { to { transform: translate(6vmax, 4vmax) scale(1.08); } }
+@keyframes md-spin { to { transform: translate(-50%, -30%) rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .md-decor *, .md-decor-glow { animation: none !important; } }
+:root[data-design='material'] .panel, :root[data-design='material'] .settings-card { box-shadow: 0 1px 0 rgb(var(--mdui-color-outline-variant) / 0.35), 0 8px 24px -12px rgb(0 0 0 / 0.5); }
+:root[data-design='material'] .header h1 { background: linear-gradient(90deg, rgb(var(--mdui-color-primary)), rgb(var(--mdui-color-tertiary))); -webkit-background-clip: text; background-clip: text; color: transparent; }
+:root[data-design='material'] .control-preview .led-disc { box-shadow: 0 0 80px 10px rgb(var(--mdui-color-primary) / 0.25); }
 :root[data-design='material'] .panel,
 :root[data-design='material'] .board-tile { background: var(--card-high); border: 0; }
 :root[data-design='material'] .board-tile:hover { background: var(--card-highest); }

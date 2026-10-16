@@ -2,6 +2,12 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.8.1',
+    notes: [
+      'Material You screens have decoration: soft glows and rings in your colours behind the controls, a gradient title, and a glow around the LED preview. Motion is reduced if your system asks for it.',
+    ],
+  },
+  {
     version: '2.8.0',
     notes: [
       'Material You is rebuilt on mdui, a true Material Design 3 component library: buttons, switches, sliders, tabs, chips, dialogs and text fields now look and move the way Google apps do, with bigger shapes, tonal surfaces and M3 type.',
