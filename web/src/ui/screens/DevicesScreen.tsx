@@ -2,7 +2,7 @@
 // or long press to rename / forget), and "Add a device", which scans and lists what is nearby.
 // Nothing scrolls: tiles and nearby devices page (Pager) when there are more than fit.
 
-import { connection, displayName, useConnection } from '../../devices/connection'
+import { connection, displayName, useConnection, wifiId } from '../../devices/connection'
 import { unpairedBoards, useNearbyWifi } from '../../devices/nearbyWifi'
 import { DEVICE_TYPES, deviceType, guessType } from '../../devices/registry'
 import type { SavedDevice } from '../../devices/types'
@@ -113,12 +113,16 @@ function NearbyList({ onSetup }: { onSetup: (typeId: string, ssid?: string) => v
   const around = useNearbyWifi(true)
   const wifiSetup = DEVICE_TYPES.find((t) => t.transport === 'wifi' && t.Setup)
   const setups = DEVICE_TYPES.filter((t) => t.Setup && (t.transport !== 'wifi' || platform.wifi))
-  // Wi-Fi boards that still need Wi-Fi: once a board has been given a network it stops showing here
-  // (Reset device makes it forget the network and show up again).
+  // Wi-Fi boards: ones that still need Wi-Fi (their own network), and ones already on this network,
+  // which any Glow here can add. Boards this Glow already has are on the home screen, not listed.
   const items: Nearby[] = [
     ...(wifiSetup ? unpairedBoards(around, devices).map((ssid): Nearby => ({
       id: 'setup:' + ssid, name: ssid, detail: 'Wi-Fi LED board · waiting to be set up',
       pick: () => onSetup(wifiSetup.id, ssid),
+    })) : []),
+    ...(wifiSetup ? around.boards.filter((b) => b.state !== 'setup' && !devices.some((d) => d.id === wifiId(b.id))).map((b): Nearby => ({
+      id: 'wifi:' + b.id, name: b.name, detail: `Wi-Fi LED board · ${b.host}`,
+      pick: () => void connection.pickWifi(b),
     })) : []),
     ...conn.nearby.map((d): Nearby => ({ id: d.id, name: d.name, detail: `${guessType(d).label} · ${d.id}`, pick: () => void connection.pick(d) })),
   ]
@@ -132,7 +136,7 @@ function NearbyList({ onSetup }: { onSetup: (typeId: string, ssid?: string) => v
         {items.length === 0 ? (
           <div className="nearby-empty">
             <div>Looking for devices…</div>
-            <p className="hint">Is the device powered and close by? Is Bluetooth on?{platform.wifi ? ' A new Wi-Fi board shows up here until it is set up.' : ''}</p>
+            <p className="hint">Is the device powered and close by? Is Bluetooth on?{platform.wifi ? ' Wi-Fi boards show up here too.' : ''}</p>
           </div>
         ) : (
           <Pager

@@ -2,6 +2,12 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.2.3',
+    notes: [
+      'A Wi-Fi board that already has Wi-Fi shows up under Add a device on every Glow on the same network, so a second phone or PC can add it without resetting it.',
+    ],
+  },
+  {
     version: '2.2.2',
     notes: [
       'A Wi-Fi board that still needs setting up now shows in the list after Add a device, not on the home screen.',
