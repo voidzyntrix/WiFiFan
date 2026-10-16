@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from 'react'
 import { openLink } from '../../platform'
-import { Hint, PillButton, SegmentedPill, SettingHeading, TextField } from '../../ui/components/Controls'
+import { Hint, PillButton, SegmentedPill, SettingHeading, SettingSwitch, TextField } from '../../ui/components/Controls'
 import { Txt } from '../../ui/motion'
 import { board } from './board'
 import { MODE } from './modes'
@@ -11,6 +11,14 @@ import { describeSolar, parseSolar, solarCommand, solarFlags, type SolarStatus }
 import type { LedController } from './useLed'
 
 const POLLS = [2, 5, 10, 15]
+const FLASH_EVERY = [5, 10, 30, 60]
+const FLASH_MS = [250, 500, 1000]
+
+/** The grid-loss pattern, kept on the board (GRIDLOSS). */
+interface GridLoss { both: number; flash: number; every: number; ms: number }
+function parseGridLoss(line: string): GridLoss | null {
+  try { return JSON.parse(line.slice('GRIDLOSS,'.length)) as GridLoss } catch { return null }
+}
 const LOWS = [10, 20, 30]
 const FOX_API = 'https://www.foxesscloud.com/user/center'
 
@@ -18,6 +26,22 @@ export function SolarTab({ c }: { c: LedController }) {
   const [st, setSt] = useState<SolarStatus | null>(null)
   const [key, setKey] = useState('')
   const [changing, setChanging] = useState(false)
+  const [gl, setGl] = useState<GridLoss | null>(null)
+
+  // the grid-loss pattern: read from the board once, and each change is saved on the board
+  useEffect(() => {
+    let live = true
+    const reply = board.waitFor('GRIDLOSS,', 2000).catch(() => null)
+    board.sendData('gridloss')
+    void reply.then((line) => { const v = line ? parseGridLoss(line) : null; if (live && v) setGl(v) })
+    return () => { live = false }
+  }, [])
+  const setGridLoss = (patch: Partial<GridLoss>) => {
+    if (!gl) return
+    const next = { ...gl, ...patch }
+    setGl(next)
+    board.sendData(`gridloss=${JSON.stringify(next)}`)
+  }
 
   // what the board says, every few seconds
   useEffect(() => {
@@ -86,6 +110,17 @@ export function SolarTab({ c }: { c: LedController }) {
             when the battery alone runs the house. Two quick red blinks every 10 s mean a fault, a low battery for 6 minutes; green blinks mean the battery is full and the sun is exporting.
           </Hint>
           <div className="button-row">
+            {gl && (
+              <>
+                <SettingHeading title="When the grid is lost" subtitle="Saved on the board, so it stays after restarts" />
+                <SettingSwitch title="Battery colour on both LEDs" subtitle="Breathes the battery's colour on LED 1 as well (otherwise LED 1 is off)" checked={!!gl.both} onChange={(v) => setGridLoss({ both: v ? 1 : 0 })} />
+                <SettingSwitch title="Red flash on both LEDs" subtitle="Both LEDs flash red for a moment" checked={!!gl.flash} onChange={(v) => setGridLoss({ flash: v ? 1 : 0 })} />
+                <SettingHeading title="Flash every" />
+                <SegmentedPill options={FLASH_EVERY.map((x) => (x < 60 ? `${x} s` : '1 min'))} selected={FLASH_EVERY.indexOf(gl.every)} onSelect={(i) => setGridLoss({ every: FLASH_EVERY[i] })} />
+                <SettingHeading title="Flash length" />
+                <SegmentedPill options={['Short', 'Normal', 'Long']} selected={FLASH_MS.indexOf(gl.ms)} onSelect={(i) => setGridLoss({ ms: FLASH_MS[i] })} />
+              </>
+            )}
             <PillButton text="Change key" onClick={() => setChanging(true)} />
             <PillButton text="Stop Solar" onClick={() => void c.startMode(MODE.SOLID)} />
           </div>

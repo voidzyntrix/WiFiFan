@@ -2,6 +2,12 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.8.3',
+    notes: [
+      'Grid-loss pattern is now yours to set in Solar: battery colour breathing on both LEDs, red flash on both LEDs every 5 s to 1 min, short, normal or long. The settings are saved on the board and kept after restarts. Needs board firmware 1.6.6.',
+    ],
+  },
+  {
     version: '2.8.2',
     notes: [
       'Solar battery colours follow the charge: green solid from 80 %, orange breathing from 80 % to 70 %, yellow breathing from 70 % to 30 %, red below. Needs board firmware 1.6.4.',
