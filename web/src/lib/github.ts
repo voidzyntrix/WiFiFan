@@ -13,11 +13,37 @@ export const RELEASES_PAGE = `https://github.com/${REPO}/releases`
 
 export interface ReleaseAsset { version: string; tag: string; downloadUrl: string; size: number }
 
-const getText = (url: string) => platform.net.text(url)
+// Glow looks every few seconds, so requests are kept few: one release feed shared by every check made
+// within a few seconds, a release file that exists is remembered, and after GitHub refuses (403/429)
+// nothing is asked for a while.
+const FEED_TTL_MS = 4500
+const BACKOFF_MS = 2 * 60_000
+let blockedUntil = 0
+let feedCache: { at: number; text: Promise<string> } | null = null
+const knownFiles = new Map<string, boolean>()
+const missingAt = new Map<string, number>()
+
+function guard<T>(p: Promise<T>): Promise<T> {
+  return p.catch((e: Error) => {
+    if (/HTTP (403|429)/.test(e.message)) blockedUntil = Date.now() + BACKOFF_MS
+    throw e
+  })
+}
+const getText = (url: string) => {
+  if (Date.now() < blockedUntil) return Promise.reject(new Error('GitHub asked Glow to slow down; trying again in a moment'))
+  return guard(platform.net.text(url))
+}
 
 export const getBytes = (url: string, limit: number) => platform.net.bytes(url, limit)
 
-const exists = (url: string) => platform.net.exists(url)
+const exists = async (url: string) => {
+  if (knownFiles.get(url)) return true
+  if (Date.now() - (missingAt.get(url) ?? 0) < 30_000) return false
+  if (Date.now() < blockedUntil) throw new Error('GitHub asked Glow to slow down; trying again in a moment')
+  const ok = await platform.net.exists(url)
+  if (ok) knownFiles.set(url, true); else missingAt.set(url, Date.now())
+  return ok
+}
 
 /**
  * The newest asset named like [pattern] (first group = "1.2.3"). The release feed first: it has no rate
@@ -49,7 +75,12 @@ export async function newest(pattern: RegExp, kind: string, assetName: (v: strin
 }
 
 async function newestFromFeed(kind: string, assetName: (v: string) => string): Promise<ReleaseAsset | null> {
-  const feed = await getText(FEED_URL)
+  if (!feedCache || Date.now() - feedCache.at > FEED_TTL_MS) {
+    const text = getText(FEED_URL)
+    feedCache = { at: Date.now(), text }
+    text.catch(() => { feedCache = null })
+  }
+  const feed = await feedCache.text
   const found = new Set<string>()
   for (const m of feed.matchAll(/\/releases\/tag\/([A-Za-z]+)-v(\d+\.\d+\.\d+)/g)) if (m[1] === kind) found.add(m[2])
   const versions = [...found].sort((a, b) => compareVersions(b, a)).slice(0, 3)

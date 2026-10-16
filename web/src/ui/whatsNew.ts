@@ -2,6 +2,12 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.5.3',
+    notes: [
+      'Fixes GitHub answering 403: update checks every few seconds now share one request, remember releases they have seen, and wait a couple of minutes when GitHub asks them to slow down.',
+    ],
+  },
+  {
     version: '2.5.2',
     notes: [
       'Glow reads the Wi-Fi board every 5 seconds (colours, mode, brightness) and shows what the board really does, so changes from another phone or the internet show up.',
