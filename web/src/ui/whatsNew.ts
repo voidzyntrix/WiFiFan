@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.6.0',
+    notes: [
+      'Smoother, Material-style motion: screens slide in with a shared-axis transition (deeper from the right, back from the left) and overlap instead of leaving a gap, with Material 3 emphasized easing everywhere.',
+      'The blur on every appear and vanish animation is gone: it redrew the whole layer each frame and made things stutter.',
+    ],
+  },
+  {
     version: '2.5.3',
     notes: [
       'Fixes GitHub answering 403: update checks every few seconds now share one request, remember releases they have seen, and wait a couple of minutes when GitHub asks them to slow down.',

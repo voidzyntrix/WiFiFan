@@ -86,7 +86,11 @@
   --pad: 20px;
   /* what ordinary controls animate when their state changes */
   --t: background-color 0.3s, color 0.3s, border-color 0.3s, box-shadow 0.3s, opacity 0.3s;
-  --mb: 6px;   /* blur of the appear / vanish animations */
+  /* Material 3 motion: emphasized easing (decelerate in, accelerate out), short exits, longer entrances */
+  --emph: cubic-bezier(.2, 0, 0, 1);
+  --emph-decel: cubic-bezier(.05, .7, .1, 1);
+  --emph-accel: cubic-bezier(.3, 0, .8, .15);
+  --d-short: 150ms; --d-medium: 300ms; --d-long: 450ms;
   color-scheme: dark;
   transition:
     --bg 0.5s, --surface 0.5s, --on-bg 0.5s, --primary 0.5s, --on-primary 0.5s, --error 0.5s,
@@ -94,7 +98,7 @@
     --on-bg-4 0.5s, --on-bg-5 0.5s, --on-bg-6 0.5s, --on-bg-7 0.5s, --on-bg-8 0.5s, --on-bg-10 0.5s, --on-bg-12 0.5s,
     --on-bg-14 0.5s, --on-bg-18 0.5s, --on-bg-30 0.5s, --on-bg-45 0.5s, --on-bg-50 0.5s, --on-bg-55 0.5s,
     --on-bg-60 0.5s, --on-bg-70 0.5s, --on-bg-85 0.5s,
-    --u 0.45s cubic-bezier(.2,.8,.2,1), --led-radius 0.45s cubic-bezier(.2,.8,.2,1);
+    --u 0.45s var(--emph-decel), --led-radius 0.45s var(--emph-decel);
 }
 :root[data-theme='light'] { color-scheme: light; }
 :root[data-effects='light'] { --mb: 0px; }
@@ -145,13 +149,18 @@ code { font-family: 'JetBrains Mono', monospace; font-size: 0.9em; }
   height: 100%;
   /* nothing scrolls: every screen fits the window (Settings is the one exception) */
   overflow: hidden;
-  animation: screen-in 0.45s cubic-bezier(.2,.8,.2,1);
+  animation: sa-in-fwd var(--d-long) var(--emph-decel) both;
 }
 .app.scrolls { overflow-y: auto; overflow-x: hidden; }
 /* the screen that is being left */
-.app.leaving { pointer-events: none; animation: screen-out 0.22s cubic-bezier(.4,0,1,1) forwards; }
-@keyframes screen-in { from { opacity: 0; transform: scale(1.012); filter: blur(var(--mb)); } }
-@keyframes screen-out { to { opacity: 0; transform: scale(0.985) translateY(-6px); filter: blur(var(--mb)); } }
+.app[data-dir='back'] { animation-name: sa-in-back; }
+.app.leaving { pointer-events: none; animation: sa-out-fwd 0.12s var(--emph-accel) forwards; }
+.app.leaving[data-dir='back'] { animation-name: sa-out-back; }
+/* shared axis: a short slide plus fade, forward (deeper) and back */
+@keyframes sa-in-fwd { from { opacity: 0; transform: translateX(36px); } }
+@keyframes sa-in-back { from { opacity: 0; transform: translateX(-36px); } }
+@keyframes sa-out-fwd { to { opacity: 0; transform: translateX(-24px); } }
+@keyframes sa-out-back { to { opacity: 0; transform: translateX(24px); } }
 .screen {
   max-width: 1080px; margin: 0 auto;
   padding: calc(14px + var(--inset-top, 0px)) var(--pad) calc(14px + var(--inset-bottom, 0px));
@@ -251,8 +260,8 @@ code { font-family: 'JetBrains Mono', monospace; font-size: 0.9em; }
 .presence.inline.badge { position: absolute; top: 5px; right: 5px; }
 .presence.inline.badge .update-dot { margin-left: 0; }
 
-.entrance { animation: rise 0.45s cubic-bezier(.2,.8,.2,1) both; animation-delay: calc(var(--i, 0) * 45ms); }
-@keyframes rise { from { opacity: 0; transform: translateY(10px); } }
+.entrance { animation: rise var(--d-long) var(--emph-decel) both; animation-delay: calc(var(--i, 0) * 40ms); }
+@keyframes rise { from { opacity: 0; transform: translateY(18px); } }
 @keyframes fade-in { from { opacity: 0; } }
 @keyframes fade-out { to { opacity: 0; } }
 
@@ -262,47 +271,47 @@ code { font-family: 'JetBrains Mono', monospace; font-size: 0.9em; }
 .presence { --gap: 12px; display: grid; grid-template-rows: 1fr; min-width: 0; }
 .presence-inner { min-height: 0; min-width: 0; }
 .presence.gap14 { --gap: 14px; }
-.presence.enter { animation: presence-in 0.42s cubic-bezier(.2,.8,.2,1) both; }
-.presence.leaving { pointer-events: none; animation: presence-out 0.3s cubic-bezier(.4,0,.2,1) forwards; }
+.presence.enter { animation: presence-in 0.42s var(--emph-decel) both; }
+.presence.leaving { pointer-events: none; animation: presence-out 0.3s var(--emph-accel) forwards; }
 .presence.enter > .presence-inner, .presence.leaving > .presence-inner { overflow: hidden; }
 @keyframes presence-in {
-  from { grid-template-rows: 0fr; opacity: 0; margin-top: calc(var(--gap) * -1); filter: blur(var(--mb)); }
+  from { grid-template-rows: 0fr; opacity: 0; margin-top: calc(var(--gap) * -1); }
 }
 @keyframes presence-out {
-  to { grid-template-rows: 0fr; opacity: 0; margin-top: calc(var(--gap) * -1); filter: blur(var(--mb)); }
+  to { grid-template-rows: 0fr; opacity: 0; margin-top: calc(var(--gap) * -1); }
 }
 .update-block .presence { --gap: 8px; }
 /* a dot or badge beside text: pops instead of growing */
 .presence.inline { display: inline-flex; grid-template-rows: none; }
-.presence.inline.enter { animation: dot-in 0.45s cubic-bezier(.3,1.5,.5,1) both; }
+.presence.inline.enter { animation: dot-in 0.45s var(--emph) both; }
 .presence.inline.leaving { animation: dot-out 0.25s ease forwards; }
 @keyframes dot-in { from { opacity: 0; transform: scale(0); } }
 @keyframes dot-out { to { opacity: 0; transform: scale(0); } }
 
 /* one thing replaced by another: the old fades up and away on top while the new rises in */
 .swap { position: relative; min-width: 0; }
-.swap-in.changed { animation: swap-in 0.45s cubic-bezier(.2,.8,.2,1) both; }
-.swap-out { position: absolute; left: 0; right: 0; top: 0; pointer-events: none; animation: swap-out 0.28s cubic-bezier(.4,0,.2,1) forwards; }
+.swap-in.changed { animation: swap-in 0.45s var(--emph-decel) both; }
+.swap-out { position: absolute; left: 0; right: 0; top: 0; pointer-events: none; animation: swap-out 0.28s var(--emph-accel) forwards; }
 .swap.stack > .swap-in, .swap.stack > .swap-out { display: flex; flex-direction: column; gap: 12px; --gap: 12px; }
-@keyframes swap-in { from { opacity: 0; transform: translateY(12px); filter: blur(var(--mb)); } }
-@keyframes swap-out { to { opacity: 0; transform: translateY(-8px) scale(0.98); filter: blur(var(--mb)); } }
+@keyframes swap-in { from { opacity: 0; transform: translateY(12px); } }
+@keyframes swap-out { to { opacity: 0; transform: translateY(-8px) scale(0.98); } }
 .stack { display: flex; flex-direction: column; gap: 12px; --gap: 12px; }
 
 /* text that changed */
-.txt { animation: txt-in 0.4s cubic-bezier(.2,.8,.2,1) both; }
-@keyframes txt-in { from { opacity: 0; filter: blur(calc(var(--mb) * 0.8)); } }
+.txt { animation: txt-in 0.4s var(--emph-decel) both; }
+@keyframes txt-in { from { opacity: 0; } }
 
 /* list items on their way out (and the generic way in) */
 .leaving { pointer-events: none; }
-.chip.scene { animation: item-in 0.42s cubic-bezier(.2,.8,.2,1) both; }
-.chip.scene.leaving { overflow: hidden; animation: chip-out 0.3s cubic-bezier(.4,0,.2,1) forwards; }
-.board-tile, .nearby-row { animation: item-in 0.42s cubic-bezier(.2,.8,.2,1) both; }
-.board-tile.leaving, .nearby-row.leaving { animation: item-out 0.3s cubic-bezier(.4,0,.2,1) forwards; }
-@keyframes item-in { from { opacity: 0; transform: scale(0.82); filter: blur(var(--mb)); } }
-@keyframes item-out { to { opacity: 0; transform: scale(0.82); filter: blur(var(--mb)); } }
+.chip.scene { animation: item-in 0.42s var(--emph-decel) both; }
+.chip.scene.leaving { overflow: hidden; animation: chip-out 0.3s var(--emph-accel) forwards; }
+.board-tile, .nearby-row { animation: item-in 0.42s var(--emph-decel) both; }
+.board-tile.leaving, .nearby-row.leaving { animation: item-out 0.3s var(--emph-accel) forwards; }
+@keyframes item-in { from { opacity: 0; transform: scale(0.92); } }
+@keyframes item-out { to { opacity: 0; transform: scale(0.92); } }
 @keyframes chip-out {
   from { max-width: 260px; }
-  to { opacity: 0; transform: scale(0.6); filter: blur(var(--mb)); max-width: 0; padding-inline: 0; margin-right: -8px; }
+  to { opacity: 0; transform: scale(0.6); max-width: 0; padding-inline: 0; margin-right: -8px; }
 }
 
 /* ── Header ───────────────────────────────────────────────── */
@@ -343,7 +352,7 @@ code { font-family: 'JetBrains Mono', monospace; font-size: 0.9em; }
   height: min(78%, 80cqw); aspect-ratio: 1;
   border-radius: var(--led-radius, 50%);
   border: 2px solid;
-  transition: background 0.25s, box-shadow 0.25s, border-color 0.25s, transform 0.25s cubic-bezier(.2,.8,.2,1), opacity 0.3s, height 0.4s cubic-bezier(.2,.8,.2,1), max-width 0.4s;
+  transition: background 0.25s, box-shadow 0.25s, border-color 0.25s, transform 0.25s var(--emph-decel), opacity 0.3s, height 0.4s var(--emph-decel), max-width 0.4s;
 }
 .led-preview.pair .led-disc { height: min(64%, 38cqw); }
 .led-disc.clickable { cursor: pointer; }
@@ -362,7 +371,7 @@ code { font-family: 'JetBrains Mono', monospace; font-size: 0.9em; }
   opacity: 0.9;
   transition:
     --g0 0.3s, --g1 0.3s, --g2 0.3s, --g3 0.3s, --g4 0.3s, --g5 0.3s, --g6 0.3s, --g7 0.3s, --g8 0.3s,
-    border-radius 0.45s cubic-bezier(.2,.8,.2,1), opacity 0.3s;
+    border-radius 0.45s var(--emph-decel), opacity 0.3s;
 }
 .gbar-thumb {
   position: absolute; top: 50%; width: 26px; height: 26px; margin: -13px 0 0 -13px;
@@ -371,7 +380,7 @@ code { font-family: 'JetBrains Mono', monospace; font-size: 0.9em; }
   box-shadow: 0 0 0 2px rgb(0 0 0 / 0.12), 0 2px 8px rgb(0 0 0 / 0.25);
   display: grid; place-items: center;
   /* it glides to a new place (a scene, a preset) and follows the pointer exactly while held */
-  transition: left 0.4s cubic-bezier(.2,.8,.2,1), transform 0.15s;
+  transition: left 0.4s var(--emph-decel), transform 0.15s;
 }
 .gbar.dragging .gbar-thumb { transition: transform 0.15s; }
 .gbar:active .gbar-thumb { transform: scale(1.12); }
@@ -383,7 +392,7 @@ code { font-family: 'JetBrains Mono', monospace; font-size: 0.9em; }
   width: 30px; height: 30px; flex: none;
   border-radius: var(--r-pill);
   box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.15);
-  transition: var(--t), transform 0.2s cubic-bezier(.3,1.5,.5,1), background 0.35s;
+  transition: var(--t), transform 0.2s var(--emph), background 0.35s;
 }
 .preset:hover { transform: scale(1.12); }
 .preset:active { transform: scale(0.9); }
@@ -421,7 +430,7 @@ code { font-family: 'JetBrains Mono', monospace; font-size: 0.9em; }
 .settings-card { --gap: 0px; padding: 0; gap: 0; }
 .card-head { display: flex; align-items: center; gap: 10px; padding: 18px; font-size: 16px; font-weight: 600; text-align: left; width: 100%; }
 .card-head span:first-child { flex: 1; }
-.card-arrow { color: var(--on-bg-55); transform: rotate(-90deg); transition: transform 0.35s cubic-bezier(.3,1.3,.5,1), color 0.3s; }
+.card-arrow { color: var(--on-bg-55); transform: rotate(-90deg); transition: transform 0.35s var(--emph), color 0.3s; }
 .card-arrow.open { transform: rotate(90deg); }
 .card-body { padding: 0 18px 18px; display: flex; flex-direction: column; gap: 12px; }
 .setting-section { font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--on-bg-55); margin-top: 12px; }
@@ -499,10 +508,10 @@ code { font-family: 'JetBrains Mono', monospace; font-size: 0.9em; }
 /* ── Toasts ───────────────────────────────────────────────── */
 
 .toasts { position: fixed; left: 50%; bottom: calc(24px + var(--inset-bottom, 0px)); transform: translateX(-50%); z-index: 60; display: flex; flex-direction: column; gap: 8px; align-items: center; pointer-events: none; width: min(560px, calc(100% - 32px)); }
-.toast { padding: 10px 16px; border-radius: var(--r-pill); font-size: 13px; text-align: center; animation: toast-in 0.4s cubic-bezier(.2,.8,.2,1); }
-.toast.leaving { animation: toast-out 0.3s cubic-bezier(.4,0,1,1) forwards; }
-@keyframes toast-in { from { opacity: 0; transform: translateY(14px) scale(0.92); filter: blur(var(--mb)); } }
-@keyframes toast-out { to { opacity: 0; transform: translateY(8px) scale(0.92); filter: blur(var(--mb)); } }
+.toast { padding: 10px 16px; border-radius: var(--r-pill); font-size: 13px; text-align: center; animation: toast-in 0.4s var(--emph-decel); }
+.toast.leaving { animation: toast-out 0.3s var(--emph-accel) forwards; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(14px) scale(0.92); } }
+@keyframes toast-out { to { opacity: 0; transform: translateY(8px) scale(0.92); } }
 
 ::-webkit-scrollbar { width: 10px; height: 8px; }
 ::-webkit-scrollbar-thumb { background: var(--on-bg-14); border-radius: var(--r-pill); border: 2px solid transparent; background-clip: padding-box; }
@@ -548,7 +557,7 @@ button.circle-btn.active { background: var(--active); color: var(--on-active); }
   position: absolute; top: 3px; bottom: 3px; left: 3px;
   border-radius: calc(var(--u) * 17px);
   background: var(--active);
-  transition: transform 0.4s cubic-bezier(.3,1.3,.5,1), width 0.4s cubic-bezier(.2,.8,.2,1), opacity 0.3s, var(--t);
+  transition: transform 0.4s var(--emph), width 0.4s var(--emph-decel), opacity 0.3s, var(--t);
 }
 .pill-option {
   position: relative; flex: 1; min-width: 0;
@@ -569,7 +578,7 @@ button.switch:active { transform: scale(0.92); }
   display: block; width: 22px; height: 22px;
   border-radius: calc(var(--u) * 11px);
   background: var(--on-bg-70);
-  transition: transform 0.35s cubic-bezier(.3,1.3,.5,1), var(--t);
+  transition: transform 0.35s var(--emph), var(--t);
 }
 button.switch.on { background: var(--primary); }
 button.switch.on .switch-knob { transform: translateX(20px); background: var(--on-primary); }
@@ -588,7 +597,7 @@ button.pill-button.highlighted:hover:not(:disabled) { filter: brightness(1.08); 
 button.pill-button:disabled { opacity: 0.4; }
 
 .progress { height: 6px; border-radius: var(--r-pill); background: var(--on-bg-10); overflow: hidden; }
-.progress-fill { height: 100%; background: var(--active-strong); transition: width 0.4s cubic-bezier(.2,.8,.2,1), var(--t); }
+.progress-fill { height: 100%; background: var(--active-strong); transition: width 0.4s var(--emph-decel), var(--t); }
 .progress-fill.indeterminate { width: 35%; animation: indet 1.2s ease-in-out infinite; }
 @keyframes indet { from { transform: translateX(-100%); } to { transform: translateX(290%); } }
 
@@ -618,12 +627,12 @@ button.chip.add.disabled, button.menu-item:disabled { opacity: 0.4; }
   border: 1px solid var(--on-bg-10);
   box-shadow: 0 24px 70px rgb(0 0 0 / 0.4);
   display: flex; flex-direction: column; gap: 10px; --gap: 10px;
-  animation: dialog-in 0.3s cubic-bezier(.2,.8,.2,1);
+  animation: dialog-in 0.3s var(--emph-decel);
 }
-.scrim.closing .dialog { animation: dialog-out 0.3s cubic-bezier(.4,0,1,1) forwards; }
+.scrim.closing .dialog { animation: dialog-out 0.3s var(--emph-accel) forwards; }
 .dialog.wide { width: min(520px, 100%); }
-@keyframes dialog-in { from { opacity: 0; transform: scale(0.92) translateY(10px); filter: blur(var(--mb)); } }
-@keyframes dialog-out { to { opacity: 0; transform: scale(0.94) translateY(8px); filter: blur(var(--mb)); } }
+@keyframes dialog-in { from { opacity: 0; transform: scale(0.92) translateY(10px); } }
+@keyframes dialog-out { to { opacity: 0; transform: scale(0.94) translateY(8px); } }
 .dialog-actions { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
 button.action-row { text-align: left; padding: 14px 16px; border-radius: var(--r-md); background: var(--on-bg-6); font-weight: 500; transition: var(--t), transform 0.15s; }
 button.action-row:hover { background: var(--on-bg-12); }

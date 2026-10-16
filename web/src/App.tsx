@@ -116,9 +116,14 @@ export function App() {
 
   // A screen leaves (fades, shrinks away) before the next one comes in.
   const [screen, setScreen] = useState(mainScreen)
+  // Material shared axis: deeper (devices > a device > settings) slides in from the right, back from the left
+  const depth: Record<string, number> = { devices: 0, control: 1, settings: 2 }
+  const dirRef = useRef('forward')   // kept after the swap, so the screen that arrives slides in from the same side
+  if (mainScreen !== screen) dirRef.current = depth[mainScreen] > depth[screen] ? 'forward' : 'back'
+  const dir = dirRef.current
   useEffect(() => {
     if (mainScreen === screen) return
-    const t = window.setTimeout(() => setScreen(mainScreen), 220)
+    const t = window.setTimeout(() => setScreen(mainScreen), 120)
     return () => window.clearTimeout(t)
   }, [mainScreen, screen])
 
@@ -167,7 +172,7 @@ export function App() {
         </filter>
       </svg>
 
-      <main className={'app' + (mainScreen !== screen ? ' leaving' : '') + (screen === 'settings' ? ' scrolls' : '')} key={screen}>
+      <main className={'app' + (mainScreen !== screen ? ' leaving' : '') + (screen === 'settings' ? ' scrolls' : '')} key={screen} data-dir={dir}>
         {screen === 'settings' ? (
           <SettingsScreen onBack={() => setShowSettings(false)} onWhatsNew={() => setDialog({ kind: 'whatsNew' })} />
         ) : screen === 'control' && Control && conn.device ? (
