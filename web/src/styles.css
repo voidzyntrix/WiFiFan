@@ -106,6 +106,11 @@
 :root.booting, :root.booting * { transition: none !important; }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+/* scrollbars never take layout space or shift the page (scrolling itself is unchanged: wheel, touch, keys) */
+* { scrollbar-width: none; }
+*::-webkit-scrollbar { display: none; }
+mdui-dialog::part(body), mdui-dialog::part(panel) { scrollbar-width: none; }
+mdui-dialog::part(body)::-webkit-scrollbar { display: none; }
 /* nothing in the app can be selected or dragged, except what is typed into a text field */
 *, *::before, *::after { -webkit-user-select: none; user-select: none; -webkit-user-drag: none; }
 input, textarea, mdui-text-field { -webkit-user-select: text; user-select: text; }
@@ -207,6 +212,10 @@ code { font-family: 'JetBrains Mono', monospace; font-size: 0.9em; }
 .deck.scenes { gap: 0; }
 .deck.tune { gap: 12px; }
 .deck.colour { justify-content: center; }
+/* Solar has a lot to show (sign-in, live data, grid-loss settings): its card is taller and scrolls inside */
+.deck-panel:has(.deck.solar) { height: clamp(300px, 42dvh, 440px); }   /* phones: the light preview above keeps its room */
+.deck.solar { overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; padding-bottom: 18px; -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent); }   /* the fade says there is more below */
+.deck.solar > * { flex: none; }
 .deck.colour, .deck.colour .stack, .deck.colour .swap.stack > .swap-in, .deck.colour .swap.stack > .swap-out { gap: 8px; --gap: 8px; }
 @media (min-width: 900px) and (min-aspect-ratio: 1/1) {
   /* wide windows: the preview on the left, the controls on the right, both centred */
@@ -214,6 +223,7 @@ code { font-family: 'JetBrains Mono', monospace; font-size: 0.9em; }
   .control-preview { flex: 1.05 1 0; min-width: 0; justify-content: center; }
   .control-deck { flex: 1 1 0; min-width: 0; align-self: center; max-width: 560px; }
   .deck-panel { height: clamp(280px, 44dvh, 380px); }
+  .deck-panel:has(.deck.solar) { height: clamp(380px, 72dvh, 680px); }   /* the preview is beside it here: more room */
 }
 /* short phones: brightness shares a row with its label */
 @media (max-height: 700px) and (max-width: 899px) {
@@ -513,9 +523,6 @@ code { font-family: 'JetBrains Mono', monospace; font-size: 0.9em; }
 @keyframes toast-in { from { opacity: 0; transform: translateY(14px) scale(0.92); } }
 @keyframes toast-out { to { opacity: 0; transform: translateY(8px) scale(0.92); } }
 
-::-webkit-scrollbar { width: 10px; height: 8px; }
-::-webkit-scrollbar-thumb { background: var(--on-bg-14); border-radius: var(--r-pill); border: 2px solid transparent; background-clip: padding-box; }
-::-webkit-scrollbar-track { background: transparent; }
 
 /* ═══ Design: Glass ═════════════════════════════════════════ */
 
@@ -831,11 +838,12 @@ mdui-chip.menu-item { height: 100%; width: 100%; }
 mdui-chip.chip.scene, mdui-chip.chip { width: 100%; }
 mdui-chip.chip.add.disabled { opacity: 0.45; }
 mdui-slider.md-slider { width: 100%; }
-.md-dialog { min-width: min(320px, calc(100vw - 32px)); max-width: min(400px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); --mdui-shape-corner-extra-large: var(--r-xl); }
-.md-dialog.wide { max-width: min(520px, calc(100vw - 32px)); }
+.md-dialog { --mdui-shape-corner-extra-large: var(--r-xl); padding: 16px; }
+.md-dialog::part(panel) { min-width: min(320px, calc(100vw - 32px)); max-width: min(400px, calc(100vw - 32px)); }
+.md-dialog.wide::part(panel) { max-width: min(520px, calc(100vw - 32px)); }
 mdui-dialog .dialog-sub { color: rgb(var(--mdui-color-on-surface-variant)); }
 mdui-dialog .dialog-title { font-weight: 400; }
-mdui-list.dialog-actions { margin: 4px -24px 0; display: block; background: transparent; }
+mdui-list.dialog-actions { margin: 4px 0 0; padding: 0; display: block; background: transparent; }
 mdui-text-field.text-field { width: 100%; margin-top: 8px; }
 mdui-fab.fab { position: absolute; right: calc(var(--pad) + 2px); bottom: calc(24px + var(--inset-bottom, 0px)); z-index: 3; }
 

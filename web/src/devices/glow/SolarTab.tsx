@@ -120,10 +120,10 @@ export function SolarTab({ c }: { c: LedController }) {
     setKey(''); setChanging(false)
   }
 
-  if (!st) return <div className="deck tune"><Hint>Asking the board…</Hint></div>
+  if (!st) return <div className="deck tune solar"><Hint>Asking the board…</Hint></div>
 
   return (
-    <div className="deck tune">
+    <div className="deck tune solar">
       <div className="panel-head">
         <span>Solar</span>
         <span className="panel-state"><Txt>{!st.key ? 'Needs your FoxESS key' : st.err ? 'Problem' : !st.have ? 'Asking FoxESS…' : 'Following your inverter'}</Txt></span>

@@ -2,6 +2,20 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.9.2',
+    notes: [
+      'Dialogs open in the centre of the screen again (they had slid to the left), and the device and sleep menus no longer clip their rows or show a scrollbar.',
+      'Scrollbars are gone from the layout: they no longer take space or shift the page. Scrolling still works with the wheel, touch and keys.',
+      'Fixes the Solar tab being cut off: its card now scrolls inside itself, with a fade at the bottom when there is more.',
+    ],
+  },
+  {
+    version: '2.9.2',
+    notes: [
+      'Fixes the Solar tab being cut off: its card now scrolls inside itself, and is taller (a little on phones, a lot on wide windows).',
+    ],
+  },
+  {
     version: '2.9.1',
     notes: [
       'Material 3 Expressive: the newest Material components. Thick sliders with a slim bar handle, connected button groups, buttons that change shape as you press them, a power button that turns into a rounded square when on, and a morphing loading shape while searching for devices.',
