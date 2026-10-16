@@ -2,6 +2,12 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.8.4',
+    notes: [
+      'Solar: a Test the LEDs button checks each LED on the board, and the LEDs now latch their colour properly so a chain of two lights up together.',
+    ],
+  },
+  {
     version: '2.8.3',
     notes: [
       'Grid-loss pattern is now yours to set in Solar: battery colour breathing on both LEDs, red flash on both LEDs every 5 s to 1 min, short, normal or long. The settings are saved on the board and kept after restarts. Needs board firmware 1.6.6.',

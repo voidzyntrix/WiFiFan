@@ -121,6 +121,7 @@ export function SolarTab({ c }: { c: LedController }) {
                 <SegmentedPill options={['Short', 'Normal', 'Long']} selected={FLASH_MS.indexOf(gl.ms)} onSelect={(i) => setGridLoss({ ms: FLASH_MS[i] })} />
               </>
             )}
+            <PillButton text="Test the LEDs" onClick={() => board.sendData('ledtest')} />
             <PillButton text="Change key" onClick={() => setChanging(true)} />
             <PillButton text="Stop Solar" onClick={() => void c.startMode(MODE.SOLID)} />
           </div>
