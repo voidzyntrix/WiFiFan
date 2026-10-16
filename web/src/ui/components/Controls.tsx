@@ -24,8 +24,11 @@ export function GradientBar(props: {
   onFraction: (f: number) => void
   onFinished: () => void
   label?: string
+  /** A plain level (brightness, volume): Material 3 Expressive draws it two-tone, active and inactive track. */
+  level?: boolean
 }) {
   const ref = useRef<HTMLDivElement>(null)
+  const material = useDesign() === 'MATERIAL'
   const [dragging, setDragging] = useState(false)   // while held the thumb follows the pointer exactly
   const step = useRef(-1)
   const finishTimer = useRef(0)
@@ -48,7 +51,8 @@ export function GradientBar(props: {
   return (
     <div
       ref={ref}
-      className={'gbar' + (dragging ? ' dragging' : '')}
+      className={'gbar' + (dragging ? ' dragging' : '') + (material ? ' m3e' : '') + (props.level ? ' level' : '')}
+      style={{ ['--pos' as string]: `${props.fraction * 100}%` }}
       role="slider"
       aria-label={props.label}
       aria-valuemin={0}
@@ -122,7 +126,9 @@ export function LevelBar(props: {
     if (el && Math.abs(el.value - props.fraction * 100) > 0.5) el.value = props.fraction * 100
   })
   if (design === 'MATERIAL') {
-    return <mdui-slider ref={ref} class="md-slider" min="0" max="100" step="1" aria-label={props.label} value={String(Math.round(props.fraction * 100))} />
+    // Material 3 Expressive slider: thick two-tone track, a gap around a slim bar handle, a stop dot at the end
+    return <GradientBar label={props.label} fraction={props.fraction} stops={['#000', '#000']} thumbColor="transparent" level
+      onFraction={props.onFraction} onFinished={props.onFinished} />
   }
   return (
     <GradientBar label={props.label} fraction={props.fraction} stops={props.stops ?? ['var(--on-bg-12)', 'var(--on-bg-55)']}
@@ -135,7 +141,7 @@ export function SegmentedPill(props: { options: string[]; selected: number; onSe
   const design = useDesign()
   const n = props.options.length
   if (design === 'MATERIAL') {
-    return <MdSegmented {...props} />
+    return <M3eButtonGroup {...props} />
   }
   return (
     <div className={'pill' + (props.disabled ? ' disabled' : '')} role="radiogroup">
@@ -190,22 +196,29 @@ function MdSwitch(props: { checked: boolean; onChange: (v: boolean) => void; lab
   return <mdui-switch ref={ref} aria-label={props.label} checked={flag(props.checked)} />
 }
 
-/** Material 3 segmented buttons: one of a few options. */
-function MdSegmented(props: { options: string[]; selected: number; onSelect: (i: number) => void; disabled?: boolean }) {
-  const ref = useElementEvent<HTMLElement & { value: string }>('change', (el) => {
-    const i = Number(el.value)
-    if (!Number.isNaN(i) && i !== props.selected && el.value !== '') { sound.tap(); props.onSelect(i) }
-  })
-  useEffect(() => {
-    const el = ref.current
-    if (el && el.value !== (props.selected >= 0 ? String(props.selected) : '')) el.value = props.selected >= 0 ? String(props.selected) : ''
-  }, [props.selected, props.options.length])
+/**
+ * Material 3 Expressive connected button group: separate pieces with small inner corners; the chosen
+ * one turns fully round (the shapes move with a spring).
+ */
+function M3eButtonGroup(props: { options: string[]; selected: number; onSelect: (i: number) => void; disabled?: boolean }) {
   return (
-    <mdui-segmented-button-group ref={ref} class={'segmented' + (props.disabled ? ' disabled' : '')} selects="single" full-width disabled={flag(props.disabled)} value={props.selected >= 0 ? String(props.selected) : ''}>
-      {props.options.map((o, i) => <mdui-segmented-button key={o} value={String(i)}>{o}</mdui-segmented-button>)}
-    </mdui-segmented-button-group>
+    <div className={'m3e-group' + (props.disabled ? ' disabled' : '')} role="radiogroup">
+      {props.options.map((o, i) => (
+        <button
+          key={o}
+          role="radio"
+          aria-checked={i === props.selected}
+          disabled={props.disabled}
+          className={'m3e-seg' + (i === props.selected ? ' on' : '')}
+          onClick={() => { if (i !== props.selected) { sound.tap(); props.onSelect(i) } }}
+        >
+          <span className="m3e-seg-label">{o}</span>
+        </button>
+      ))}
+    </div>
   )
 }
+
 
 /** A card: frosted / refractive glass, or a Material tonal surface. */
 export function PanelCard({ children, className = '', style }: { children: ReactNode; className?: string; style?: CSSProperties }) {
@@ -260,9 +273,14 @@ export function CircleIconButton(props: { label: string; onClick: () => void; ch
 export function ProgressBar({ fraction }: { fraction: number | null }) {
   const design = useDesign()
   if (design === 'MATERIAL') {
-    return fraction == null
-      ? <mdui-linear-progress class="md-progress" />
-      : <mdui-linear-progress class="md-progress" value={String(fraction)} max="1" />
+    // Material 3's wavy progress: the filled part is a moving squiggle, the rest a flat track
+    return (
+      <div className={'wavy' + (fraction == null ? ' indeterminate' : '')} role="progressbar" aria-valuemin={0} aria-valuemax={100}
+        aria-valuenow={fraction == null ? undefined : Math.round(fraction * 100)}>
+        <span className="wavy-fill" style={fraction == null ? undefined : { width: `${Math.max(0, Math.min(1, fraction)) * 100}%` }} />
+        <span className="wavy-track" />
+      </div>
+    )
   }
   return (
     <div className="progress">
@@ -522,5 +540,16 @@ export function ColourPickerDialog(props: { initial: string; title?: string; onD
         <PillButton text="Use colour" highlighted onClick={() => props.onPick(hex)} />
       </div>
     </Dialog>
+  )
+}
+
+/** Material 3 Expressive's loading indicator: a shape that keeps morphing (cookie, burst, pentagon, clover) as it turns. */
+export function LoadingIndicator({ size = 40, label = 'Loading' }: { size?: number; label?: string }) {
+  return (
+    <span className="m3e-loading" role="progressbar" aria-label={label} style={{ width: size, height: size }}>
+      <svg viewBox="0 0 100 100" width={size} height={size} aria-hidden>
+        <path className="m3e-loading-shape" d="M50.0 8.0 L56.2 2.9 L62.0 5.3 L65.2 13.3 L68.0 18.8 L74.2 18.5 L82.7 17.3 L87.7 21.1 L86.4 29.0 L83.7 36.0 L86.5 40.2 L93.9 44.2 L98.0 50.0 L93.9 55.8 L86.5 59.8 L83.7 64.0 L86.4 71.0 L87.7 78.9 L82.7 82.7 L74.2 81.5 L68.0 81.2 L65.2 86.7 L62.0 94.7 L56.2 97.1 L50.0 92.0 L45.2 86.1 L40.2 86.5 L33.0 90.9 L26.0 91.6 L23.0 85.1 L23.3 76.7 L21.1 72.2 L13.6 71.0 L6.1 68.2 L5.3 62.0 L10.6 55.2 L14.0 50.0 L10.6 44.8 L5.3 38.0 L6.1 31.8 L13.6 29.0 L21.1 27.8 L23.3 23.3 L23.0 14.9 L26.0 8.4 L33.0 9.1 L40.2 13.5 L45.2 13.9 Z" />
+      </svg>
+    </span>
   )
 }

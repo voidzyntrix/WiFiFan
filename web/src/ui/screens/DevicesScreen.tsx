@@ -8,7 +8,7 @@ import { DEVICE_TYPES, deviceType, guessType } from '../../devices/registry'
 import type { SavedDevice } from '../../devices/types'
 import { platform } from '../../platform'
 import { useSettings } from '../../settings/store'
-import { CircleIconButton, PillButton, useDesign } from '../components/Controls'
+import { CircleIconButton, LoadingIndicator, PillButton, useDesign } from '../components/Controls'
 import { AddIcon, BulbIcon, SettingsIcon } from '../components/Icons'
 import { Pager } from '../components/Pager'
 import { Swap, Txt } from '../motion'
@@ -30,7 +30,7 @@ export function DevicesScreen(props: {
   return (
     <div className="screen devices">
       <header className="header">
-        <div className="header-title"><h1>Glow</h1></div>
+        <div className="header-title"><h1>Glow</h1><p className="header-sub">Your lights, in your colours</p></div>
         <CircleIconButton label="Settings" onClick={props.onSettings}><SettingsIcon /></CircleIconButton>
       </header>
 
@@ -131,7 +131,7 @@ function NearbyList({ onSetup }: { onSetup: (typeId: string, ssid?: string) => v
     <div className="panel nearby">
       <div className="panel-head">
         <span>{conn.phase === 'connecting' ? 'Connecting…' : 'Nearby devices'}</span>
-        <span className="scan-dots"><span /><span /><span /></span>
+        {useDesign() === 'MATERIAL' ? <LoadingIndicator size={32} label="Looking for devices" /> : <span className="scan-dots"><span /><span /><span /></span>}
       </div>
       <Swap k={items.length === 0 ? 'empty' : 'list'} className="fill">
         {items.length === 0 ? (

@@ -2,6 +2,15 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.9.1',
+    notes: [
+      'Material 3 Expressive: the newest Material components. Thick sliders with a slim bar handle, connected button groups, buttons that change shape as you press them, a power button that turns into a rounded square when on, and a morphing loading shape while searching for devices.',
+      'Material You looks the way Google apps do: a clean tonal background, large titles with a coloured subtitle, filled cards with big rounded shapes, and device tiles in colour containers with scalloped icon shapes.',
+      'Animated squiggles: progress bars are wavy, and a moving wave sits under the large titles.',
+      'No more GitHub 403s on update checks: Glow reads a small versions file from the repo instead of the rate-limited GitHub API.',
+    ],
+  },
+  {
     version: '2.9.0',
     notes: [
       'Solar live data: sign in with your FoxESS username and password in Solar, and the board follows your inverter about every 5 seconds instead of every few minutes, by itself, even with Glow closed. The API key stays as the backup. Needs board firmware 1.7.0.',

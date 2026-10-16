@@ -656,47 +656,153 @@ input.text-field:focus { border-color: var(--primary); background: var(--on-bg-8
 /* ═══ Design: Material ══════════════════════════════════════ */
 
 :root[data-design='material'] .backdrop, :root[data-design='material'] .glass-canvas { display: none; }
-/* Material decoration: tonal glows, rings and dots behind the screens (MaterialDecor in App.tsx) */
-.md-decor { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
-.md-decor > span { position: absolute; display: block; }
-.md-decor-glow { width: 62vmax; height: 62vmax; border-radius: 50%; filter: blur(70px); opacity: 0.55; animation: md-drift 26s ease-in-out infinite alternate; }
-.md-decor-glow.a { background: rgb(var(--mdui-color-primary-container)); top: -22vmax; right: -18vmax; }
-.md-decor-glow.b { background: rgb(var(--mdui-color-tertiary-container)); bottom: -26vmax; left: -22vmax; opacity: 0.4; animation-duration: 34s; animation-delay: -10s; }
-.md-decor-ring { border-radius: 50%; border: 1px solid rgb(var(--mdui-color-outline-variant) / 0.45); }
-.md-decor-ring.r1 { width: 46vmax; height: 46vmax; top: 8%; left: 50%; transform: translate(-50%, -20%); }
-.md-decor-ring.r2 { width: 72vmax; height: 72vmax; top: 6%; left: 50%; transform: translate(-50%, -30%); border-style: dashed; opacity: 0.6; animation: md-spin 120s linear infinite; }
-.md-decor-dot { width: 8px; height: 8px; border-radius: 50%; background: rgb(var(--mdui-color-primary)); opacity: 0.5; }
-.md-decor-dot.d1 { top: 18%; left: 12%; }
-.md-decor-dot.d2 { bottom: 16%; right: 14%; background: rgb(var(--mdui-color-tertiary)); }
-@keyframes md-drift { to { transform: translate(6vmax, 4vmax) scale(1.08); } }
-@keyframes md-spin { to { transform: translate(-50%, -30%) rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .md-decor *, .md-decor-glow { animation: none !important; } }
-:root[data-design='material'] .panel, :root[data-design='material'] .settings-card { box-shadow: 0 1px 0 rgb(var(--mdui-color-outline-variant) / 0.35), 0 8px 24px -12px rgb(0 0 0 / 0.5); }
-:root[data-design='material'] .header h1 { background: linear-gradient(90deg, rgb(var(--mdui-color-primary)), rgb(var(--mdui-color-tertiary))); -webkit-background-clip: text; background-clip: text; color: transparent; }
-:root[data-design='material'] .control-preview .led-disc { box-shadow: 0 0 80px 10px rgb(var(--mdui-color-primary) / 0.25); }
-:root[data-design='material'] .panel,
-:root[data-design='material'] .board-tile { background: var(--card-high); border: 0; }
-:root[data-design='material'] .board-tile:hover { background: var(--card-highest); }
-:root[data-design='material'] .board-tile.live { outline: 2px solid var(--primary); outline-offset: -2px; }
-:root[data-design='material'] .board-tile.add { background: transparent; outline: 1px dashed var(--outline); outline-offset: -1px; }
-:root[data-design='material'] .settings-card { background: var(--card); }
-:root[data-design='material'] .update-block, :root[data-design='material'] .nearby-row { background: var(--card-highest); }
-:root[data-design='material'] .nearby-row:hover { background: var(--active); }
-:root[data-design='material'] .board-pill { background: transparent; border: 1px solid var(--outline); }
-:root[data-design='material'] .quiet-link { background: transparent; color: var(--primary); }
-:root[data-design='material'] .quiet-link:hover { background: var(--on-bg-8); }
+
+/* Material 3, the way Google's own apps look: a flat tonal background, large display titles, filled
+   tonal cards with big shapes, and colourful container tiles. */
+:root[data-design='material'] body { background: rgb(var(--mdui-color-surface)); font-size: 15px; }
+.header-sub { display: none; }
+:root[data-design='material'] .header-sub { display: block; margin: 0; font-size: 18px; line-height: 24px; color: rgb(var(--mdui-color-primary)); }
+:root[data-design='material'] .header h1 { font-size: 28px; font-weight: 400; letter-spacing: 0; color: rgb(var(--mdui-color-on-surface)); }
+/* Devices and Settings: the top bar's buttons first, then a large title on its own line */
+:root[data-design='material'] :is(.screen.devices, .screen.settings) .header { flex-wrap: wrap; row-gap: 12px; padding-top: 8px; margin-bottom: 24px; }
+:root[data-design='material'] :is(.screen.devices, .screen.settings) .header-title { order: 2; flex-basis: 100%; gap: 6px; padding: 0 4px; }
+:root[data-design='material'] :is(.screen.devices, .screen.settings) .header h1 { font-size: 45px; line-height: 52px; }
+:root[data-design='material'] .screen.devices .header > :not(.header-title) { margin-left: auto; }
+
+/* cards: filled tonal surfaces, extra-large shape, no outline or shadow */
+:root[data-design='material'] .panel { background: rgb(var(--mdui-color-surface-container)); border: 0; box-shadow: none; border-radius: var(--r-xl); padding: 20px; }
+:root[data-design='material'] .settings-card { background: rgb(var(--mdui-color-surface-container-low)); border: 0; box-shadow: none; border-radius: var(--r-xl); padding: 20px; }
+:root[data-design='material'] .card-head { font-size: 22px; font-weight: 400; }
+:root[data-design='material'] .update-block, :root[data-design='material'] .nearby-row { background: rgb(var(--mdui-color-surface-container-highest)); border-radius: var(--r-lg); }
+:root[data-design='material'] .nearby-row:hover { background: rgb(var(--mdui-color-secondary-container)); }
+
+/* device tiles: colour containers, one after another (secondary, tertiary, primary) */
+:root[data-design='material'] .board-tile { border: 0; box-shadow: none; border-radius: var(--r-xl); background: rgb(var(--mdui-color-secondary-container)); color: rgb(var(--mdui-color-on-secondary-container)); }
+:root[data-design='material'] .board-tile:nth-child(3n + 2) { background: rgb(var(--mdui-color-tertiary-container)); color: rgb(var(--mdui-color-on-tertiary-container)); }
+:root[data-design='material'] .board-tile:nth-child(3n + 3) { background: rgb(var(--mdui-color-primary-container)); color: rgb(var(--mdui-color-on-primary-container)); }
+:root[data-design='material'] .board-tile:hover { filter: brightness(1.06); }
+:root[data-design='material'] .board-tile.live { background: rgb(var(--mdui-color-primary)); color: rgb(var(--mdui-color-on-primary)); outline: 0; }
+:root[data-design='material'] .board-tile :is(.tile-kind, .tile-status) { color: inherit; opacity: 0.8; }
+:root[data-design='material'] .board-tile .tile-name { font-size: 18px; font-weight: 500; }
+:root[data-design='material'] .board-tile.add { background: transparent; color: rgb(var(--mdui-color-primary)); outline: 1px dashed rgb(var(--mdui-color-outline)); outline-offset: -1px; }
+
+/* the rest */
+:root[data-design='material'] .board-pill { background: rgb(var(--mdui-color-secondary-container)); color: rgb(var(--mdui-color-on-secondary-container)); border: 0; }
+:root[data-design='material'] .quiet-link { background: transparent; color: rgb(var(--mdui-color-primary)); }
+:root[data-design='material'] .quiet-link:hover { background: rgb(var(--mdui-color-primary) / 0.08); }
 :root[data-design='material'] .toast { background: rgb(var(--mdui-color-inverse-surface)); color: rgb(var(--mdui-color-inverse-on-surface)); border-radius: var(--r-xs); }
-:root[data-design='material'] body { font-size: 15px; }
-:root[data-design='material'] .header h1 { font-size: 32px; font-weight: 400; letter-spacing: 0; }
-:root[data-design='material'] .panel, :root[data-design='material'] .settings-card { border-radius: var(--r-xl); padding: 20px; }
-:root[data-design='material'] .board-tile { border-radius: var(--r-xl); }
 :root[data-design='material'] .slider-label { font-size: 14px; font-weight: 500; color: rgb(var(--mdui-color-on-surface-variant)); }
-:root[data-design='material'] .card-head { font-size: 18px; font-weight: 400; }
 :root[data-design='material'] .dialog-title { font-size: 24px; font-weight: 400; }
 :root[data-design='material'] .hint, :root[data-design='material'] .dialog-sub { font-size: 14px; line-height: 1.45; }
-:root[data-design='material'] .setting-section { font-size: 12px; letter-spacing: 0.08em; color: var(--primary); }
+:root[data-design='material'] .setting-section { font-size: 12px; letter-spacing: 0.08em; color: rgb(var(--mdui-color-primary)); }
 :root[data-design='material'] .led-disc { box-shadow: none !important; }
-:root[data-design='material'] .level-meter { background: var(--card-highest); }
+:root[data-design='material'] .level-meter { background: rgb(var(--mdui-color-surface-container-highest)); }
+
+/* ── Material 3 Expressive ───────────────────────────────────
+   Springy shape changes, the expressive slider, connected button groups, the morphing loading
+   indicator and shape-library accents. Only in the Material design. */
+@property --shape-corner { syntax: '<length-percentage>'; inherits: true; initial-value: 0px; }
+:root { --spring: cubic-bezier(.34, 1.56, .64, 1); --spring-soft: cubic-bezier(.2, 1.3, .4, 1); }
+
+/* buttons and icon buttons: round at rest, squarer while pressed (the press morph) */
+:root[data-design='material'] :is(mdui-button, mdui-button-icon, mdui-fab) { transition: --shape-corner 0.35s var(--spring); }
+:root[data-design='material'] mdui-button { --shape-corner: 20px; }
+:root[data-design='material'] mdui-button:active { --shape-corner: 10px; }
+:root[data-design='material'] mdui-button-icon { --shape-corner: 22px; }
+:root[data-design='material'] mdui-button-icon:active { --shape-corner: 12px; }
+/* a toggle icon button that is on (the power button) is a rounded square */
+:root[data-design='material'] mdui-button-icon[variant='filled'] { --shape-corner: 16px; }
+:root[data-design='material'] mdui-fab { --shape-corner: 16px; }
+:root[data-design='material'] mdui-fab:active { --shape-corner: 24px; }
+
+/* the expressive slider: 16 px two-tone track, a gap either side of a slim bar handle, stop dot at the end */
+:root[data-design='material'] .gbar.m3e { height: 44px; border-radius: 0; --gap: 6px; }
+:root[data-design='material'] .gbar.m3e .gbar-track {
+  top: 14px; height: 16px; border-radius: 8px; opacity: 1;
+  -webkit-mask: linear-gradient(90deg, #000 calc(var(--pos) - var(--gap)), transparent calc(var(--pos) - var(--gap)), transparent calc(var(--pos) + var(--gap)), #000 calc(var(--pos) + var(--gap)));
+  mask: linear-gradient(90deg, #000 calc(var(--pos) - var(--gap)), transparent calc(var(--pos) - var(--gap)), transparent calc(var(--pos) + var(--gap)), #000 calc(var(--pos) + var(--gap)));
+}
+:root[data-design='material'] .gbar.m3e.level .gbar-track {
+  background: linear-gradient(90deg, rgb(var(--mdui-color-primary)) 0 var(--pos), rgb(var(--mdui-color-secondary-container)) var(--pos) 100%) !important;
+}
+:root[data-design='material'] .gbar.m3e.level::after {
+  content: ''; position: absolute; right: 6px; top: 20px; width: 4px; height: 4px; border-radius: 50%;
+  background: rgb(var(--mdui-color-on-secondary-container));
+}
+:root[data-design='material'] .gbar.m3e .gbar-thumb {
+  width: 4px; height: 44px; margin: -22px 0 0 -2px; border-radius: 2px; box-shadow: none;
+  background: rgb(var(--mdui-color-on-surface));
+  transition: left 0.4s var(--emph-decel), width 0.2s var(--spring), margin 0.2s var(--spring);
+}
+:root[data-design='material'] .gbar.m3e.level .gbar-thumb { background: rgb(var(--mdui-color-primary)); }
+:root[data-design='material'] .gbar.m3e.dragging .gbar-thumb { transition: width 0.2s var(--spring), margin 0.2s var(--spring); }
+:root[data-design='material'] .gbar.m3e:active .gbar-thumb { transform: none; width: 2px; margin-left: -1px; }
+:root[data-design='material'] .gbar.m3e .gbar-dot { display: none; }
+:root[data-design='material'] .gbar.m3e:focus-visible { outline: 2px solid rgb(var(--mdui-color-secondary)); outline-offset: 4px; border-radius: 12px; }
+
+/* connected button group */
+.m3e-group { display: flex; gap: 2px; width: 100%; flex: none; }
+.m3e-group.disabled { opacity: 0.5; pointer-events: none; }
+.m3e-seg {
+  position: relative; flex: 1 1 0; min-width: 0; height: 40px; padding: 0 8px; overflow: hidden;
+  border-radius: 8px; font: 500 14px/1 var(--font); letter-spacing: 0.01em;
+  background: rgb(var(--mdui-color-secondary-container)); color: rgb(var(--mdui-color-on-secondary-container));
+  transition: border-radius 0.35s var(--spring), background-color 0.25s, color 0.25s, flex-grow 0.35s var(--spring);
+}
+.m3e-seg:first-child { border-radius: 20px 8px 8px 20px; }
+.m3e-seg:last-child { border-radius: 8px 20px 20px 8px; }
+.m3e-seg:only-child { border-radius: 20px; }
+.m3e-seg.on { border-radius: 20px; background: rgb(var(--mdui-color-primary)); color: rgb(var(--mdui-color-on-primary)); flex-grow: 1.15; }
+.m3e-seg::after { content: ''; position: absolute; inset: 0; background: currentColor; opacity: 0; transition: opacity 0.15s; }
+.m3e-seg:hover::after { opacity: 0.08; }
+.m3e-seg:active::after { opacity: 0.12; }
+.m3e-seg:not(.on):active { border-radius: 12px; }
+.m3e-seg:focus-visible { outline: 2px solid rgb(var(--mdui-color-secondary)); outline-offset: 2px; }
+.m3e-seg-label { position: relative; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* the morphing loading indicator */
+.m3e-loading { display: inline-grid; place-items: center; flex: none; animation: m3e-spin 4.8s linear infinite; }
+.m3e-loading-shape { fill: rgb(var(--mdui-color-primary)); animation: m3e-morph 4.8s var(--spring-soft) infinite; }
+@keyframes m3e-spin { to { transform: rotate(360deg); } }
+@keyframes m3e-morph {
+  0%, 100% { d: path('M50.0 8.0 L56.2 2.9 L62.0 5.3 L65.2 13.3 L68.0 18.8 L74.2 18.5 L82.7 17.3 L87.7 21.1 L86.4 29.0 L83.7 36.0 L86.5 40.2 L93.9 44.2 L98.0 50.0 L93.9 55.8 L86.5 59.8 L83.7 64.0 L86.4 71.0 L87.7 78.9 L82.7 82.7 L74.2 81.5 L68.0 81.2 L65.2 86.7 L62.0 94.7 L56.2 97.1 L50.0 92.0 L45.2 86.1 L40.2 86.5 L33.0 90.9 L26.0 91.6 L23.0 85.1 L23.3 76.7 L21.1 72.2 L13.6 71.0 L6.1 68.2 L5.3 62.0 L10.6 55.2 L14.0 50.0 L10.6 44.8 L5.3 38.0 L6.1 31.8 L13.6 29.0 L21.1 27.8 L23.3 23.3 L23.0 14.9 L26.0 8.4 L33.0 9.1 L40.2 13.5 L45.2 13.9 Z'); }
+  25% { d: path('M50.0 2.0 L55.2 10.3 L58.3 19.1 L65.3 13.0 L74.0 8.4 L74.4 18.3 L72.6 27.4 L81.7 25.6 L91.6 26.0 L87.0 34.7 L80.9 41.7 L89.7 44.8 L98.0 50.0 L89.7 55.2 L80.9 58.3 L87.0 65.3 L91.6 74.0 L81.7 74.4 L72.6 72.6 L74.4 81.7 L74.0 91.6 L65.3 87.0 L58.3 80.9 L55.2 89.7 L50.0 98.0 L44.8 89.7 L41.7 80.9 L34.7 87.0 L26.0 91.6 L25.6 81.7 L27.4 72.6 L18.3 74.4 L8.4 74.0 L13.0 65.3 L19.1 58.3 L10.3 55.2 L2.0 50.0 L10.3 44.8 L19.1 41.7 L13.0 34.7 L8.4 26.0 L18.3 25.6 L27.4 27.4 L25.6 18.3 L26.0 8.4 L34.7 13.0 L41.7 19.1 L44.8 10.3 Z'); }
+  50% { d: path('M50.0 1.0 L56.3 2.4 L61.7 6.2 L66.1 11.1 L69.8 15.6 L73.8 19.0 L78.6 21.4 L84.4 23.6 L90.3 26.8 L94.9 31.4 L97.2 37.4 L96.6 43.9 L94.0 50.0 L90.6 55.3 L87.8 60.1 L86.4 65.1 L85.9 70.7 L85.4 77.2 L83.6 83.6 L79.8 88.8 L74.2 91.9 L67.6 92.4 L61.1 91.3 L55.2 89.7 L50.0 89.0 L44.8 89.7 L38.9 91.3 L32.4 92.4 L25.8 91.9 L20.2 88.8 L16.4 83.6 L14.6 77.2 L14.1 70.8 L13.6 65.1 L12.2 60.1 L9.4 55.3 L6.0 50.0 L3.4 43.9 L2.8 37.4 L5.1 31.4 L9.7 26.8 L15.6 23.6 L21.4 21.4 L26.2 19.0 L30.2 15.6 L33.9 11.1 L38.3 6.2 L43.7 2.4 Z'); }
+  75% { d: path('M50.0 2.0 L56.1 3.7 L61.1 8.5 L64.5 14.9 L66.5 21.4 L67.9 26.7 L69.8 30.2 L73.3 32.1 L78.6 33.5 L85.1 35.5 L91.5 38.9 L96.3 43.9 L98.0 50.0 L96.3 56.1 L91.5 61.1 L85.1 64.5 L78.6 66.5 L73.3 67.9 L69.8 69.8 L67.9 73.3 L66.5 78.6 L64.5 85.1 L61.1 91.5 L56.1 96.3 L50.0 98.0 L43.9 96.3 L38.9 91.5 L35.5 85.1 L33.5 78.6 L32.1 73.3 L30.2 69.8 L26.7 67.9 L21.4 66.5 L14.9 64.5 L8.5 61.1 L3.7 56.1 L2.0 50.0 L3.7 43.9 L8.5 38.9 L14.9 35.5 L21.4 33.5 L26.7 32.1 L30.2 30.2 L32.1 26.7 L33.5 21.4 L35.5 14.9 L38.9 8.5 L43.9 3.7 Z'); }
+}
+
+/* shape-library accent: device tile icons sit in a scalloped "cookie" */
+:root[data-design='material'] .board-tile .tile-icon {
+  width: 56px; height: 56px; display: grid; place-items: center;
+  background: rgb(var(--mdui-color-surface) / 0.55);
+  clip-path: polygon(50.0% 2.0%, 55.6% 7.4%, 59.8% 13.3%, 66.5% 10.3%, 74.0% 8.4%, 76.2% 15.9%, 76.9% 23.1%, 84.1% 23.8%, 91.6% 26.0%, 89.7% 33.5%, 86.7% 40.2%, 92.6% 44.4%, 98.0% 50.0%, 92.6% 55.6%, 86.7% 59.8%, 89.7% 66.5%, 91.6% 74.0%, 84.1% 76.2%, 76.9% 76.9%, 76.2% 84.1%, 74.0% 91.6%, 66.5% 89.7%, 59.8% 86.7%, 55.6% 92.6%, 50.0% 98.0%, 44.4% 92.6%, 40.2% 86.7%, 33.5% 89.7%, 26.0% 91.6%, 23.8% 84.1%, 23.1% 76.9%, 15.9% 76.2%, 8.4% 74.0%, 10.3% 66.5%, 13.3% 59.8%, 7.4% 55.6%, 2.0% 50.0%, 7.4% 44.4%, 13.3% 40.2%, 10.3% 33.5%, 8.4% 26.0%, 15.9% 23.8%, 23.1% 23.1%, 23.8% 15.9%, 26.0% 8.4%, 33.5% 10.3%, 40.2% 13.3%, 44.4% 7.4%);
+  transition: transform 0.5s var(--spring);
+}
+:root[data-design='material'] .board-tile:hover .tile-icon { transform: rotate(30deg); }
+:root[data-design='material'] .board-tile:hover .tile-icon > * { transform: rotate(-30deg); }
+:root[data-design='material'] .board-tile .tile-icon > * { transition: transform 0.5s var(--spring); }
+:root[data-design='material'] .board-tile.add .tile-icon { background: rgb(var(--mdui-color-primary-container)); color: rgb(var(--mdui-color-on-primary-container)); }
+@media (prefers-reduced-motion: reduce) { .m3e-loading, .m3e-loading-shape { animation: none !important; } }
+
+/* Material 3's squiggles: a wave that keeps moving (wavy progress, and a short one under the large titles) */
+:root { --wave: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='12' viewBox='0 0 24 12'%3E%3Cpath d='M0 6 Q6 1 12 6 T24 6' fill='none' stroke='black' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E"); }
+@keyframes wave-move { to { -webkit-mask-position: 24px 50%; mask-position: 24px 50%; } }
+@keyframes wave-sweep { from { transform: translateX(-100%); } to { transform: translateX(260%); } }
+.wavy { position: relative; display: flex; align-items: center; gap: 6px; width: 100%; height: 12px; overflow: hidden; }
+.wavy-fill {
+  height: 12px; flex: none; min-width: 12px; background: rgb(var(--mdui-color-primary));
+  -webkit-mask: var(--wave) repeat-x 0 50% / 24px 12px; mask: var(--wave) repeat-x 0 50% / 24px 12px;
+  animation: wave-move 1s linear infinite; transition: width 0.4s var(--emph-decel);
+}
+.wavy-track { flex: 1 1 auto; height: 4px; border-radius: 2px; background: rgb(var(--mdui-color-secondary-container)); }
+.wavy.indeterminate .wavy-fill { position: absolute; left: 0; width: 40%; animation: wave-move 1s linear infinite, wave-sweep 1.8s var(--emph) infinite; }
+.wavy.indeterminate .wavy-track { margin-left: 0; }
+:root[data-design='material'] .header-sub::after {
+  content: ''; display: block; margin-top: 12px; width: 96px; height: 12px; background: rgb(var(--mdui-color-primary));
+  -webkit-mask: var(--wave) repeat-x 0 50% / 24px 12px; mask: var(--wave) repeat-x 0 50% / 24px 12px; animation: wave-move 1.6s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) { .wavy-fill, .header-sub::after { animation: none !important; } }
+
 
 /* Material 3 widgets (mdui): shapes and sizes here; colours come from the --mdui-color-* tokens (theme.ts) */
 :root {

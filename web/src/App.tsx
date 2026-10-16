@@ -158,7 +158,6 @@ export function App() {
 
   return (
     <>
-      {prefs.design === 'MATERIAL' && <MaterialDecor />}
       {prefs.design === 'GLASS' && (
         <div className="backdrop">
           <Backdrop background={prefs.background} tint={colors.onBg} imageDim={prefs.imageDim} />
@@ -275,20 +274,6 @@ export function App() {
         {toastList.map(({ item: t, key, leaving }) => <div key={key} data-flip={key} className={'toast' + (leaving ? ' leaving' : '')}>{t.text}</div>)}
       </div>
     </>
-  )
-}
-
-/** Material You's decoration: soft tonal glows and two thin rings, all in the scheme's own colours. */
-function MaterialDecor() {
-  return (
-    <div className="md-decor" aria-hidden>
-      <span className="md-decor-glow a" />
-      <span className="md-decor-glow b" />
-      <span className="md-decor-ring r1" />
-      <span className="md-decor-ring r2" />
-      <span className="md-decor-dot d1" />
-      <span className="md-decor-dot d2" />
-    </div>
   )
 }
 

@@ -42,7 +42,7 @@ export function SettingsScreen({ onBack, onWhatsNew }: { onBack: () => void; onW
     <div className="screen settings scrolls">
       <header className="header entrance" style={{ ['--i' as string]: 0 }}>
         <CircleIconButton label="Back (Esc)" onClick={onBack}><BackIcon /></CircleIconButton>
-        <div className="header-title"><h1>Settings</h1></div>
+        <div className="header-title"><h1>Settings</h1><p className="header-sub">Make Glow yours</p></div>
       </header>
 
       <div className="settings-grid">

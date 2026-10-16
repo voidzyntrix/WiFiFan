@@ -22,6 +22,16 @@ echo "Built $bin ($(du -h "$bin" | cut -f1))"
 if [ "${1:-}" = "--publish" ]; then
     gh release create "esp-v$version" "$bin" --title "ESP32 firmware $version" \
         --notes "Firmware for the ESP32 LED board. Glow offers it in the board's Firmware dialog."
+    # versions.json is what Glow reads to find updates (no GitHub API rate limit): point it at this release
+    python - "$version" <<'PY'
+import json, sys
+p = "versions.json"
+d = json.load(open(p))
+d["esp"] = sys.argv[1]
+open(p, "w").write(json.dumps(d, indent=2) + "\n")
+PY
+    git add versions.json
+    git commit -q -m "versions.json: ESP32 firmware $version" && git push -q origin HEAD:main
 else
     echo "Next: gh release create esp-v$version $bin   (or run this script with --publish)"
 fi

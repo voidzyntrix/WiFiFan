@@ -9,6 +9,13 @@ const RELEASES_URL = `https://api.github.com/repos/${REPO}/releases?per_page=100
 const TAG_URL = `https://api.github.com/repos/${REPO}/releases/tags`
 const FEED_URL = `https://github.com/${REPO}/releases.atom`
 const DOWNLOAD_URL = `https://github.com/${REPO}/releases/download`
+/**
+ * The newest version of everything, as a plain file in the repo (versions.json, updated with every
+ * release). Read through GitHub's file CDN, which doesn't have the API's 60-requests-an-hour limit
+ * that answered 403 to Glow's frequent checks.
+ */
+const MANIFEST_URL = `https://raw.githubusercontent.com/${REPO}/main/versions.json`
+const MANIFEST_TTL_MS = 60_000
 export const RELEASES_PAGE = `https://github.com/${REPO}/releases`
 
 export interface ReleaseAsset { version: string; tag: string; downloadUrl: string; size: number }
@@ -58,20 +65,40 @@ const getText = (url: string) => {
 
 export const getBytes = (url: string, limit: number) => platform.net.bytes(url, limit)
 
+// (release files live on github.com, not the API: its rate limit doesn't apply to them)
 const exists = async (url: string) => {
   if (knownFiles.get(url)) return true
   if (Date.now() - (missingAt.get(url) ?? 0) < 30_000) return false
-  if (Date.now() < blockedUntil) throw new Error('GitHub asked Glow to slow down; trying again in a moment')
   const ok = await platform.net.exists(url)
   if (ok) knownFiles.set(url, true); else missingAt.set(url, Date.now())
   return ok
 }
 
 /**
- * The newest asset named like [pattern] (first group = "1.2.3"). The release feed first: it has no rate
- * limit, which matters as Glow looks every few seconds; the API (60 requests an hour) only if the feed fails.
+ * The newest asset named like [pattern] (first group = "1.2.3"). versions.json first (no rate limit), then
+ * the release feed (only the last ten releases), and the API (60 requests an hour) only as the last resort.
  */
+let manifestCache: { at: number; data: Promise<Record<string, string>> } | null = null
+
+/** The newest release of `kind` per versions.json, if its file is there (a build may still be running). */
+async function newestFromManifest(kind: string, assetName: (v: string) => string): Promise<ReleaseAsset | null> {
+  if (!manifestCache || Date.now() - manifestCache.at > MANIFEST_TTL_MS) {
+    const data = platform.net.text(MANIFEST_URL).then((t) => JSON.parse(t) as Record<string, string>)
+    manifestCache = { at: Date.now(), data }
+    data.catch(() => { manifestCache = null })
+  }
+  const v = (await manifestCache.data)[kind]
+  if (!v || !/^\d+\.\d+\.\d+$/.test(v)) return null
+  const tag = `${kind}-v${v}`
+  const url = `${DOWNLOAD_URL}/${tag}/${assetName(v)}`
+  return (await exists(url)) ? { version: v, tag, downloadUrl: url, size: 0 } : null
+}
+
 export async function newest(pattern: RegExp, kind: string, assetName: (v: string) => string): Promise<ReleaseAsset | null> {
+  try {
+    const fromManifest = await newestFromManifest(kind, assetName)
+    if (fromManifest) return fromManifest
+  } catch { /* fall back to the feed, then the API */ }
   try {
     const fromFeed = await newestFromFeed(kind, assetName)
     if (fromFeed) return fromFeed
