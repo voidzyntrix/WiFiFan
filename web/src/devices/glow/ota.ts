@@ -96,8 +96,10 @@ export async function startFirmwareUpdate(release: ReleaseAsset | null, image?: 
   try {
     set(await runUpdate(release, image, expectVersion))
   } catch (e) {
+    board.rawOnly = false
     set({ kind: 'error', message: `Update failed: ${(e as Error).message}. Start it again to retry.` })
   } finally {
+    board.rawOnly = false
     board.quiet = false
   }
 }
@@ -164,6 +166,7 @@ async function runEspUpdate(image: Uint8Array, wanted: string | null): Promise<O
   if (ready == null) throw new Error("the board didn't answer (is its firmware too old for updates? Update it once over USB)")
   if (ready !== 'OTA,READY') throw new BoardError(`the board refused: ${ready.slice(8) || ready}`)
 
+  board.rawOnly = true      // nothing but the image from here (a command inside it would corrupt it)
   // listen for the end before the last byte is out
   const finished = new Promise<string | null>((resolve) => {
     let done = false
@@ -178,6 +181,7 @@ async function runEspUpdate(image: Uint8Array, wanted: string | null): Promise<O
   }
   set({ kind: 'verifying' })
   const end = await finished
+  board.rawOnly = false
   if (end == null) throw new Error("the board didn't confirm the update")
   if (end !== 'OTA,DONE') throw new BoardError(`the board stopped the update: ${end.slice(8)}`)
 

@@ -2,6 +2,12 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.6.1',
+    notes: [
+      'Fixes Wi-Fi board firmware updates failing with Could Not Activate The Firmware: Glow sent a state read in the middle of the firmware file, corrupting it. Nothing else is sent during an update now.',
+    ],
+  },
+  {
     version: '2.6.0',
     notes: [
       'Smoother, Material-style motion: screens slide in with a shared-axis transition (deeper from the right, back from the left) and overlap instead of leaving a gap, with Material 3 emphasized easing everywhere.',

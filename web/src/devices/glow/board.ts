@@ -91,8 +91,12 @@ class Board {
     if (this.snap.state !== 'disconnected') this.set({ state: 'disconnected', firmwareVersion: null, deviceVersion: null })
   }
 
+  /** While true only raw bytes go out: a firmware image on the wire must not get a command in the middle. */
+  rawOnly = false
+
   /** Send a command; the board's line delimiter (\) is appended. */
   sendData(text: string) {
+    if (this.rawOnly) return
     this.enqueue(new TextEncoder().encode(text + '\\'), 0, null)
   }
 
