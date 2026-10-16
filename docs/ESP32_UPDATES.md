@@ -36,3 +36,16 @@ The board keeps the app's per-board settings (name, fade time, separate LEDs, ca
 options) as one JSON object in its EEPROM: `settings\` answers `SETTINGS,{...}\`, and
 `settings={...}\` stores a new one (`OK,settings\`). Glow reads them when it connects and writes
 changes back. Reset device clears them with the Wi-Fi.
+
+## Internet access (cloud MQTT)
+
+Firmware 1.3.0 can also be reached from anywhere through a cloud MQTT broker (HiveMQ Cloud's free
+tier works). Enter the broker once in Glow under **Settings > Internet access**; every board gets
+it when Glow reaches it on its own Wi-Fi, and a Glow without it takes the board's.
+
+The board keeps one outgoing connection to the broker (TLS, verified against Let's Encrypt's root).
+Topics: `glow/<id>/cmd` (app to board, same text commands), `glow/<id>/out` (replies),
+`glow/<id>/online` (retained `1`, its will is `0`). Glow tries the local network first and falls back to the
+broker. Changing the Wi-Fi, resetting and updating a board only work on the local network
+(`ERR,local only` through the broker). `cloud\` reads and `cloud={...}\` writes the broker settings
+(local only; `{}` turns it off).

@@ -12,7 +12,7 @@ function csp(): Plugin {
     apply: 'build',
     transformIndexHtml: (html) => html.replace(
       '<meta charset="UTF-8" />',
-      `<meta charset="UTF-8" />\n    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: mediastream:; font-src 'self'" />`,
+      `<meta charset="UTF-8" />\n    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' wss:; media-src 'self' blob: mediastream:; font-src 'self'" />`,
     ),
   }
 }

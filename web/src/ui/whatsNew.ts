@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.4.0',
+    notes: [
+      'Internet access: control Wi-Fi boards from anywhere. Add a free HiveMQ Cloud broker under Settings > Internet access; boards get it when you connect to them on their Wi-Fi, and Glow switches to the internet by itself when you are away.',
+      'Needs board firmware 1.3.0 (Firmware under the LED updates it over Wi-Fi).',
+    ],
+  },
+  {
     version: '2.3.0',
     notes: [
       'Wi-Fi LED boards update their own firmware: open Firmware under the LED, and Glow downloads the new version, sends it over Wi-Fi and reconnects. A dot shows when one is available.',

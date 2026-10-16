@@ -11,6 +11,7 @@ import { useAppUpdate, checkAppUpdate, installAppUpdate } from '../appUpdate'
 import { CircleIconButton, ColourPickerDialog, PillButton, ProgressBar, SegmentedPill, SettingHeading, SettingSection, SettingSwitch } from '../components/Controls'
 import { LevelSlider, SettingsCard } from '../components/SettingsCard'
 import { BackIcon } from '../components/Icons'
+import { CloudCard } from './CloudCard'
 import { sound } from '../sound'
 import { Presence, Swap, Txt } from '../motion'
 
@@ -146,6 +147,8 @@ export function SettingsScreen({ onBack, onWhatsNew }: { onBack: () => void; onW
             <SettingSwitch title="Keep screen on" subtitle="The display doesn't sleep while Glow is open" checked={p.keepScreenOn} onChange={(v) => set({ keepScreenOn: v })} />
             <SettingSwitch title="Update prompts" subtitle="Ask at launch when an update is available" checked={p.updatePrompts} onChange={(v) => set({ updatePrompts: v })} />
           </SettingsCard>
+
+          <CloudCard i={5} />
 
         {types.map((t) => { const Section = t.SettingsSection!; return <Section key={t.id} /> })}
         </div>

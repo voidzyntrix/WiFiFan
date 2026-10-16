@@ -11,6 +11,8 @@ export interface BtDevice { id: string; name: string | null }
  * build their protocol on this; the link only moves bytes.
  */
 export interface BleLink {
+  /** Wi-Fi boards: on the local network (default) or through the cloud broker. */
+  readonly via?: 'lan' | 'cloud'
   readonly id: string
   readonly name: string | null
   /** Bytes per write the link takes (ATT MTU - 3). */

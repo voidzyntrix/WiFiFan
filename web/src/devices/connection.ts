@@ -7,6 +7,7 @@ import { useSyncExternalStore } from 'react'
 import { platform, type BleLink, type BtDevice, type WifiDevice } from '../platform'
 import { settings } from '../settings/store'
 import { toast } from '../ui/toast'
+import { cloudConfig, isConfigured, openCloudLink } from './cloud'
 import { DEVICE_TYPES, deviceType, guessType, wifiType } from './registry'
 import type { DeviceSession, DeviceType, SavedDevice } from './types'
 
@@ -72,19 +73,31 @@ export function findWifi(mac: string, ms: number, ready = true): Promise<WifiDev
 /** Opens the transport's link to a device of the given type. */
 async function openLink(type: DeviceType, device: SavedDevice): Promise<BleLink> {
   if (type.transport === 'wifi') {
-    if (!platform.wifi) throw new Error("Wi-Fi devices can't be reached here")
-    // its address may have changed since: ask the network first, fall back to the last one
-    // (waits for the network to be there: right after pairing the device is still switching back to it)
-    const found = await findWifi(device.id.replace(/^wifi:/, ''), device.host && !onSetupNet(device.host) ? 4000 : 20_000)
-    const host = found?.host ?? (onSetupNet(device.host) ? undefined : device.host)
-    if (!host) throw new Error('The board was not found on this network. Is it powered, and is this device on the same Wi-Fi?')
-    device.host = host
-    let last: Error | null = null
-    for (let i = 0; i < 4; i++) {
-      try { return await platform.wifi.connect(host, type.port ?? 4210) } catch (e) { last = e as Error }
-      await new Promise((r) => setTimeout(r, 1500))   // the network may still be settling
+    const mac = device.id.replace(/^wifi:/, '')
+    const cloud = isConfigured(cloudConfig())
+    if (!platform.wifi && !cloud) throw new Error("Wi-Fi devices can't be reached here")
+    let lanError: Error | null = null
+    if (platform.wifi) {
+      // The local network first (instant at home). Its address may have changed: ask the network,
+      // fall back to the last one. Without internet access set up this waits for the network to be
+      // there: right after pairing the device is still switching back to it.
+      const found = await findWifi(mac, cloud ? 3000 : device.host && !onSetupNet(device.host) ? 4000 : 20_000)
+      const host = found?.host ?? (onSetupNet(device.host) ? undefined : device.host)
+      if (host) {
+        device.host = host
+        for (let i = 0; i < (cloud ? 2 : 4); i++) {
+          try { return await platform.wifi.connect(host, type.port ?? 4210) } catch (e) { lanError = e as Error }
+          await new Promise((r) => setTimeout(r, 1500))   // the network may still be settling
+        }
+      }
     }
-    throw last!
+    // Not on its network: through the internet, if that is set up.
+    if (cloud) {
+      const link = await openCloudLink(mac)
+      toast('Connected over the internet')
+      return link
+    }
+    throw lanError ?? new Error('The board was not found on this network. Is it powered, and is this device on the same Wi-Fi?')
   }
   if (!platform.ble) throw new Error("Bluetooth isn't available here")
   return (await platform.ble.connect(device.id, type.ble)).link
@@ -140,7 +153,7 @@ export const connection = {
   /** Connects to a saved (or just picked) device. */
   async connect(device: SavedDevice): Promise<boolean> {
     const type = deviceType(device.type)
-    if (!type || !(type.transport === 'wifi' ? platform.wifi : platform.ble)) { toast("This device can't be reached here."); return false }
+    if (!type || !(type.transport === 'wifi' ? platform.wifi || isConfigured(cloudConfig()) : platform.ble)) { toast("This device can't be reached here."); return false }
     if (state.phase === 'connected' || state.device) this.disconnect()
     // a pick from an open scan finishes that scan (the transport needs it to pick the device)
     const fromScan = !!stopScan && type.transport === 'ble'

@@ -8,6 +8,7 @@
 // written back (a moment after the last, so a slider drag is one write).
 
 import { settings, type Settings } from '../../settings/store'
+import { boardJson, fromBoardJson, isConfigured, sameCloud } from '../cloud'
 import { connection } from '../connection'
 import type { SavedDevice } from '../types'
 import { board } from './board'
@@ -91,4 +92,28 @@ export function startSettingsSync(device: SavedDevice): () => void {
   })()
 
   return () => { stopped = true; off(); window.clearTimeout(timer) }
+}
+
+/**
+ * Internet access: on the local network the board gets the broker settings from the app (when they
+ * differ), and a Glow that has none takes the board's, so a second phone is ready without typing.
+ * (Over the internet the board refuses this: it is only for the local network.)
+ */
+export function provisionCloud() {
+  void (async () => {
+    const reply = board.waitFor('CLOUD,', 3000).catch(() => null)
+    board.sendData('cloud')
+    const line = await reply
+    if (!line) return                                  // firmware without internet access
+    const rest = line.slice('CLOUD,'.length)
+    const comma = rest.indexOf(',')
+    let theirs = null
+    try { theirs = fromBoardJson(JSON.parse(rest.slice(comma + 1)) as Record<string, unknown>) } catch { /* none set */ }
+    const mine = settings.get().cloud
+    if (!isConfigured(mine)) {
+      if (theirs) settings.set({ cloud: theirs })
+    } else if (!theirs || !sameCloud(mine, theirs)) {
+      board.sendData(`cloud=${boardJson(mine)}`)
+    }
+  })()
 }

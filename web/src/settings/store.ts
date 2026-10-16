@@ -19,6 +19,19 @@ export type Background = 'SIMPLE' | 'AURORA' | 'IMAGE' | 'PLAIN'
  */
 export type Design = 'GLASS' | 'MATERIAL'
 
+/** A cloud MQTT broker, for reaching Wi-Fi boards from anywhere (devices/cloud.ts). */
+export interface CloudConfig {
+  /** e.g. abc123.s1.eu.hivemq.cloud */
+  host: string
+  /** The board's own (TCP, TLS) port. */
+  port: number
+  /** The WebSocket port Glow uses. */
+  wsPort: number
+  tls: boolean
+  user: string
+  pass: string
+}
+
 export interface Settings {
   design: Design
   /** Glass without blur or WebGL: much lighter on phones. */
@@ -46,6 +59,8 @@ export interface Settings {
   collapsed: Record<string, boolean>
   /** Devices connected before. */
   devices: SavedDevice[]
+  /** Internet access to Wi-Fi boards; null until set up. */
+  cloud: CloudConfig | null
 
   // --- the LED board (devices/glow) ---
   rainbowSync: boolean
@@ -100,6 +115,7 @@ const DEFAULTS: Settings = {
   lastSeenVersion: null,
   collapsed: {},
   devices: [],
+  cloud: null,
   rainbowSync: true,
   ledHue: 0,
   ledSat: 0,
