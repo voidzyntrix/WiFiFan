@@ -47,6 +47,8 @@ export interface ControlScreenProps {
 
 /** A dialog that pairs a new device of the type (Wi-Fi boards: gives it the network's credentials). */
 export interface SetupProps {
+  /** The one board to set up, when it is known which (its own network's name). */
+  ssid?: string
   onDone(device: SavedDevice): void
   onDismiss(): void
 }

@@ -2,9 +2,11 @@
 // or long press to rename / forget), and "Add a device", which scans and lists what is nearby.
 // Nothing scrolls: tiles and nearby devices page (Pager) when there are more than fit.
 
-import { connection, displayName, useConnection } from '../../devices/connection'
-import { DEVICE_TYPES, deviceType, guessType } from '../../devices/registry'
+import { connection, displayName, useConnection, wifiId } from '../../devices/connection'
+import { useNearbyWifi } from '../../devices/nearbyWifi'
+import { DEVICE_TYPES, deviceType, guessType, wifiType } from '../../devices/registry'
 import type { SavedDevice } from '../../devices/types'
+import type { WifiDevice } from '../../platform'
 import { platform } from '../../platform'
 import { useSettings } from '../../settings/store'
 import { CircleIconButton, PillButton, useDesign } from '../components/Controls'
@@ -15,13 +17,22 @@ import { sound } from '../sound'
 
 export function DevicesScreen(props: {
   onSettings: () => void; onOpen: (d: SavedDevice) => void; onMenu: (d: SavedDevice) => void
-  /** Opens a type's pairing dialog ("Set up a new …"). */
-  onSetup: (typeId: string) => void
+  /** Opens a type's pairing dialog ("Set up a new …"), for one board's network when known. */
+  onSetup: (typeId: string, ssid?: string) => void
 }) {
   const { devices } = useSettings()
   const conn = useConnection()
   const material = useDesign() === 'MATERIAL'
   const picking = conn.phase === 'scanning' || (conn.phase === 'connecting' && conn.nearby.length > 0)
+  // Wi-Fi boards show up by themselves: unpaired ones (their own network) and ones on this network.
+  const around = useNearbyWifi(!picking)
+  const wifi = wifiType()
+  const savedIds = new Set(devices.map((d) => d.id))
+  const found: Tile[] = [
+    ...around.setups.map((ssid): Tile => ({ kind: 'setup', ssid })),
+    ...around.boards.filter((b) => b.state !== 'setup' && !savedIds.has(wifiId(b.id))).map((board): Tile => ({ kind: 'board', board })),
+  ]
+  const tiles: Tile[] = [...devices.map((device): Tile => ({ kind: 'saved', device })), ...(wifi ? found : [])]
 
   const status = (d: SavedDevice) =>
     conn.device?.id === d.id ? (conn.phase === 'connected' ? 'Connected' : conn.phase === 'connecting' ? 'Connecting…' : 'Click to connect') : 'Click to connect'
@@ -39,21 +50,42 @@ export function DevicesScreen(props: {
         </div>
       )}
 
-      <Swap k={picking ? 'pick' : devices.length > 0 ? 'devices' : 'empty'} className="fill">
+      <Swap k={picking ? 'pick' : tiles.length > 0 ? 'devices' : 'empty'} className="fill">
         {picking ? (
           <NearbyList onSetup={props.onSetup} />
-        ) : devices.length > 0 ? (
+        ) : tiles.length > 0 ? (
           <div className="device-area">
             <div className="grid-head">
               <h2>Your devices</h2>
               <span><Txt>{conn.phase === 'connecting' ? 'Connecting…' : conn.phase === 'connected' ? '1 connected' : `${devices.length} saved`}</Txt></span>
             </div>
             <Pager
-              items={devices}
+              items={tiles}
               itemWidth={160}
               itemHeight={150}
               gap={12}
-              render={(d) => {
+              render={(t) => {
+                if (t.kind === 'setup') {
+                  return (
+                    <button key={'setup:' + t.ssid} className="board-tile" onClick={() => { sound.tap(); if (wifi) props.onSetup(wifi.id, t.ssid) }}>
+                      <span className="tile-icon"><BulbIcon /></span>
+                      <span className="tile-name">{t.ssid}</span>
+                      <span className="tile-kind">{wifi?.label}</span>
+                      <span className="tile-status blink"><span className="dot" /><Txt>Click to set up</Txt></span>
+                    </button>
+                  )
+                }
+                if (t.kind === 'board') {
+                  return (
+                    <button key={'board:' + t.board.id} className="board-tile" onClick={() => { sound.tap(); void connection.pickWifi(t.board) }}>
+                      <span className="tile-icon"><BulbIcon /></span>
+                      <span className="tile-name">{t.board.name ?? 'Glow board'}</span>
+                      <span className="tile-kind">{wifi?.label}</span>
+                      <span className="tile-status"><span className="dot" /><Txt>Click to connect</Txt></span>
+                    </button>
+                  )
+                }
+                const d = t.device
                 const type = deviceType(d.type)
                 const Icon = type?.Icon ?? BulbIcon
                 const st = status(d)
@@ -103,10 +135,15 @@ export function DevicesScreen(props: {
   )
 }
 
+type Tile =
+  | { kind: 'saved'; device: SavedDevice }
+  | { kind: 'setup'; ssid: string }
+  | { kind: 'board'; board: WifiDevice }
+
 type Nearby = { id: string; name: string | null; detail: string; pick(): void }
 
 /** Devices heard while scanning (Bluetooth, and Wi-Fi boards on this network); picking one connects to it. */
-function NearbyList({ onSetup }: { onSetup: (typeId: string) => void }) {
+function NearbyList({ onSetup }: { onSetup: (typeId: string, ssid?: string) => void }) {
   const conn = useConnection()
   const setups = DEVICE_TYPES.filter((t) => t.Setup && (t.transport !== 'wifi' || platform.wifi))
   const items: Nearby[] = [

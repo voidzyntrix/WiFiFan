@@ -59,6 +59,8 @@ class Bridge(private val activity: MainActivity, private val web: WebView) {
     @JavascriptInterface fun tcpClose(socket: String) = wifi.close(socket)
     @JavascriptInterface fun wifiJoinSetup(request: String, prefix: String, password: String) = wifi.joinSetup(request, prefix, password)
     @JavascriptInterface fun wifiLeaveSetup() = wifi.leaveSetup()
+    @JavascriptInterface fun wifiScanSetup(request: String, prefix: String) = wifi.scanSetup(request, prefix)
+    @JavascriptInterface fun wifiCurrent(request: String) = wifi.currentNetwork(request)
 
     // --- Network (GitHub releases; the WebView would hit CORS) ----------------------------------
 

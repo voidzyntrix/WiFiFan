@@ -25,6 +25,10 @@ contextBridge.exposeInMainWorld('glow', {
     close: (id) => ipcRenderer.send('wifi:close', id),
     onData: (fn) => listen('wifi:data', (d) => fn(d.id, d.data)),
     onClosed: (fn) => listen('wifi:closed', fn),
+    scanSetup: (prefix) => ipcRenderer.invoke('wifi:scanSetup', prefix),
+    currentNetwork: () => ipcRenderer.invoke('wifi:currentNetwork'),
+    joinSetup: (prefix, password) => ipcRenderer.invoke('wifi:joinSetup', prefix, password),
+    leaveSetup: () => ipcRenderer.invoke('wifi:leaveSetup'),
   },
   capture: {
     displays: () => ipcRenderer.invoke('capture:displays'),

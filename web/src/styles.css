@@ -102,6 +102,9 @@
 :root.booting, :root.booting * { transition: none !important; }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+/* nothing in the app can be selected or dragged, except what is typed into a text field */
+*, *::before, *::after { -webkit-user-select: none; user-select: none; -webkit-user-drag: none; }
+input, textarea, md-outlined-text-field { -webkit-user-select: text; user-select: text; }
 /* no blue tap flash, no long-press text selection or callouts on Android */
 html { -webkit-touch-callout: none; touch-action: manipulation; }
 html, body, #root { height: 100%; margin: 0; }
@@ -437,7 +440,7 @@ code { font-family: 'JetBrains Mono', monospace; font-size: 0.9em; }
 .update-title { font-weight: 600; display: flex; align-items: center; }
 .update-status { font-size: 12px; color: var(--on-bg-60); margin-bottom: 4px; transition: color 0.3s; }
 .update-status.error { color: var(--error); }
-.whats-new { max-height: 50vh; overflow-y: auto; line-height: 1.5; color: var(--on-bg-85); user-select: text; }
+.whats-new { max-height: 50vh; overflow-y: auto; line-height: 1.5; color: var(--on-bg-85); }
 .whats-new h3 { font-size: 14px; margin-top: 8px; }
 .whats-new ul { padding-left: 20px; margin: 6px 0; }
 

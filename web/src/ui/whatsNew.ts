@@ -2,6 +2,15 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.2.1',
+    notes: [
+      'Wi-Fi boards that are not set up yet now show in the device list by themselves, no need to press Add a device.',
+      'Setting up a Wi-Fi board joins its network for you (and returns to yours afterwards), which fixes it hanging on Talking to the board.',
+      'The Wi-Fi name is filled in for you, and on Windows the password too. Android does not share the password, so type it there.',
+      'Nothing in the app can be selected any more, except what you type in a text field.',
+    ],
+  },
+  {
     version: '2.2.0',
     notes: [
       'Wi-Fi LED boards: Glow now controls an ESP32 LED board over Wi-Fi. Add a device > Set up a new Wi-Fi LED board, enter your Wi-Fi once, and the board remembers it.',

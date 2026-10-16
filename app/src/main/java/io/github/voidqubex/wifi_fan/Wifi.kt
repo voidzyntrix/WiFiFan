@@ -1,11 +1,14 @@
 package io.github.voidqubex.wifi_fan
 
 import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
 import android.net.ConnectivityManager
 import android.net.LinkProperties
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
+import android.net.wifi.WifiManager
 import android.net.wifi.WifiNetworkSpecifier
 import android.os.Build
 import android.os.PatternMatcher
@@ -38,6 +41,8 @@ import kotlin.concurrent.thread
  */
 class Wifi(private val activity: MainActivity, private val emit: (String, JSONObject) -> Unit) {
     private val cm = activity.getSystemService(ConnectivityManager::class.java)
+    private val wm = activity.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+    private var askedScan = false
     private val sockets = ConcurrentHashMap<String, Socket>()
     private val nextId = AtomicInteger(1)
     private val writer = Executors.newSingleThreadExecutor()
@@ -155,6 +160,44 @@ class Wifi(private val activity: MainActivity, private val emit: (String, JSONOb
         val socket = sockets.remove(id) ?: return
         try { socket.close() } catch (_: IOException) {}
         emit("tcpClosed", JSONObject().put("socket", id))
+    }
+
+    // --- Which boards are waiting to be paired, and which network the phone is on -----------------
+
+    private val scanPermissions =
+        if (Build.VERSION.SDK_INT >= 33) arrayOf(Manifest.permission.NEARBY_WIFI_DEVICES)
+        else arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
+
+    /** Names of nearby networks starting with [prefix] (an unpaired board opens "Glow-XXXX"). */
+    @Suppress("MissingPermission")
+    fun scanSetup(request: String, prefix: String) {
+        val reply = { ssids: List<String> ->
+            emit("wifiScan", JSONObject().put("request", request).put("ok", true).put("ssids", org.json.JSONArray(ssids)))
+        }
+        val read = {
+            try { wm.startScan() } catch (_: SecurityException) {}
+            val found = try { wm.scanResults.map { it.SSID }.filter { it.startsWith(prefix) }.distinct() } catch (_: SecurityException) { emptyList() }
+            reply(found)
+        }
+        if (scanPermissions.all { activity.checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }) read()
+        else if (!askedScan) {   // asked once; after a refusal the list is simply empty
+            askedScan = true
+            activity.withPermissions(scanPermissions, { read() }, { reply(emptyList()) })
+        } else reply(emptyList())
+    }
+
+    /** The network the phone is on. Android never gives an app its password; the name needs location. */
+    @Suppress("DEPRECATION", "MissingPermission")
+    fun currentNetwork(request: String) {
+        val read = {
+            val ssid = try { wm.connectionInfo?.ssid?.trim('"') } catch (_: SecurityException) { null }
+            val out = JSONObject().put("request", request).put("ok", true)
+            if (ssid.isNullOrEmpty() || ssid == WifiManager.UNKNOWN_SSID) out.put("ssid", JSONObject.NULL) else out.put("ssid", ssid)
+            emit("wifiCurrent", out.put("password", JSONObject.NULL))
+        }
+        activity.withPermissions(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), read, {
+            emit("wifiCurrent", JSONObject().put("request", request).put("ok", true).put("ssid", JSONObject.NULL).put("password", JSONObject.NULL))
+        })
     }
 
     // --- Pairing: the board's own network -------------------------------------------------------------

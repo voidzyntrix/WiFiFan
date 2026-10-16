@@ -15,6 +15,9 @@ export const SETUP_HOST = '192.168.4.1'
 export const WIFI_PORT = 4210
 export const WIFI_TYPE_ID = 'glow-wifi'
 
+/** True while a board is being paired: the device list's background search stands still then. */
+export const pairing = { active: false }
+
 export type PairStep = 'join' | 'connect' | 'send' | 'joining' | 'find'
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
@@ -57,9 +60,9 @@ function lines(link: BleLink) {
 
 async function connectSetup(): Promise<BleLink> {
   let last: Error | null = null
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < 6; i++) {
     try { return await platform.wifi!.connect(SETUP_HOST, WIFI_PORT) } catch (e) { last = e as Error }
-    await sleep(1500)   // the network was just joined: its address may not be ready yet
+    await sleep(1000)   // the network was just joined: its address may not be ready yet
   }
   throw new Error(`Couldn't reach the board's network (${last?.message ?? 'no answer'})`)
 }
@@ -68,15 +71,16 @@ async function connectSetup(): Promise<BleLink> {
  * Gives a board waiting for pairing the network's name and password, then finds it on that network.
  * `onStep` follows along; the result is the device to save and connect to.
  */
-export async function pairBoard(ssid: string, password: string, onStep: (step: PairStep) => void, signal: { cancelled: boolean }): Promise<SavedDevice> {
+export async function pairBoard(ssid: string, password: string, onStep: (step: PairStep) => void, signal: { cancelled: boolean }, board?: string): Promise<SavedDevice> {
   const wifi = platform.wifi
   if (!wifi) throw new Error("Wi-Fi boards can't be set up here")
   let leave: (() => void) | null = null
   let link: BleLink | null = null
+  pairing.active = true
   try {
     if (wifi.joinSetup) {
       onStep('join')
-      leave = (await wifi.joinSetup(SETUP_PREFIX, SETUP_PASSWORD)).leave
+      leave = (await wifi.joinSetup(board ?? SETUP_PREFIX, SETUP_PASSWORD)).leave
     }
     if (signal.cancelled) throw new Error('Cancelled')
 
@@ -114,6 +118,7 @@ export async function pairBoard(ssid: string, password: string, onStep: (step: P
     if (!found && !hostHint) throw new Error(`The board joined "${ssid}" but wasn't found there. Is this ${platform.kind === 'desktop' ? 'PC' : 'phone'} on that network?`)
     return { id: wifiId(mac), type: WIFI_TYPE_ID, name: null, advertised: found?.name ?? name ?? null, host: found?.host ?? hostHint }
   } finally {
+    pairing.active = false
     link?.close()
     leave?.()
   }

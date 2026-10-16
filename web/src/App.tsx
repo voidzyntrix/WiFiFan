@@ -24,7 +24,7 @@ import { Swap, pulse, useExit, useFlip, useLeavingList } from './ui/motion'
 type DialogState =
   | { kind: 'rename'; device: SavedDevice }
   | { kind: 'deviceMenu'; device: SavedDevice }
-  | { kind: 'setup'; typeId: string }
+  | { kind: 'setup'; typeId: string; ssid?: string }
   | { kind: 'reset'; device: SavedDevice }
   | { kind: 'whatsNew' }
   | { kind: 'update' }
@@ -185,7 +185,7 @@ export function App() {
               else void connection.connect(d)
             }}
             onMenu={(d) => setDialog({ kind: 'deviceMenu', device: d })}
-            onSetup={(typeId) => { connection.cancelScan(); setDialog({ kind: 'setup', typeId }) }}
+            onSetup={(typeId, ssid) => { connection.cancelScan(); setDialog({ kind: 'setup', typeId, ssid }) }}
           />
         )}
       </main>
@@ -221,6 +221,7 @@ export function App() {
             const Setup = DEVICE_TYPES.find((t) => t.id === d.typeId)?.Setup
             return Setup && (
               <Setup
+                ssid={d.ssid}
                 onDismiss={() => setDialog(null)}
                 onDone={(device) => { setDialog(null); void connection.connect(device) }}
               />

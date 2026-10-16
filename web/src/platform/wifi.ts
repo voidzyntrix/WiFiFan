@@ -16,8 +16,15 @@ export interface SocketBridge {
   onData(fn: (id: string, data: Uint8Array) => void): () => void
   onClosed(fn: (id: string) => void): () => void
   joinSetup?(prefix: string, password: string): Promise<{ ssid: string | null }>
-  leaveSetup?(): void
+  leaveSetup?(): void | Promise<void>
+  scanSetup?(prefix: string): Promise<string[]>
+  currentNetwork?(): Promise<{ ssid: string | null; password: string | null } | null>
 }
+
+/** Electron's IPC wraps errors: "Error invoking remote method '…': Error: <message>" */
+const unwrap = <T,>(p: Promise<T>) => p.catch((e: Error) => {
+  throw new Error(e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, ''))
+})
 
 class SocketLink implements BleLink {
   readonly chunk = 512
@@ -69,15 +76,14 @@ export function socketWifi(bridge: SocketBridge): WifiTransport {
       }
     },
     async connect(host, port) {
-      const socket = await bridge.connect(host, port).catch((e: Error) => {
-        // Electron's IPC wraps errors: "Error invoking remote method '…': Error: <message>"
-        throw new Error(e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, ''))
-      })
+      const socket = await unwrap(bridge.connect(host, port))
       return new SocketLink(bridge, socket, host, null)
     },
     joinSetup: bridge.joinSetup && (async (prefix, password) => {
-      const { ssid } = await bridge.joinSetup!(prefix, password)
-      return { ssid, leave: () => bridge.leaveSetup?.() }
+      const { ssid } = await unwrap(bridge.joinSetup!(prefix, password))
+      return { ssid, leave: () => { void bridge.leaveSetup?.() } }
     }),
+    scanSetup: bridge.scanSetup && ((prefix) => bridge.scanSetup!(prefix).catch(() => [])),
+    currentNetwork: bridge.currentNetwork && (() => bridge.currentNetwork!().catch(() => null)),
   }
 }

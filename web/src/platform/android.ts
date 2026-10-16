@@ -22,6 +22,10 @@ export interface AndroidBridge {
   /** Answers with a "wifiSetup" event: { request, ok, ssid | error } */
   wifiJoinSetup(request: string, prefix: string, password: string): void
   wifiLeaveSetup(): void
+  /** Answers with a "wifiScan" event: { request, ok, ssids } */
+  wifiScanSetup(request: string, prefix: string): void
+  /** Answers with a "wifiCurrent" event: { request, ok, ssid, password } */
+  wifiCurrent(request: string): void
   /** kind: "text" | "bytes" | "exists" */
   net(request: string, kind: string, url: string, limit: number): void
   openExternal(url: string): void
@@ -145,6 +149,8 @@ function androidSockets(bridge: AndroidBridge): SocketBridge {
     onClosed: (fn) => on('tcpClosed', (d) => fn(d.socket)),
     joinSetup: (prefix, password) => ask<{ ssid: string | null }>('wifiSetup', (r) => bridge.wifiJoinSetup(r, prefix, password)),
     leaveSetup: () => bridge.wifiLeaveSetup(),
+    scanSetup: (prefix) => ask<{ ssids: string[] }>('wifiScan', (r) => bridge.wifiScanSetup(r, prefix)).then((d) => d.ssids),
+    currentNetwork: () => ask<{ ssid: string | null; password: string | null }>('wifiCurrent', (r) => bridge.wifiCurrent(r)),
   }
 }
 

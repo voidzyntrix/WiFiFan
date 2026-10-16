@@ -62,10 +62,14 @@ export interface WifiTransport {
   connect(host: string, port: number): Promise<BleLink>
   /**
    * Android: asks the system to join an unpaired board's own network ("Glow-…", by name prefix)
-   * for this app only. Resolves with its name once joined; `leave` drops it. Absent where the user
-   * joins that network themselves (Windows).
+   * for this app only (Windows: joins it, and `leave` goes back to the network it was on).
+   * Resolves with its name once joined.
    */
   joinSetup?(prefix: string, password: string): Promise<{ ssid: string | null; leave(): void }>
+  /** The names of nearby unpaired boards' own networks (those starting with `prefix`). */
+  scanSetup?(prefix: string): Promise<string[]>
+  /** The network this device is on, with its password where the system lets the app read it. */
+  currentNetwork?(): Promise<{ ssid: string | null; password: string | null } | null>
 }
 
 export interface UpdateChannel {

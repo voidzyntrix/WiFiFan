@@ -9,20 +9,33 @@ import type { SetupProps } from '../types'
 import { SETUP_PASSWORD, SETUP_PREFIX, pairBoard, type PairStep } from './pair'
 
 const STEP_TEXT: Record<PairStep, string> = {
-  join: `Pick the board's network (${SETUP_PREFIX}…) when your phone asks…`,
+  join: "Joining the board's own Wi-Fi… (your phone may ask you to confirm)",
   connect: 'Talking to the board…',
   send: 'Sending your Wi-Fi to the board…',
   joining: 'The board is joining your Wi-Fi…',
   find: 'Looking for the board on your Wi-Fi…',
 }
 
-export function WifiSetup({ onDone, onDismiss }: SetupProps) {
+export function WifiSetup({ ssid: board, onDone, onDismiss }: SetupProps) {
   const [ssid, setSsid] = useState('')
   const [password, setPassword] = useState('')
   const [step, setStep] = useState<PairStep | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [filled, setFilled] = useState<'none' | 'name' | 'both'>('none')
   const signal = useRef({ cancelled: false })
   useEffect(() => () => { signal.current.cancelled = true }, [])
+
+  // The network this device is on, filled in (the password too where the system allows reading it).
+  useEffect(() => {
+    let live = true
+    void platform.wifi?.currentNetwork?.().then((n) => {
+      if (!live || !n?.ssid) return
+      setSsid((s) => s || n.ssid!)
+      if (n.password) setPassword((p) => p || n.password!)
+      setFilled(n.password ? 'both' : 'name')
+    })
+    return () => { live = false }
+  }, [])
 
   const manualJoin = !platform.wifi?.joinSetup
   const ok = ssid.trim().length > 0 && (password.length === 0 || password.length >= 8)
@@ -34,7 +47,7 @@ export function WifiSetup({ onDone, onDismiss }: SetupProps) {
     const run = signal.current
     try {
       setStep(manualJoin ? 'connect' : 'join')
-      const device = await pairBoard(ssid.trim(), password, (s) => { if (!run.cancelled) setStep(s) }, run)
+      const device = await pairBoard(ssid.trim(), password, (s) => { if (!run.cancelled) setStep(s) }, run, board)
       if (!run.cancelled) onDone(device)
     } catch (e) {
       if (!run.cancelled) { setStep(null); setError((e as Error).message) }
@@ -57,9 +70,14 @@ export function WifiSetup({ onDone, onDismiss }: SetupProps) {
           <>
             <div className="dialog-sub">
               {manualJoin
-                ? <>Power the board. A new board opens a Wi-Fi network named <b>{SETUP_PREFIX}XXXX</b>. Join it on this PC (password <b>{SETUP_PASSWORD}</b>), then enter the Wi-Fi the board should use. The PC goes back to that network by itself.</>
-                : <>Power the board. A new board opens a Wi-Fi network named <b>{SETUP_PREFIX}XXXX</b>; Glow will ask to join it. Enter the Wi-Fi the board should use (2.4 GHz).</>}
+                ? <>Power the board. A new board opens a Wi-Fi network named <b>{SETUP_PREFIX}XXXX</b> (password <b>{SETUP_PASSWORD}</b>); join it on this PC, then enter the Wi-Fi the board should use (2.4 GHz). The PC goes back to its own network by itself.</>
+                : <>Glow joins the board's own network ({board ?? SETUP_PREFIX + 'XXXX'}) for a moment and sends it the Wi-Fi it should use (2.4 GHz).</>}
             </div>
+            {filled !== 'none' && (
+              <div className="dialog-sub">
+                {filled === 'both' ? 'Filled in from the Wi-Fi this device is on.' : 'The name is filled in from the Wi-Fi this device is on. Android doesn\'t share its password, so type it.'}
+              </div>
+            )}
             {error && <div className="dialog-sub error">{error}</div>}
             <TextField label="Wi-Fi name" value={ssid} onChange={setSsid} maxLength={32} autoFocus onEnter={start} />
             <TextField label="Password" value={password} onChange={setPassword} maxLength={63} password onEnter={() => void start()} />

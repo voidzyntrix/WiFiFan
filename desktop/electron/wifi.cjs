@@ -7,6 +7,7 @@
 const { ipcMain } = require('electron')
 const dgram = require('node:dgram')
 const net = require('node:net')
+const winwifi = require('./winwifi.cjs')
 const os = require('node:os')
 
 const UDP_PORT = 4211
@@ -91,6 +92,12 @@ function setupWifi(getWin) {
     if (!s) { reject(new Error('Not connected')); return }
     s.write(Buffer.from(data), (err) => (err ? reject(err) : resolve()))
   }))
+
+  // --- the board's own network, for pairing ---
+  ipcMain.handle('wifi:scanSetup', (_e, prefix) => winwifi.scanSetup(prefix))
+  ipcMain.handle('wifi:currentNetwork', () => winwifi.currentNetwork())
+  ipcMain.handle('wifi:joinSetup', (_e, prefix, password) => winwifi.joinSetup(prefix, password))
+  ipcMain.handle('wifi:leaveSetup', () => winwifi.leaveSetup())
 
   ipcMain.on('wifi:close', (_e, id) => {
     const s = sockets.get(id)
