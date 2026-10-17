@@ -2,6 +2,12 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.10.1',
+    notes: [
+      'Solar grid light: yellow while importing, flashing from 0.5 kW, red flashing from 1 kW (firmware 2.1.0).',
+    ],
+  },
+  {
     version: '2.10.0',
     notes: [
       'Ocean, Party, Aurora and Chase are removed (the board no longer runs them). A scene that used one becomes Solid.',
