@@ -22,6 +22,8 @@ function parseGridLoss(line: string): GridLoss | null {
   try { return JSON.parse(line.slice('GRIDLOSS,'.length)) as GridLoss } catch { return null }
 }
 const LOWS = [10, 20, 30]
+/** The import steps (kW) offered: a small home, a medium one, a large one. */
+const IMP_SCALES: [string, number[]][] = [['Small home', [0.5, 1, 2, 3]], ['Medium', [1, 2, 3, 5]], ['Large', [2, 4, 6, 8]]]
 const FOX_API = 'https://www.foxesscloud.com/user/center'
 
 export function SolarTab({ c }: { c: LedController }) {
@@ -29,6 +31,7 @@ export function SolarTab({ c }: { c: LedController }) {
   const [key, setKey] = useState('')
   const [changing, setChanging] = useState(false)
   const [gl, setGl] = useState<GridLoss | null>(null)
+  const [imp, setImp] = useState<number[] | null>(null)
   const prefs = useSettings()
   const [fox, setFox] = useState<FoxStatus | null>(null)
   const [foxUserIn, setFoxUserIn] = useState(prefs.foxUser)
@@ -84,6 +87,23 @@ export function SolarTab({ c }: { c: LedController }) {
     void reply.then((line) => { const v = line ? parseGridLoss(line) : null; if (live && v) setGl(v) })
     return () => { live = false }
   }, [])
+  // the import steps (kW) at which LED 1 changes; the board keeps them
+  useEffect(() => {
+    let live = true
+    const reply = board.waitFor('IMP,', 2000).catch(() => null)
+    board.sendData('imp')
+    void reply.then((line) => {
+      try {
+        const v = line ? (JSON.parse(line.slice('IMP,'.length)) as { t: number[] }).t : null
+        if (live && v) setImp(v)
+      } catch { /* an old or odd answer: keep the default steps */ }
+    })
+    return () => { live = false }
+  }, [])
+  const setImpSteps = (t: number[]) => {
+    setImp(t)
+    board.sendData(`imp=${JSON.stringify({ t })}`)
+  }
   const setGridLoss = (patch: Partial<GridLoss>) => {
     if (!gl) return
     const next = { ...gl, ...patch }
@@ -157,10 +177,17 @@ export function SolarTab({ c }: { c: LedController }) {
           <SegmentedPill options={LOWS.map((p) => `${p} %`)} selected={LOWS.indexOf(st.low)} onSelect={(i) => send({ low: LOWS[i] })} />
           <SettingHeading title="What you see" />
           <Hint>
-            LED 1 is the grid: green exporting, yellow importing, pulsing from 0.5 kW, red pulsing from 1 kW, blue when the grid is down.
+            LED 1 is the grid: green exporting, yellow importing, then orange and red as the import rises (pulsing faster); blue when the grid is down.
             LED 2 is the battery: green above 80 %, orange, then yellow, then red when low.
             Two red blinks every 10 s mean a fault.
           </Hint>
+          {c.caps.importLevels && imp && (
+            <>
+              <SettingHeading title="Import levels" subtitle="Where LED 1 steps up as you import more" />
+              <SegmentedPill options={IMP_SCALES.map(([name]) => name)} selected={IMP_SCALES.findIndex(([, t]) => t.join() === imp.join())} onSelect={(i) => setImpSteps(IMP_SCALES[i][1])} />
+              <Hint>Yellow, orange, then red, pulsing faster at {imp.join(' · ')} kW.</Hint>
+            </>
+          )}
           <SettingHeading title="Live data (about every 5 s)" subtitle={liveText} />
           <Hint>Sign in with your foxesscloud.com account. The board then follows your inverter live.</Hint>
           {signedIn ? <Hint>Signed in as {fox?.user || prefs.foxUser}.</Hint> : (

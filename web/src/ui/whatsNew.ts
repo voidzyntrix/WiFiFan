@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.11.0',
+    notes: [
+      'Solar: LED 1 now shows how much you import in steps: yellow, orange, then red, pulsing faster as the import rises (firmware 2.2.0).',
+      'Import levels can be set to Small home, Medium or Large, and are saved on the board.',
+    ],
+  },
+  {
     version: '2.10.2',
     notes: [
       'Solar grid light: yellow while importing, pulsing smoothly from 0.5 kW, red pulsing from 1 kW (firmware 2.1.1).',
