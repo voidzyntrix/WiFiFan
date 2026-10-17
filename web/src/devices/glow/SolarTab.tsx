@@ -47,7 +47,7 @@ export function SolarTab({ c }: { c: LedController }) {
       if (live && v) setFox(v)
     }
     void read()
-    const t = window.setInterval(() => void read(), 3000)
+    const t = window.setInterval(() => void read(), 5000)
     return () => { live = false; window.clearInterval(t) }
   }, [])
 
@@ -102,10 +102,11 @@ export function SolarTab({ c }: { c: LedController }) {
       if (live && s) setSt(s)
     }
     void read()
-    const timer = window.setInterval(() => void read(), 3000)
+    const timer = window.setInterval(() => void read(), 5000)
     return () => { live = false; window.clearInterval(timer) }
   }, [])
 
+  const liveOn = fox?.live === 2   // the live stream is running: the API's settings don't apply
   const needKey = !!st && (!st.key || changing)
   useEffect(() => { solarFlags.setup = needKey; return () => { solarFlags.setup = false } }, [needKey])
 
@@ -146,8 +147,12 @@ export function SolarTab({ c }: { c: LedController }) {
         <>
           <Hint><Txt>{st.err ? st.err : st.have ? describeSolar(st) : 'Waiting for the first answer from FoxESS…'}</Txt></Hint>
           {st.name && <Hint>Inverter: {st.name}</Hint>}
-          <SettingHeading title="Ask FoxESS every" subtitle="FoxESS allows 1,440 questions a day per inverter" />
-          <SegmentedPill options={POLLS.map((m) => `${m} min`)} selected={POLLS.indexOf(st.poll)} onSelect={(i) => send({ poll: POLLS[i] })} />
+          {!liveOn && (
+            <>
+              <SettingHeading title="Ask FoxESS every" subtitle="FoxESS allows 1,440 questions a day per inverter" />
+              <SegmentedPill options={POLLS.map((m) => `${m} min`)} selected={POLLS.indexOf(st.poll)} onSelect={(i) => send({ poll: POLLS[i] })} />
+            </>
+          )}
           <SettingHeading title="Low battery alert" subtitle="Red blinks when the battery drops below" />
           <SegmentedPill options={LOWS.map((p) => `${p} %`)} selected={LOWS.indexOf(st.low)} onSelect={(i) => send({ low: LOWS[i] })} />
           <SettingHeading title="What you see" />
@@ -160,7 +165,7 @@ export function SolarTab({ c }: { c: LedController }) {
           <SettingHeading title="Live data (about every 5 s)" subtitle={liveText} />
           <Hint>
             Sign in with your FoxESS Cloud username and password (the ones for foxesscloud.com). Glow signs in and gives the board
-            a session; the board then follows your inverter live by itself. Your API key stays as the backup. The password is kept
+            a session; the board then follows your inverter live by itself. The password is kept
             on this device only as its MD5.
           </Hint>
           <TextField label="FoxESS username" value={foxUserIn} onChange={setFoxUserIn} maxLength={60} />
@@ -183,7 +188,7 @@ export function SolarTab({ c }: { c: LedController }) {
           )}
           <div className="button-row">
             <PillButton text="Test the LEDs" onClick={() => board.sendData('ledtest')} />
-            <PillButton text="Change key" onClick={() => setChanging(true)} />
+            {!liveOn && <PillButton text="Change key" onClick={() => setChanging(true)} />}
             <PillButton text="Stop Solar" onClick={() => void c.startMode(MODE.SOLID)} />
           </div>
         </>
