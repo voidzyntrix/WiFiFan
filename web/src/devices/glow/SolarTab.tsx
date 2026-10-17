@@ -107,6 +107,8 @@ export function SolarTab({ c }: { c: LedController }) {
   }, [])
 
   const liveOn = fox?.live === 2   // the live stream is running: the API's settings don't apply
+  const signedIn = !!fox && !!fox.token && !fox.bad
+  const updated = !st || !st.have || st.age == null || st.age < 0 ? '' : st.age < 5 ? 'Last updated just now' : st.age < 60 ? `Last updated ${st.age} s ago` : st.age < 3600 ? `Last updated ${Math.floor(st.age / 60)} min ago` : 'Last updated over an hour ago'
   const needKey = !!st && (!st.key || changing)
   useEffect(() => { solarFlags.setup = needKey; return () => { solarFlags.setup = false } }, [needKey])
 
@@ -146,6 +148,7 @@ export function SolarTab({ c }: { c: LedController }) {
       ) : (
         <>
           <Hint><Txt>{st.err ? st.err : st.have ? describeSolar(st) : 'Waiting for the first answer from FoxESS…'}</Txt></Hint>
+          {updated && <Hint><Txt>{updated}</Txt></Hint>}
           {st.name && <Hint>Inverter: {st.name}</Hint>}
           {!liveOn && (
             <>
@@ -168,12 +171,16 @@ export function SolarTab({ c }: { c: LedController }) {
             a session; the board then follows your inverter live by itself. The password is kept
             on this device only as its MD5.
           </Hint>
-          <TextField label="FoxESS username" value={foxUserIn} onChange={setFoxUserIn} maxLength={60} />
-          <TextField label={prefs.foxPassMd5 ? 'Password (saved; type to change)' : 'FoxESS password'} value={foxPassIn} onChange={setFoxPassIn} maxLength={60} password onEnter={() => void signIn()} />
+          {signedIn ? <Hint>Signed in as {fox?.user || prefs.foxUser}.</Hint> : (
+            <>
+            <TextField label="FoxESS username" value={foxUserIn} onChange={setFoxUserIn} maxLength={60} />
+            <TextField label={prefs.foxPassMd5 ? 'Password (saved; type to change)' : 'FoxESS password'} value={foxPassIn} onChange={setFoxPassIn} maxLength={60} password onEnter={() => void signIn()} />
+            </>
+          )}
           {foxMsg && <Hint>{foxMsg}</Hint>}
           <div className="button-row">
             {(prefs.foxUser || fox?.token) ? <PillButton text="Sign out" onClick={signOut} /> : null}
-            <PillButton text={signing ? 'Signing in…' : 'Sign in'} highlighted enabled={!signing && !!foxUserIn.trim() && (!!foxPassIn || !!prefs.foxPassMd5)} onClick={() => void signIn()} />
+            {!signedIn && <PillButton text={signing ? 'Signing in…' : 'Sign in'} highlighted enabled={!signing && !!foxUserIn.trim() && (!!foxPassIn || !!prefs.foxPassMd5)} onClick={() => void signIn()} />}
           </div>
           {gl && (
             <>

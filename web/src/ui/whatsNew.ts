@@ -2,6 +2,12 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.9.5',
+    notes: [
+      'Solar: the username and password fields hide once you are signed in (only the account name and Sign out remain), and the card shows when it was last updated.',
+    ],
+  },
+  {
     version: '2.9.4',
     notes: [
       'While Solar live data is running, the API settings (how often to ask FoxESS, Change key) are hidden, since they do not apply.',
