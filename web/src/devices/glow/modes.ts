@@ -7,17 +7,12 @@ export const MODE = {
   RAINBOW: 1,
   CANDLE: 2,
   BREATHE: 3,
-  OCEAN: 4,
-  PARTY: 5,
-  AURORA: 6,
   /** Microphone-reactive: loudness drives brightness, beats step the hue (app-side). */
   MUSIC: 7,
   /** Screen sync: the dominant screen colour (app-side). */
   SCREEN: 8,
   /** Visualizer: bass, mids and treble of what Windows plays set the colour (app-side). */
   VISUALIZER: 9,
-  /** Chase (firmware 1.6.0+): LED1's colour bounces between the two LEDs. */
-  CHASE: 10,
   /** Solar (ESP32 board, firmware 1.6.0+): the board follows a FoxESS inverter by itself. */
   SOLAR: 11,
 } as const
@@ -25,12 +20,11 @@ export const MODE = {
 /** Board effects (firmware 1.4.0+): mode, button label, command. */
 export const LED_EFFECTS: [number, string, string][] = [
   [MODE.BREATHE, 'Breathe', 'breathe'],
-  [MODE.OCEAN, 'Ocean', 'ocean'],
-  [MODE.PARTY, 'Party', 'party'],
-  [MODE.AURORA, 'Aurora', 'aurora'],
 ]
-export const LED_CHASE: [number, string, string] = [MODE.CHASE, 'Chase', 'chase']
-export const ALL_EFFECTS = [...LED_EFFECTS, LED_CHASE]
+
+/** Modes that were removed (Ocean, Party, Aurora, Chase): a saved scene that used one becomes Solid. */
+const REMOVED_MODES = [4, 5, 6, 10]
+export const keepMode = (mode: number): number => (REMOVED_MODES.includes(mode) ? MODE.SOLID : mode)
 
 export const SYNC_MODES: number[] = [MODE.MUSIC, MODE.VISUALIZER, MODE.SCREEN]
 
@@ -44,7 +38,7 @@ export const modeLabel = (mode: number): string =>
   ({
     [MODE.SOLID]: 'Solid', [MODE.RAINBOW]: 'Rainbow', [MODE.CANDLE]: 'Candle', [MODE.MUSIC]: 'Music',
     [MODE.VISUALIZER]: 'Visualizer', [MODE.SCREEN]: 'Screen', [MODE.SOLAR]: 'Solar',
-  } as Record<number, string>)[mode] ?? ALL_EFFECTS.find((e) => e[0] === mode)?.[1] ?? 'Solid'
+  } as Record<number, string>)[mode] ?? LED_EFFECTS.find((e) => e[0] === mode)?.[1] ?? 'Solid'
 
 /** Text commands for the board's colours. */
 export const LedCommands = {
@@ -74,7 +68,7 @@ export const LedCommands = {
     return `rain=${Math.round(sat * 100)}/${Math.round(bri * 100)}` + (seconds != null ? `/${seconds}` : '')
   },
   effect(mode: number, bri: number) {
-    return `${ALL_EFFECTS.find((e) => e[0] === mode)![2]}=${Math.round(bri * 100)}`
+    return `${LED_EFFECTS.find((e) => e[0] === mode)![2]}=${Math.round(bri * 100)}`
   },
 }
 
@@ -83,8 +77,8 @@ export interface BoardCaps {
   hsv: boolean          // 1.1.0: h=H/S/V
   candle: boolean       // 1.2.0
   options: boolean      // 1.3.0: candle/rainbow options, fade=
-  effects: boolean      // 1.4.0: breathe, ocean, party, aurora
-  split: boolean        // 1.6.0: two LEDs, chase
+  effects: boolean      // 1.4.0: breathe
+  split: boolean        // 1.6.0: two LEDs
   candleStyle: boolean  // 1.6.1: one flame / two candles
   sleep: boolean        // 1.7.0: sleep timer
 }

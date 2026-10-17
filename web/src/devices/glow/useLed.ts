@@ -6,7 +6,7 @@
 import { useEffect, useReducer, useRef, useState } from 'react'
 import { board, useBoard } from './board'
 import { kelvinToHueSat, hexToHsv, normHue } from '../../lib/color'
-import { ALL_EFFECTS, LedCommands, MIN_VISIBLE, MODE, SYNC_MODES } from './modes'
+import { LED_EFFECTS, LedCommands, MIN_VISIBLE, MODE, SYNC_MODES } from './modes'
 import { solarCommand, solarFlags } from './solar'
 import {
   capsOf, canSaveScene, ledOptionsOf, loadScenes, resolveScene, saveScenes, sceneMatches, stateCommands, stateToScene,
@@ -108,11 +108,7 @@ export function useLed() {
     switch (m) {
       case MODE.RAINBOW: return sendRainbow()
       case MODE.CANDLE: return sendCandle()
-      case MODE.BREATHE:
-      case MODE.CHASE: sendHsvColour(); return sendEffect(m)
-      case MODE.OCEAN:
-      case MODE.PARTY:
-      case MODE.AURORA: return sendEffect(m)
+      case MODE.BREATHE: sendHsvColour(); return sendEffect(m)
       case MODE.SOLAR: return send(solarCommand({ on: true, bri: Math.round(st.current.bri * 100) }))   // the board does it itself
       case MODE.MUSIC:
       case MODE.VISUALIZER:
@@ -132,13 +128,12 @@ export function useLed() {
   // Colour editing
   // -------------------------------------------------------------------------
 
-  /** Picking a colour keeps the modes that use one (Breathe, Candle, Chase); anything else becomes Solid. */
+  /** Picking a colour keeps the modes that use one (Breathe, Candle); anything else becomes Solid. */
   function colourPicked(led2Only = false) {
     const s = st.current
     if (s.mode === MODE.BREATHE) return
     if (s.mode === MODE.MUSIC) { settings.set({ musicKeepColour: true }); return }
     if (led2Only) { s.mode = MODE.SOLID; return }
-    if (s.mode === MODE.CHASE) return
     if (s.mode === MODE.CANDLE) { s.candleHue = normHue(Math.round(s.hue)) % 360; return }
     s.mode = MODE.SOLID
   }
@@ -229,7 +224,6 @@ export function useLed() {
         if (s.mode === MODE.SCREEN && sync.active === 'SCREEN') return
         return startSync(startScreen, { mode: MODE.SCREEN, kelvinMode: false })
       case MODE.SOLAR: update({ mode: MODE.SOLAR, kelvinMode: false }); return sendCurrent()
-      case MODE.CHASE: sendHsvColour(); return sendEffect(MODE.CHASE)
       default:
         if (s.kelvinMode) s.kelvinMode = false
         return sendEffect(mode)
@@ -434,7 +428,7 @@ export function useLed() {
   const sceneSuggestion = s.mode === MODE.SOLID && s.kelvinMode ? `${Math.round(s.kelvin / 100) * 100} K`
     : s.mode === MODE.SOLID ? `Scene ${s.scenes.length + 1}`
       : s.mode === MODE.RAINBOW ? 'Rainbow' : s.mode === MODE.CANDLE ? 'Candle'
-        : ALL_EFFECTS.find((e) => e[0] === s.mode)?.[1] ?? `Scene ${s.scenes.length + 1}`
+        : LED_EFFECTS.find((e) => e[0] === s.mode)?.[1] ?? `Scene ${s.scenes.length + 1}`
 
   return {
     s, caps, fwVersion, connected, isDemo: board.isDemo, ledOn, twoLeds: twoLeds(), sync, prefs,

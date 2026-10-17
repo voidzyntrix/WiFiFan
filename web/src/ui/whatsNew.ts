@@ -2,6 +2,14 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.10.0',
+    notes: [
+      'Ocean, Party, Aurora and Chase are removed (the board no longer runs them). A scene that used one becomes Solid.',
+      'Solar: shorter text; the sign-in fields hide once you are signed in, and the card shows when it was last updated.',
+      'Removed leftover code that nothing used.',
+    ],
+  },
+  {
     version: '2.9.6',
     notes: [
       'Shorter text on the Solar card.',

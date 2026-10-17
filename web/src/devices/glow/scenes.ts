@@ -3,7 +3,7 @@
 
 import { atLeast, kelvinScreenColor, kelvinToHueSat, hsvCss } from '../../lib/color'
 import { settings, type Settings } from '../../settings/store'
-import { MODE, LedCommands, SYNC_MODES, type BoardCaps } from './modes'
+import { MODE, LedCommands, SYNC_MODES, type BoardCaps, keepMode } from './modes'
 
 /**
  * A saved LED state: the mode, its colour (hue/saturation or a colour temperature) and the
@@ -46,7 +46,7 @@ export function loadScenes(): Scene[] {
   if (json == null) return DEFAULT_SCENES
   try {
     return (JSON.parse(json) as Partial<Scene>[]).map((o) =>
-      sceneDefaults({ id: o.id ?? 0, name: o.name ?? 'Scene', mode: o.mode ?? MODE.SOLID, ...o }))
+      sceneDefaults({ id: o.id ?? 0, name: o.name ?? 'Scene', ...o, mode: keepMode(o.mode ?? MODE.SOLID) }))
   } catch {
     return []
   }
@@ -81,14 +81,11 @@ export function sceneSwatch(sc: Scene, settingsCandleHue: number): string {
   const c = (h: number, s: number) => hsvCss(h, s)
   switch (sc.mode) {
     case MODE.RAINBOW:
-    case MODE.PARTY:
       return `conic-gradient(${[0, 60, 120, 180, 240, 300, 360].map((h) => c(h, Math.max(sc.sat, 0.6))).join(',')})`
     case MODE.CANDLE: {
       const h = sc.candleHue ?? settingsCandleHue
       return `linear-gradient(135deg, ${c(h + 12, 0.8)}, ${c(h, 0.95)})`
     }
-    case MODE.OCEAN: return `linear-gradient(135deg, ${c(185, 0.85)}, ${c(225, 0.9)})`
-    case MODE.AURORA: return `linear-gradient(135deg, ${c(150, 0.8)}, ${c(280, 0.75)})`
     default: {
       const c1 = sc.kelvinMode ? kelvinScreenColor(sc.kelvin) : c(sc.hue, sc.sat)
       if (sc.split && (sc.mode === MODE.SOLID || sc.mode === MODE.BREATHE)) {
@@ -139,9 +136,8 @@ export function capsOf(version: string | null): BoardCaps {
 /** The state after applying a scene on top of [current]; `supported` is false when the board can't run its mode. */
 export function resolveScene(scene: Scene, current: LedState, caps: BoardCaps): { next: LedState; supported: boolean } {
   const supported = scene.mode === MODE.CANDLE ? caps.candle
-    : [MODE.BREATHE, MODE.OCEAN, MODE.PARTY, MODE.AURORA].includes(scene.mode as 3) ? caps.effects
-      : scene.mode === MODE.CHASE ? caps.split
-        : canSaveScene(scene.mode)
+    : scene.mode === MODE.BREATHE ? caps.effects
+      : canSaveScene(scene.mode)
   const [h, s] = scene.kelvinMode ? kelvinToHueSat(scene.kelvin) : [scene.hue, scene.sat]
   let next: LedState = {
     ...current,
@@ -177,11 +173,7 @@ export function stateCommands(state: LedState, caps: BoardCaps, opts: LedOptions
     case MODE.CANDLE:
       mode = [LedCommands.candle(state.bri, caps.options, opts.smoothCandle, state.candleHue ?? opts.candleHue, caps.candleStyle, opts.twoCandles)]
       break
-    case MODE.BREATHE:
-    case MODE.CHASE: mode = [colour(), LedCommands.effect(state.mode, state.bri)]; break
-    case MODE.OCEAN:
-    case MODE.PARTY:
-    case MODE.AURORA: mode = [LedCommands.effect(state.mode, state.bri)]; break
+    case MODE.BREATHE: mode = [colour(), LedCommands.effect(state.mode, state.bri)]; break
     case MODE.MUSIC:
     case MODE.VISUALIZER:
     case MODE.SCREEN: mode = []; break

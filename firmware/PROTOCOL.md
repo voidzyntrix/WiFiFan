@@ -44,10 +44,6 @@ picker messages) drive **both** LEDs, in either mode.
 | `rain...`                 | both LEDs, same hue           | LED2 is 180 deg further round the wheel |
 | `candle...`               | both LEDs flicker identically | S=0 (default, 1.6.1): **one flame** over both LEDs, LED1 = core, LED2 = tip (see below). S=1: two candles, each LED flickers on its own (own random state and breathing phase, same parameters; this was the only Separate behaviour in 1.6.0) |
 | `breathe`                 | both breathe LED1's colour together | each LED breathes its own last colour; LED2 in opposite phase (one bright while the other is dim) |
-| `ocean`                   | identical                     | LED2 runs 3.5 s behind LED1 (half a hue drift) |
-| `aurora`                  | identical                     | LED2 runs 9 s behind LED1 (half a wave) |
-| `party`                   | one random colour sequence    | each LED picks its own random colours; LED2 jumps halfway between LED1's jumps |
-| `chase`                   | both pulse together 0 -> full -> 0 (2.4 s period) | the colour swings LED1 -> LED2 -> LED1, smooth crossfade, 1.2 s per swing |
 | `h1=`, `h2=`, `l1=`, `l2=`, `hh=` | address the single LED (still work) | address the single LED |
 
 ## Commands
@@ -101,10 +97,6 @@ full `hh=360/100/100/360/100/100\` (27 bytes) takes ~2.3 ms.
 | `candle=V/M/H` | ... flame hue H degrees (0-60, default 19) | `candle=60/0/25\` |
 | `candle=V/M/H/S` (1.6.1) | ... S = Separate-mode style: 0 one flame (default), 1 two candles | `candle=60/1/19/0\` |
 | `breathe[=V]` | the last colour slowly fades up and down (4 s) | `breathe=80\` |
-| `ocean[=V]` | drifting blues and teals | `ocean\` |
-| `party[=V]` | smooth jumps between random colours (1.5 s) | `party=100\` |
-| `aurora[=V]` | slow green-violet waves | `aurora=70\` |
-| `chase[=V]` (new) | the last colour bounces between the two LEDs (Linked: both pulse) | `chase=100\` |
 
 All shorter `candle` forms use S=0 (one flame). Linked mode ignores S.
 
@@ -118,10 +110,9 @@ it. Smooth (M=1) keeps rare shallow gusts, a slower sway and a very gentle
 tip flicker. The core/tip difference eases in over ~1 s after `candle=` or
 `split=1`.
 
-Without `=V` an effect uses the last brightness. Rainbow, candle, chase and the
-other effects all replace each other. `breathe` and `chase` use the colour last
-chosen with a colour command (`chase`: LED1's colour; `breathe` when Separate:
-each LED's own).
+Without `=V` an effect uses the last brightness. Rainbow, candle and breathe
+replace each other. `breathe` uses the colour last chosen with a colour command
+(LED1's colour; when Separate, each LED's own).
 
 ### Settings and system
 

@@ -28,14 +28,14 @@ import { displayName } from '../connection'
 import { useBoard } from './board'
 import { FirmwareDialog } from './Firmware'
 import { LedPreview, LedPreviewPair } from './LedPreview'
-import { KELVIN_PRESETS, LED_CHASE, LED_EFFECTS, LED_PRESETS, MODE, modeLabel } from './modes'
+import { KELVIN_PRESETS, LED_EFFECTS, LED_PRESETS, MODE, modeLabel } from './modes'
 import { previewOf } from './preview'
 import { sceneSwatch, type Scene } from './scenes'
 import { hasTune, TuneTab, tuneLabel } from './Tune'
 import { checkFirmware, firmwareVersionOf, useOta } from './ota'
 import { type LedController, useLed } from './useLed'
 
-const ANIMATED = [MODE.RAINBOW, MODE.CANDLE, MODE.BREATHE, MODE.OCEAN, MODE.PARTY, MODE.AURORA, MODE.CHASE]
+const ANIMATED = [MODE.RAINBOW, MODE.CANDLE, MODE.BREATHE]
 
 type Tab = 'colour' | 'modes' | 'scenes' | 'tune'
 type Dialog =
@@ -94,7 +94,7 @@ export function ControlScreen(props: ControlScreenProps) {
   const isWifiBoard = useBoard().kind === 'wifi'
   const modeGroups: [string, [number, string, boolean][]][] = [
     ['Light', [[MODE.SOLID, 'Solid', true], [MODE.SOLAR, 'Solar', isWifiBoard], [MODE.RAINBOW, 'Rainbow', true], [MODE.CANDLE, 'Candle', c.caps.candle]]],
-    ['Board effects', [...LED_EFFECTS.map(([m, l]) => [m, l, c.caps.effects] as [number, string, boolean]), [LED_CHASE[0], LED_CHASE[1], c.caps.split]]],
+    ['Board effects', LED_EFFECTS.map(([m, l]) => [m, l, c.caps.effects] as [number, string, boolean])],
     ['Reactive', [
       [MODE.MUSIC, 'Music', platform.capture.microphone],
       [MODE.VISUALIZER, 'Visualizer', platform.capture.systemAudio],

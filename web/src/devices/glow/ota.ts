@@ -55,9 +55,9 @@ const RETRIES = 5
 let state: OtaState = { kind: 'idle' }
 const listeners = new Set<() => void>()
 function set(s: OtaState) { state = s; listeners.forEach((l) => l()) }
+export const otaState = () => state
 export const useOta = () =>
   useSyncExternalStore((l) => { listeners.add(l); return () => { listeners.delete(l) } }, () => state)
-export const otaState = () => state
 
 export async function checkFirmware(boardVersion: string | null, quiet = false) {
   if (otaBusy(state) || state.kind === 'checking') return
