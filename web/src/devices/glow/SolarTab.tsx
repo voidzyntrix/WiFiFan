@@ -157,31 +157,31 @@ export function SolarTab({ c }: { c: LedController }) {
             from 80 % to 70 %, yellow breathing from 70 % to 30 %, red below that; it breathes faster below 20 %, and fades fully
             when the battery alone runs the house. Two quick red blinks every 10 s mean a fault, a low battery for 6 minutes; green blinks mean the battery is full and the sun is exporting.
           </Hint>
+          <SettingHeading title="Live data (about every 5 s)" subtitle={liveText} />
+          <Hint>
+            Sign in with your FoxESS Cloud username and password (the ones for foxesscloud.com). Glow signs in and gives the board
+            a session; the board then follows your inverter live by itself. Your API key stays as the backup. The password is kept
+            on this device only as its MD5.
+          </Hint>
+          <TextField label="FoxESS username" value={foxUserIn} onChange={setFoxUserIn} maxLength={60} />
+          <TextField label={prefs.foxPassMd5 ? 'Password (saved; type to change)' : 'FoxESS password'} value={foxPassIn} onChange={setFoxPassIn} maxLength={60} password onEnter={() => void signIn()} />
+          {foxMsg && <Hint>{foxMsg}</Hint>}
           <div className="button-row">
-            <SettingHeading title="Live data (about every 5 s)" subtitle={liveText} />
-            <Hint>
-              Sign in with your FoxESS Cloud username and password (the ones for foxesscloud.com). Glow signs in and gives the board
-              a session; the board then follows your inverter live by itself. Your API key stays as the backup. The password is kept
-              on this device only as its MD5.
-            </Hint>
-            <TextField label="FoxESS username" value={foxUserIn} onChange={setFoxUserIn} maxLength={60} />
-            <TextField label={prefs.foxPassMd5 ? 'Password (saved; type to change)' : 'FoxESS password'} value={foxPassIn} onChange={setFoxPassIn} maxLength={60} password onEnter={() => void signIn()} />
-            {foxMsg && <Hint>{foxMsg}</Hint>}
-            <div className="button-row">
-              {(prefs.foxUser || fox?.token) ? <PillButton text="Sign out" onClick={signOut} /> : null}
-              <PillButton text={signing ? 'Signing in…' : 'Sign in'} highlighted enabled={!signing && !!foxUserIn.trim() && (!!foxPassIn || !!prefs.foxPassMd5)} onClick={() => void signIn()} />
-            </div>
-            {gl && (
-              <>
-                <SettingHeading title="When the grid is lost" subtitle="Saved on the board, so it stays after restarts" />
-                <SettingSwitch title="Battery colour on both LEDs" subtitle="Breathes the battery's colour on LED 1 as well (otherwise LED 1 is off)" checked={!!gl.both} onChange={(v) => setGridLoss({ both: v ? 1 : 0 })} />
-                <SettingSwitch title="Red flash on both LEDs" subtitle="Both LEDs flash red for a moment" checked={!!gl.flash} onChange={(v) => setGridLoss({ flash: v ? 1 : 0 })} />
-                <SettingHeading title="Flash every" />
-                <SegmentedPill options={FLASH_EVERY.map((x) => (x < 60 ? `${x} s` : '1 min'))} selected={FLASH_EVERY.indexOf(gl.every)} onSelect={(i) => setGridLoss({ every: FLASH_EVERY[i] })} />
-                <SettingHeading title="Flash length" />
-                <SegmentedPill options={['Short', 'Normal', 'Long']} selected={FLASH_MS.indexOf(gl.ms)} onSelect={(i) => setGridLoss({ ms: FLASH_MS[i] })} />
-              </>
-            )}
+            {(prefs.foxUser || fox?.token) ? <PillButton text="Sign out" onClick={signOut} /> : null}
+            <PillButton text={signing ? 'Signing in…' : 'Sign in'} highlighted enabled={!signing && !!foxUserIn.trim() && (!!foxPassIn || !!prefs.foxPassMd5)} onClick={() => void signIn()} />
+          </div>
+          {gl && (
+            <>
+              <SettingHeading title="When the grid is lost" subtitle="Saved on the board, so it stays after restarts" />
+              <SettingSwitch title="Battery colour on both LEDs" subtitle="Breathes the battery's colour on LED 1 as well (otherwise LED 1 is off)" checked={!!gl.both} onChange={(v) => setGridLoss({ both: v ? 1 : 0 })} />
+              <SettingSwitch title="Red flash on both LEDs" subtitle="Both LEDs flash red for a moment" checked={!!gl.flash} onChange={(v) => setGridLoss({ flash: v ? 1 : 0 })} />
+              <SettingHeading title="Flash every" />
+              <SegmentedPill options={FLASH_EVERY.map((x) => (x < 60 ? `${x} s` : '1 min'))} selected={FLASH_EVERY.indexOf(gl.every)} onSelect={(i) => setGridLoss({ every: FLASH_EVERY[i] })} />
+              <SettingHeading title="Flash length" />
+              <SegmentedPill options={['Short', 'Normal', 'Long']} selected={FLASH_MS.indexOf(gl.ms)} onSelect={(i) => setGridLoss({ ms: FLASH_MS[i] })} />
+            </>
+          )}
+          <div className="button-row">
             <PillButton text="Test the LEDs" onClick={() => board.sendData('ledtest')} />
             <PillButton text="Change key" onClick={() => setChanging(true)} />
             <PillButton text="Stop Solar" onClick={() => void c.startMode(MODE.SOLID)} />

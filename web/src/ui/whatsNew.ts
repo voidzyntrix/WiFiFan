@@ -2,6 +2,12 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.9.3',
+    notes: [
+      'Fixes the Solar tab: the live-data sign-in and the settings below it were squeezed into thin vertical strips. They now stack normally and scroll inside the card.',
+    ],
+  },
+  {
     version: '2.9.2',
     notes: [
       'Dialogs open in the centre of the screen again (they had slid to the left), and the device and sleep menus no longer clip their rows or show a scrollbar.',
