@@ -2,9 +2,9 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
-    version: '2.10.1',
+    version: '2.10.2',
     notes: [
-      'Solar grid light: yellow while importing, flashing from 0.5 kW, red flashing from 1 kW (firmware 2.1.0).',
+      'Solar grid light: yellow while importing, pulsing smoothly from 0.5 kW, red pulsing from 1 kW (firmware 2.1.1).',
     ],
   },
   {
