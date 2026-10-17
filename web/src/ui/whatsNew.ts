@@ -2,6 +2,12 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.9.6',
+    notes: [
+      'Shorter text on the Solar card.',
+    ],
+  },
+  {
     version: '2.9.5',
     notes: [
       'Solar: the username and password fields hide once you are signed in (only the account name and Sign out remain), and the card shows when it was last updated.',

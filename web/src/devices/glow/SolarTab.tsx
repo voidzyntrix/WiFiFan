@@ -134,10 +134,7 @@ export function SolarTab({ c }: { c: LedController }) {
 
       {needKey ? (
         <>
-          <Hint>
-            The board asks FoxESS for your inverter's state itself, so Solar keeps working with this app closed.
-            Make an API key at foxesscloud.com (profile, API management) and paste it here. It is stored on the board.
-          </Hint>
+          <Hint>Paste a FoxESS API key. The board stores it and keeps Solar running with the app closed.</Hint>
           <TextField label="FoxESS API key" value={key} onChange={setKey} maxLength={90} password onEnter={saveKey} />
           <div className="button-row">
             <PillButton text="Get a key" onClick={() => openLink(FOX_API)} />
@@ -152,25 +149,20 @@ export function SolarTab({ c }: { c: LedController }) {
           {st.name && <Hint>Inverter: {st.name}</Hint>}
           {!liveOn && (
             <>
-              <SettingHeading title="Ask FoxESS every" subtitle="FoxESS allows 1,440 questions a day per inverter" />
+              <SettingHeading title="Ask FoxESS every" />
               <SegmentedPill options={POLLS.map((m) => `${m} min`)} selected={POLLS.indexOf(st.poll)} onSelect={(i) => send({ poll: POLLS[i] })} />
             </>
           )}
-          <SettingHeading title="Low battery alert" subtitle="Red blinks when the battery drops below" />
+          <SettingHeading title="Low battery alert" />
           <SegmentedPill options={LOWS.map((p) => `${p} %`)} selected={LOWS.indexOf(st.low)} onSelect={(i) => send({ low: LOWS[i] })} />
           <SettingHeading title="What you see" />
           <Hint>
-            LED 1 is the grid: green exporting, lime balanced, yellow then red as you import more, blue when the grid is down
-            (with a red flash every 5 s), pulsing above 1 kW of import. LED 2 is the battery: green solid from 80 %, orange breathing
-            from 80 % to 70 %, yellow breathing from 70 % to 30 %, red below that; it breathes faster below 20 %, and fades fully
-            when the battery alone runs the house. Two quick red blinks every 10 s mean a fault, a low battery for 6 minutes; green blinks mean the battery is full and the sun is exporting.
+            LED 1 is the grid: green exporting, yellow to red as you import, blue when the grid is down.
+            LED 2 is the battery: green above 80 %, orange, then yellow, then red when low.
+            Two red blinks every 10 s mean a fault.
           </Hint>
           <SettingHeading title="Live data (about every 5 s)" subtitle={liveText} />
-          <Hint>
-            Sign in with your FoxESS Cloud username and password (the ones for foxesscloud.com). Glow signs in and gives the board
-            a session; the board then follows your inverter live by itself. The password is kept
-            on this device only as its MD5.
-          </Hint>
+          <Hint>Sign in with your foxesscloud.com account. The board then follows your inverter live.</Hint>
           {signedIn ? <Hint>Signed in as {fox?.user || prefs.foxUser}.</Hint> : (
             <>
             <TextField label="FoxESS username" value={foxUserIn} onChange={setFoxUserIn} maxLength={60} />
@@ -184,9 +176,9 @@ export function SolarTab({ c }: { c: LedController }) {
           </div>
           {gl && (
             <>
-              <SettingHeading title="When the grid is lost" subtitle="Saved on the board, so it stays after restarts" />
-              <SettingSwitch title="Battery colour on both LEDs" subtitle="Breathes the battery's colour on LED 1 as well (otherwise LED 1 is off)" checked={!!gl.both} onChange={(v) => setGridLoss({ both: v ? 1 : 0 })} />
-              <SettingSwitch title="Red flash on both LEDs" subtitle="Both LEDs flash red for a moment" checked={!!gl.flash} onChange={(v) => setGridLoss({ flash: v ? 1 : 0 })} />
+              <SettingHeading title="When the grid is lost" subtitle="Saved on the board" />
+              <SettingSwitch title="Battery colour on both LEDs"  subtitle="LED 1 breathes the battery colour too" checked={!!gl.both} onChange={(v) => setGridLoss({ both: v ? 1 : 0 })} />
+              <SettingSwitch title="Red flash on both LEDs"  subtitle="Both LEDs flash red" checked={!!gl.flash} onChange={(v) => setGridLoss({ flash: v ? 1 : 0 })} />
               <SettingHeading title="Flash every" />
               <SegmentedPill options={FLASH_EVERY.map((x) => (x < 60 ? `${x} s` : '1 min'))} selected={FLASH_EVERY.indexOf(gl.every)} onSelect={(i) => setGridLoss({ every: FLASH_EVERY[i] })} />
               <SettingHeading title="Flash length" />
