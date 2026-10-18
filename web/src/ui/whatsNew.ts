@@ -2,6 +2,12 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.11.3',
+    notes: [
+      'Solar export colours are now distinct: green, lime, turquoise, sky blue, then violet from 5 kW (firmware 2.3.2).',
+    ],
+  },
+  {
     version: '2.11.2',
     notes: [
       'The Solar card’s “What you see” now describes every LED state: grid, battery and alerts.',
