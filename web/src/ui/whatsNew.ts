@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.11.2',
+    notes: [
+      'The Solar card’s “What you see” now describes every LED state: grid, battery and alerts.',
+      'Alerts (fault, low battery, battery full) pulse smoothly instead of blinking (firmware 2.3.1).',
+    ],
+  },
+  {
     version: '2.11.1',
     notes: [
       'Solar grid light: export shows green, teal, then cyan in 1 kW steps up to 6 kW, pulsing faster with more power (firmware 2.3.0).',

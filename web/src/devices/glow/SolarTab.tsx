@@ -176,10 +176,21 @@ export function SolarTab({ c }: { c: LedController }) {
           <SettingHeading title="Low battery alert" />
           <SegmentedPill options={LOWS.map((p) => `${p} %`)} selected={LOWS.indexOf(st.low)} onSelect={(i) => send({ low: LOWS[i] })} />
           <SettingHeading title="What you see" />
+          <Hint><b>LED 1, the grid</b></Hint>
           <Hint>
-            LED 1 is the grid: green, teal, then cyan as you export more (1 kW steps to 6 kW); yellow, orange, then red as you import more; pulsing faster with more power; blue when the grid is down.
-            LED 2 is the battery: green above 80 %, orange, then yellow, then red when low.
-            Two red blinks every 10 s mean a fault.
+            Exporting: green up to 1 kW, then green pulsing; teal at 3 kW; cyan from 5 kW (1 kW steps to 6 kW). Faster pulse with more export.
+            Importing: yellow steady below 0.5 kW, then yellow pulsing; orange from 1 kW; red from 2 kW, faster pulse at 3 kW and up. The steps can be set under Import levels.
+            Grid lost: off, unless "Battery colour on both LEDs" is on, then it shows the battery colour.
+          </Hint>
+          <Hint><b>LED 2, the battery</b></Hint>
+          <Hint>
+            Green steady from 80 %. Orange pulsing from 80 % down to 70 %, yellow pulsing from 70 % to 30 %, red pulsing below 30 %, and faster below 20 %.
+            When the battery runs the house alone, it fades out.
+          </Hint>
+          <Hint><b>Alerts (both LEDs, every 10 s)</b></Hint>
+          <Hint>
+            Red pulse: a fault, or the battery below the low-battery level. Green pulse: the battery is full and the sun is exporting.
+            Grid lost: both LEDs flash red every few seconds (Red flash setting).
           </Hint>
           {c.caps.importLevels && imp && (
             <>
