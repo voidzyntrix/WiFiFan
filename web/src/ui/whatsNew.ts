@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.19',
+    notes: [
+      'Material sliders dim their handle to a grey while dragging; the pointer is back to normal',
+    ],
+  },
+
+  {
     version: '2.13.18',
     notes: [
       'Material slider handles quiet down to a grey while you drag, with a matching grey pointer',
