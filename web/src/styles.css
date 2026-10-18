@@ -742,7 +742,7 @@ input.text-field:focus { border-color: var(--primary); background: var(--on-bg-8
    own left transition (identical timing), instead of teleporting while the thumb still animates there */
 @property --pos { syntax: '<percentage>'; inherits: true; initial-value: 0%; }
 :root[data-design='material'] .gbar.m3e { height: 48px; border-radius: 0; --gap: 10px; cursor: grab; transition: --pos 0.4s var(--emph-decel); }
-:root[data-design='material'] .gbar.m3e.dragging { cursor: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='22' viewBox='0 0 20 22'><path d='M4 1.5 L4 14.4 L7.4 11.4 L9.5 16.6 L12.4 15.6 L10.3 10.6 L15.5 10.6 Z' fill='%238e8e8e' stroke='%23ffffff' stroke-opacity='0.65' stroke-width='1'/></svg>") 3 2, grabbing; transition: none; }   /* the pointer follows the handle's grey */   /* the pointer must be followed exactly */
+:root[data-design='material'] .gbar.m3e.dragging { cursor: grabbing; transition: none; }   /* the pointer must be followed exactly */
 :root[data-design='material'] .gbar.m3e .gbar-track {
   top: 14px; height: 20px; border-radius: 10px; opacity: 1;
   box-shadow: inset 0 0 0 1px rgb(var(--mdui-color-outline-variant) / 0.4);
@@ -765,7 +765,7 @@ input.text-field:focus { border-color: var(--primary); background: var(--on-bg-8
 }
 :root[data-design='material'] .gbar.m3e.dragging .gbar-thumb {
   width: 16px; height: 38px; margin: -19px 0 0 -8px;
-  border-radius: calc(min(var(--u), 1) * 8px); background-color: rgb(var(--mdui-color-outline)); cursor: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='22' viewBox='0 0 20 22'><path d='M4 1.5 L4 14.4 L7.4 11.4 L9.5 16.6 L12.4 15.6 L10.3 10.6 L15.5 10.6 Z' fill='%238e8e8e' stroke='%23ffffff' stroke-opacity='0.65' stroke-width='1'/></svg>") 3 2, grabbing;
+  border-radius: calc(min(var(--u), 1) * 8px); background-color: rgb(var(--mdui-color-outline)); cursor: grabbing;
   transition: width 0.2s var(--spring), height 0.2s var(--spring), margin 0.2s var(--spring), border-radius 0.2s var(--spring), background-color 0.2s var(--spring);
 }
 :root[data-design='material'] .gbar.m3e:active .gbar-thumb { cursor: grabbing; transform: none; }
