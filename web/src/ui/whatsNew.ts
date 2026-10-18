@@ -2,6 +2,12 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.1',
+    notes: [
+      'Solar export colours: sky blue replaced, so turquoise, violet and magenta are clearly different (firmware 2.3.4).',
+    ],
+  },
+  {
     version: '2.13.0',
     notes: [
       'The LED preview simulates the board’s modes with the same formulas and gamma, so the colours and brightness match the LEDs (solid, breathe, rainbow, candle). Sound and Solar still use an estimate.',

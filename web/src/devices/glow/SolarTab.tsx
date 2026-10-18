@@ -179,7 +179,7 @@ export function SolarTab({ c }: { c: LedController }) {
             <SettingHeading title="What you see" />
           <Hint><b>LED 1, the grid</b></Hint>
           <Hint>
-            Exporting (1 kW steps): green to 2 kW, lime 2-3 kW, turquoise 3-4 kW, sky blue 4-5 kW, violet from 5 kW. Faster pulse with more export.
+            Exporting (1 kW steps): green to 2 kW, lime 2-3 kW, turquoise 3-4 kW, violet 4-5 kW, magenta from 5 kW. Faster pulse with more export.
             Importing: yellow steady below 0.5 kW, then yellow pulsing; orange from 1 kW; red from 2 kW, faster pulse at 3 kW and up. The steps can be set under Import levels.
             Grid lost: off, unless "Battery colour on both LEDs" is on, then it shows the battery colour.
           </Hint>
