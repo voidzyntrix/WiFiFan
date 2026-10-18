@@ -857,6 +857,25 @@ mdui-switch { flex: none; }
 .md-tabs { flex: none; width: 100%; background-color: transparent; }
 mdui-chip { height: 40px; }
 mdui-chip.menu-item { height: 100%; width: 100%; }
+/* Modes menu tiles: tonal buttons like the app's connected button groups — no outline and no check
+   mark, corners that follow the Shapes setting and round a little on press */
+mdui-chip.menu-item {
+  background-color: rgb(var(--mdui-color-secondary-container));
+  border: 0; color: rgb(var(--mdui-color-on-secondary-container));
+  border-radius: calc(min(var(--u), 1) * 8px);
+  --mdui-comp-ripple-state-layer-color: rgb(var(--mdui-color-on-secondary-container));
+  transition: border-radius 0.35s var(--spring), background-color 0.25s, color 0.25s;
+}
+mdui-chip.menu-item:hover { color: rgb(var(--mdui-color-on-secondary-container)); }
+mdui-chip.menu-item[selected]:not([selected='false' i]) {
+  background-color: rgb(var(--mdui-color-primary));
+  color: rgb(var(--mdui-color-on-primary));
+  border-radius: calc(min(var(--u), 1) * 12px);
+  --mdui-comp-ripple-state-layer-color: rgb(var(--mdui-color-on-primary));
+}
+mdui-chip.menu-item:active { border-radius: calc(min(var(--u), 1) * 12px); }
+mdui-chip.menu-item::part(selected-icon) { display: none; }   /* the check mark that popped in when chosen */
+mdui-chip.menu-item::part(label) { padding: 0 4px; }
 mdui-chip.chip.scene, mdui-chip.chip { width: 100%; }
 mdui-chip.chip.add.disabled { opacity: 0.45; }
 mdui-slider.md-slider { width: 100%; }

@@ -2,6 +2,12 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.13',
+    notes: [
+      'Modes are buttons again: solid Material tiles like the rest of the theme, with the chosen one filling in the colour — no outline and no check mark.',
+    ],
+  },
+  {
     version: '2.13.12',
     notes: [
       'Material You settings cards have more room: the title rides a little higher and the text inside sits further from the edges.',
