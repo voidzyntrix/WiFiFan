@@ -59,13 +59,19 @@ export const otaState = () => state
 export const useOta = () =>
   useSyncExternalStore((l) => { listeners.add(l); return () => { listeners.delete(l) } }, () => state)
 
-export async function checkFirmware(boardVersion: string | null, quiet = false) {
-  if (otaBusy(state) || state.kind === 'checking') return
+/** `quiet` (the connected-board timer) leaves the state alone when it fails; `force` (the button) asks GitHub directly. */
+export async function checkFirmware(boardVersion: string | null, quiet = false, force = false) {
+  if (otaBusy(state) || (!force && state.kind === 'checking')) return
   if (!quiet) set({ kind: 'checking' })
   try {
+    const started = Date.now()
     const latest = isWifi()
-      ? await newest(ESP_ASSET, 'esp', (v) => `glow-esp32-${v}.bin`)
-      : await newest(ASSET, 'fw', (v) => `wififan-fw-${v}.bin`)
+      ? await newest(ESP_ASSET, 'esp', (v) => `glow-esp32-${v}.bin`, force)
+      : await newest(ASSET, 'fw', (v) => `wififan-fw-${v}.bin`, force)
+    if (!quiet) {
+      const wait = 500 - (Date.now() - started)
+      if (wait > 0) await new Promise((r) => window.setTimeout(r, wait))
+    }
     if (!latest) { if (!quiet) set({ kind: 'error', message: 'No firmware found in the GitHub releases' }); return }
     if (otaBusy(state)) return
     if (boardVersion != null && compareVersions(latest.version, boardVersion) <= 0) set({ kind: 'upToDate', latest: latest.version })

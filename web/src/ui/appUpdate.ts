@@ -26,13 +26,26 @@ export const appUpdateState = () => state
 export const useAppUpdate = () =>
   useSyncExternalStore((l) => { listeners.add(l); return () => { listeners.delete(l) } }, () => state)
 
-export async function checkAppUpdate(quiet = false) {
-  if (state.kind === 'checking' || state.kind === 'downloading' || state.kind === 'restarting') return
+/**
+ * `quiet` (the launch check and its timer) leaves the state alone when it fails.
+ * `force` (the "Check for updates" button) skips every cached answer in lib/github and asks
+ * GitHub directly, so it finds a release published seconds ago.
+ */
+export async function checkAppUpdate(quiet = false, force = false) {
+  if (state.kind === 'downloading' || state.kind === 'restarting') return   // never disturb an install
+  if (!force && state.kind === 'checking') return
   if (!quiet) set({ kind: 'checking' })
   try {
     const channel = platform.update
     if (!channel) { if (!quiet) set({ kind: 'error', message: 'This build updates itself only as the installed app.' }); return }
-    const latest = await newest(channel.asset, channel.kind, channel.assetName)
+    const started = Date.now()
+    const latest = await newest(channel.asset, channel.kind, channel.assetName, force)
+    // A manual check can answer from the network in a couple of milliseconds; hold "Checking
+    // GitHub…" for a moment so the button visibly did something.
+    if (!quiet) {
+      const wait = 500 - (Date.now() - started)
+      if (wait > 0) await new Promise((r) => window.setTimeout(r, wait))
+    }
     if (!latest || compareVersions(latest.version, APP_VERSION) <= 0) set({ kind: 'upToDate', latest: latest?.version ?? APP_VERSION })
     else set({ kind: 'available', release: latest })
   } catch (e) {

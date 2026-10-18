@@ -376,6 +376,14 @@ code { font-family: 'JetBrains Mono', monospace; font-size: 0.9em; }
 .slider-value { color: var(--on-bg-85); font-weight: 600; font-variant-numeric: tabular-nums; }
 .gbar { position: relative; height: 32px; cursor: grab; touch-action: none; border-radius: 16px; }
 .gbar.dragging { cursor: grabbing; }
+.gbar-track {
+  position: absolute; left: 0; right: 0; top: 9px; height: 14px;
+  border-radius: calc(min(var(--u), 1) * 7px);
+  opacity: 0.9;
+  transition:
+    --g0 0.3s, --g1 0.3s, --g2 0.3s, --g3 0.3s, --g4 0.3s, --g5 0.3s, --g6 0.3s, --g7 0.3s, --g8 0.3s,
+    border-radius 0.45s var(--emph-decel), opacity 0.3s;
+}
 .gbar-thumb {
   position: absolute; top: 50%; width: 28px; height: 28px; margin: -14px 0 0 -14px;
   border-radius: var(--r-pill);
@@ -742,12 +750,12 @@ input.text-field:focus { border-color: var(--primary); background: var(--on-bg-8
   background: linear-gradient(90deg, rgb(var(--mdui-color-primary)) 0 var(--pos), rgb(var(--mdui-color-surface-container-highest)) var(--pos) 100%) !important;
 }
 :root[data-design='material'] .gbar.m3e.level::after {
-  content: ''; position: absolute; right: 10px; top: 22px; width: 6px; height: 6px; border-radius: 50%;
+  content: ''; position: absolute; right: 10px; top: 21px; width: 6px; height: 6px; border-radius: 50%;
   background: rgb(var(--mdui-color-on-surface-variant) / 0.6);
 }
 :root[data-design='material'] .gbar.m3e .gbar-thumb {
   width: 12px; height: 24px; margin: -12px 0 0 -6px; border-radius: 6px; box-shadow: 0 2px 6px rgb(0 0 0 / 0.2);
-  background: rgb(var(--mdui-color-primary-container));
+  background: rgb(var(--mdui-color-primary));
   cursor: grab;
   transition: left 0.4s var(--emph-decel), height 0.2s var(--spring), width 0.2s var(--spring), margin 0.2s var(--spring);
 }

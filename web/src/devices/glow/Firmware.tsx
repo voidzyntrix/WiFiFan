@@ -61,7 +61,7 @@ function FirmwareBlock({ state, version, connected }: { state: OtaState; version
         ) : state.kind === 'available' ? (
           <PillButton text={`Update to v${state.release.version}`} highlighted enabled={connected} onClick={() => void startFirmwareUpdate(state.release)} />
         ) : (
-          <PillButton text="Check for updates" enabled={connected} onClick={() => void checkFirmware(version)} />
+          <PillButton text="Check for updates" enabled={connected} onClick={() => void checkFirmware(version, false, true)} />
         )}
       </Swap>
       <Presence show={!busy && connected}>

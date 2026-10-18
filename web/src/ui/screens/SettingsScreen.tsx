@@ -113,7 +113,7 @@ export function SettingsScreen({ onBack, onWhatsNew }: { onBack: () => void; onW
                     : app.kind === 'checking' ? <ProgressBar fraction={null} />
                       : app.kind === 'downloading' ? <ProgressBar fraction={app.fraction} />
                         : app.kind === 'restarting' ? <ProgressBar fraction={1} />
-                          : <PillButton text="Check for updates" onClick={() => void checkAppUpdate()} />}
+                          : <PillButton text="Check for updates" onClick={() => void checkAppUpdate(false, true)} />}
               </Swap>
             </div>
             <div className="button-row">

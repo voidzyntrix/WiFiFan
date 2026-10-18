@@ -2,6 +2,14 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.9',
+    notes: [
+      'Material You sliders: the handle sits centred on the track again, and is back to the brighter primary colour.',
+      'Check for updates works now: tapping it skips Glow’s cached answers and asks GitHub straight away, so a fresh release is offered immediately instead of after a restart.',
+      'Glow reads the version file without GitHub’s CDN copy, so it notices a new release within about a minute of it being published.',
+    ],
+  },
+  {
     version: '2.13.8',
     notes: [
       'Material You sliders: the thumb sits properly centred on the track, is shorter, and is drawn in the lighter primary-container colour.',

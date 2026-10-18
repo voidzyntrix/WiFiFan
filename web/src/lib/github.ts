@@ -16,6 +16,12 @@ const DOWNLOAD_URL = `https://github.com/${REPO}/releases/download`
  */
 const MANIFEST_URL = `https://raw.githubusercontent.com/${REPO}/main/versions.json`
 const MANIFEST_TTL_MS = 60_000
+/**
+ * versions.json through a cache-buster. GitHub's file CDN holds a copy for a few minutes, so a
+ * plain read keeps answering with the version from before a release was published. A unique query
+ * (asked at most once a minute, see MANIFEST_TTL_MS) always gets the file as it is now.
+ */
+const manifestUrl = () => `${MANIFEST_URL}?t=${Date.now()}`
 export const RELEASES_PAGE = `https://github.com/${REPO}/releases`
 
 export interface ReleaseAsset { version: string; tag: string; downloadUrl: string; size: number }
@@ -30,10 +36,10 @@ interface Release {
 const LIST_TTL_MS = 10 * 60_000
 let listCache: { at: number; releases: Release[] } | null = null
 
-async function releaseList(): Promise<Release[]> {
-  if (listCache && Date.now() - listCache.at < LIST_TTL_MS) return listCache.releases
+async function releaseList(force = false): Promise<Release[]> {
+  if (!force && listCache && Date.now() - listCache.at < LIST_TTL_MS) return listCache.releases
   try {
-    const releases = JSON.parse(await getText(RELEASES_URL)) as Release[]
+    const releases = JSON.parse(await getText(RELEASES_URL, force)) as Release[]
     listCache = { at: Date.now(), releases }
     return releases
   } catch (e) {
@@ -58,17 +64,20 @@ function guard<T>(p: Promise<T>): Promise<T> {
     throw e
   })
 }
-const getText = (url: string) => {
-  if (Date.now() < blockedUntil) return Promise.reject(new Error('GitHub asked Glow to slow down; trying again in a moment'))
+const getText = (url: string, force = false) => {
+  if (!force && Date.now() < blockedUntil) return Promise.reject(new Error('GitHub asked Glow to slow down; trying again in a moment'))
   return guard(platform.net.text(url))
 }
 
 export const getBytes = (url: string, limit: number) => platform.net.bytes(url, limit)
 
 // (release files live on github.com, not the API: its rate limit doesn't apply to them)
-const exists = async (url: string) => {
-  if (knownFiles.get(url)) return true
-  if (Date.now() - (missingAt.get(url) ?? 0) < 30_000) return false
+const exists = async (url: string, force = false) => {
+  // A manual check (force) asks GitHub again even if the last answer was "not there yet".
+  if (!force) {
+    if (knownFiles.get(url)) return true
+    if (Date.now() - (missingAt.get(url) ?? 0) < 30_000) return false
+  }
   const ok = await platform.net.exists(url)
   if (ok) knownFiles.set(url, true); else missingAt.set(url, Date.now())
   return ok
@@ -81,9 +90,10 @@ const exists = async (url: string) => {
 let manifestCache: { at: number; data: Promise<Record<string, string>> } | null = null
 
 /** The newest release of `kind` per versions.json, if its file is there (a build may still be running). */
-async function newestFromManifest(kind: string, assetName: (v: string) => string): Promise<ReleaseAsset | null> {
+async function newestFromManifest(kind: string, assetName: (v: string) => string, force = false): Promise<ReleaseAsset | null> {
+  if (force) manifestCache = null
   if (!manifestCache || Date.now() - manifestCache.at > MANIFEST_TTL_MS) {
-    const data = platform.net.text(MANIFEST_URL).then((t) => JSON.parse(t) as Record<string, string>)
+    const data = platform.net.text(manifestUrl()).then((t) => JSON.parse(t) as Record<string, string>)
     manifestCache = { at: Date.now(), data }
     data.catch(() => { manifestCache = null })
   }
@@ -91,39 +101,53 @@ async function newestFromManifest(kind: string, assetName: (v: string) => string
   if (!v || !/^\d+\.\d+\.\d+$/.test(v)) return null
   const tag = `${kind}-v${v}`
   const url = `${DOWNLOAD_URL}/${tag}/${assetName(v)}`
-  return (await exists(url)) ? { version: v, tag, downloadUrl: url, size: 0 } : null
+  return (await exists(url, force)) ? { version: v, tag, downloadUrl: url, size: 0 } : null
 }
 
-export async function newest(pattern: RegExp, kind: string, assetName: (v: string) => string): Promise<ReleaseAsset | null> {
+/** The newest matching asset across every release, from the API. */
+async function newestFromApi(pattern: RegExp, force = false): Promise<ReleaseAsset | null> {
+  const releases = await releaseList(force)
+  let best: ReleaseAsset | null = null
+  for (const rel of releases) {
+    if (rel.draft || rel.prerelease) continue
+    for (const a of rel.assets ?? []) {
+      const m = pattern.exec(a.name)
+      if (!m || m[0] !== a.name) continue
+      const c = { version: m[1], tag: rel.tag_name, downloadUrl: a.browser_download_url, size: a.size }
+      if (!best || compareVersions(c.version, best.version) > 0) best = c
+    }
+  }
+  return best
+}
+
+export async function newest(pattern: RegExp, kind: string, assetName: (v: string) => string, force = false): Promise<ReleaseAsset | null> {
+  // A manual check ("Check for updates") asks the API first: it lists every release and isn't held
+  // by a CDN, so it finds one published a moment ago even if versions.json or the feed are stale.
+  if (force) {
+    try {
+      const fromApi = await newestFromApi(pattern, force)
+      if (fromApi) return fromApi
+    } catch { /* fall back to the manifest, then the feed */ }
+  }
   try {
-    const fromManifest = await newestFromManifest(kind, assetName)
+    const fromManifest = await newestFromManifest(kind, assetName, force)
     if (fromManifest) return fromManifest
   } catch { /* fall back to the feed, then the API */ }
   try {
-    const fromFeed = await newestFromFeed(kind, assetName)
+    const fromFeed = await newestFromFeed(kind, assetName, force)
     if (fromFeed) return fromFeed
   } catch { /* fall through to the API */ }
   try {
-    const releases = await releaseList()
-    let best: ReleaseAsset | null = null
-    for (const rel of releases) {
-      if (rel.draft || rel.prerelease) continue
-      for (const a of rel.assets ?? []) {
-        const m = pattern.exec(a.name)
-        if (!m || m[0] !== a.name) continue
-        const c = { version: m[1], tag: rel.tag_name, downloadUrl: a.browser_download_url, size: a.size }
-        if (!best || compareVersions(c.version, best.version) > 0) best = c
-      }
-    }
-    return best
+    return await newestFromApi(pattern, force)
   } catch (e) {
     return Promise.reject(e)
   }
 }
 
-async function newestFromFeed(kind: string, assetName: (v: string) => string): Promise<ReleaseAsset | null> {
+async function newestFromFeed(kind: string, assetName: (v: string) => string, force = false): Promise<ReleaseAsset | null> {
+  if (force) feedCache = null
   if (!feedCache || Date.now() - feedCache.at > FEED_TTL_MS) {
-    const text = getText(FEED_URL)
+    const text = getText(FEED_URL, force)
     feedCache = { at: Date.now(), text }
     text.catch(() => { feedCache = null })
   }
@@ -135,7 +159,7 @@ async function newestFromFeed(kind: string, assetName: (v: string) => string): P
   for (const v of versions) {
     const tag = `${kind}-v${v}`
     const url = `${DOWNLOAD_URL}/${tag}/${assetName(v)}`
-    if (await exists(url)) return { version: v, tag, downloadUrl: url, size: 0 }
+    if (await exists(url, force)) return { version: v, tag, downloadUrl: url, size: 0 }
   }
   return null
 }
