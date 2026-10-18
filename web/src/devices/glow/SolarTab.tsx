@@ -218,22 +218,27 @@ export function SolarTab({ c }: { c: LedController }) {
       {showLeds && (
         <Dialog onDismiss={() => setShowLeds(false)} wide>
           <h2 className="dialog-title">What you see</h2>
-          <Hint><b>LED 1, the grid</b></Hint>
-          <Hint>
-            Exporting (1 kW steps): green to 2 kW, lime 2-3 kW, turquoise 3-4 kW, violet 4-5 kW, magenta from 5 kW. Faster pulse with more export.
-            Importing: yellow steady below 0.5 kW, then yellow pulsing; orange from 1 kW; red from 2 kW, faster pulse at 3 kW and up. The steps can be set under Import levels.
-            Grid lost: off, unless "Battery colour on both LEDs" is on, then it shows the battery colour.
-          </Hint>
-          <Hint><b>LED 2, the battery</b></Hint>
-          <Hint>
-            Green steady from 80 %. Orange pulsing from 80 % down to 70 %, yellow pulsing from 70 % to 30 %, red pulsing below 30 %, and faster below 20 %.
-            When the battery runs the house alone, it fades out.
-          </Hint>
-          <Hint><b>Alerts (both LEDs, every 10 s)</b></Hint>
-          <Hint>
-            Red pulse: a fault, or the battery below the low-battery level. Green pulse: the battery is full and the sun is exporting.
-            Grid lost: both LEDs flash red every few seconds (Red flash setting).
-          </Hint>
+          <div className="dialog-sub">The LEDs in each state</div>
+          <div className="whats-new">
+            <h3>LED 1, the grid</h3>
+            <ul>
+              <li>Exporting: green to 2 kW, lime 2–3 kW, turquoise 3–4 kW, violet 4–5 kW, magenta from 5 kW. Faster pulse with more export.</li>
+              <li>Importing: yellow steady below 0.5 kW, then yellow pulsing; orange from 1 kW; red from 2 kW, faster pulse at 3 kW and up. The steps can be set under Import levels.</li>
+              <li>Grid lost: off, unless "Battery colour on both LEDs" is on, then it shows the battery colour.</li>
+            </ul>
+            <h3>LED 2, the battery</h3>
+            <ul>
+              <li>Green steady from 80 %. Orange pulsing from 80 % down to 70 %, yellow pulsing from 70 % to 30 %, red pulsing below 30 %, and faster below 20 %.</li>
+              <li>When the battery runs the house alone, it fades out.</li>
+            </ul>
+            <h3>Alerts (both LEDs, every 10 s)</h3>
+            <ul>
+              <li>Red pulse: a fault, or the battery below the low-battery level.</li>
+              <li>Green pulse: the battery is full and the sun is exporting.</li>
+              <li>Grid lost: both LEDs flash red every few seconds (Red flash setting).</li>
+            </ul>
+          </div>
+          <PillButton text="Got it" highlighted onClick={() => setShowLeds(false)} />
         </Dialog>
       )}
     </div>

@@ -2,10 +2,10 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
-    version: '2.13.3',
+    version: '2.13.4',
     notes: [
       'Leaving Settings closes all its cards, so they start folded next time.',
-      'Solar: “What you see” opens in its own dialog from a button.',
+      'Solar: “What you see” opens in its own dialog from a button, laid out like What’s new.',
     ],
   },
   {
