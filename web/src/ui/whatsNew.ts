@@ -2,6 +2,14 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.18',
+    notes: [
+      'Material slider handles quiet down to a grey while you drag, with a matching grey pointer',
+      'Tooling: node tools/release.mjs runs the whole app+desktop release at once',
+    ],
+  },
+
+  {
     version: '2.13.17',
     notes: [
       'Material sliders stay in one piece: the gap around the handle and the fill level now glide exactly with the thumb, so they no longer pull ahead of it — not in rainbow mode, not on preset clicks.',
