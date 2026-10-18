@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.21',
+    notes: [
+      'Dragging a slider shows a solid grabbing hand instead of a see-through one',
+    ],
+  },
+
+  {
     version: '2.13.20',
     notes: [
       'Slider drags show the normal solid pointer again: the system\'s hand cursor renders half-see-through',
