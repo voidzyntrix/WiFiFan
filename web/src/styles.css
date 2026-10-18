@@ -693,8 +693,8 @@ input.text-field:focus { border-color: var(--primary); background: var(--on-bg-8
 /* cards: filled tonal surfaces, extra-large shape, no outline or shadow */
 :root[data-design='material'] .panel { background: rgb(var(--mdui-color-surface-container)); border: 0; box-shadow: none; border-radius: var(--r-xl); padding: 20px; }
 :root[data-design='material'] .settings-card { background: rgb(var(--mdui-color-surface-container-low)); border: 0; box-shadow: none; border-radius: var(--r-xl); padding: 0; }
-:root[data-design='material'] .card-head { font-size: 16px; font-weight: 500; padding: 12px 16px; min-height: 0; }
-:root[data-design='material'] .card-body { padding: 0 16px 12px; gap: 8px; }
+:root[data-design='material'] .card-head { font-size: 16px; font-weight: 500; padding: 16px 18px; min-height: 0; }
+:root[data-design='material'] .card-body { padding: 4px 18px 16px; gap: 8px; }
 :root[data-design='material'] .update-block, :root[data-design='material'] .nearby-row { background: rgb(var(--mdui-color-surface-container-highest)); border-radius: var(--r-lg); }
 :root[data-design='material'] .nearby-row:hover { background: rgb(var(--mdui-color-secondary-container)); }
 

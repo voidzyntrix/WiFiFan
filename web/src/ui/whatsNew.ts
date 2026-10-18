@@ -2,6 +2,12 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.12',
+    notes: [
+      'Material You settings cards have more room: the title rides a little higher and the text inside sits further from the edges.',
+    ],
+  },
+  {
     version: '2.13.11',
     notes: [
       'Material You sliders: a taller handle (32 px, 38 px while dragging), and its corners follow the app’s Shapes setting — square with Square chosen, fully round from Medium up.',
