@@ -2,10 +2,9 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
-    version: '2.12.0',
+    version: '2.12.1',
     notes: [
-      'The LED preview shows the exact colour and brightness the board is sending, in every mode (firmware 2.3.3).',
-      'The Solar card’s “What you see” is in its own panel.',
+      'The LED preview no longer asks the board for its colours: nothing extra runs on the board. The Solar card’s “What you see” is in its own panel.',
     ],
   },
   {

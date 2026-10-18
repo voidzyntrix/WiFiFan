@@ -30,7 +30,6 @@ import { FirmwareDialog } from './Firmware'
 import { LedPreview, LedPreviewPair } from './LedPreview'
 import { KELVIN_PRESETS, LED_EFFECTS, LED_PRESETS, MODE, modeLabel } from './modes'
 import { previewOf } from './preview'
-import { previewFromBoard, useBoardLeds } from './boardLeds'
 import { sceneSwatch, type Scene } from './scenes'
 import { hasTune, TuneTab, tuneLabel } from './Tune'
 import { checkFirmware, firmwareVersionOf, useOta } from './ota'
@@ -291,9 +290,7 @@ function Preview({ c, firmwareDot, onDisconnect, onFirmware, onReset }: {
 }) {
   const { s } = c
   const t = useClock(c.connected && c.ledOn && (ANIMATED.includes(s.mode as 1) || c.sync.active !== 'NONE'))
-  // the board's own colours when it reports them (exact in every mode); otherwise the estimate
-  const boardLeds = useBoardLeds(c.connected && c.ledOn && c.caps.boardLeds)
-  const preview = boardLeds ? previewFromBoard(boardLeds) : previewOf(c, t)
+  const preview = previewOf(c, t)
 
   // The background follows the light.
   useEffect(() => { setAmbient({ active: c.connected && c.ledOn, hue: preview.hue, sat: Math.min(1, Math.max(0, preview.sat)) }) })
