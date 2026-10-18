@@ -175,7 +175,8 @@ export function SolarTab({ c }: { c: LedController }) {
           )}
           <SettingHeading title="Low battery alert" />
           <SegmentedPill options={LOWS.map((p) => `${p} %`)} selected={LOWS.indexOf(st.low)} onSelect={(i) => send({ low: LOWS[i] })} />
-          <SettingHeading title="What you see" />
+          <div className="panel what-you-see">
+            <SettingHeading title="What you see" />
           <Hint><b>LED 1, the grid</b></Hint>
           <Hint>
             Exporting (1 kW steps): green to 2 kW, lime 2-3 kW, turquoise 3-4 kW, sky blue 4-5 kW, violet from 5 kW. Faster pulse with more export.
@@ -192,6 +193,7 @@ export function SolarTab({ c }: { c: LedController }) {
             Red pulse: a fault, or the battery below the low-battery level. Green pulse: the battery is full and the sun is exporting.
             Grid lost: both LEDs flash red every few seconds (Red flash setting).
           </Hint>
+          </div>
           {c.caps.importLevels && imp && (
             <>
               <SettingHeading title="Import levels" subtitle="Where LED 1 steps up as you import more" />

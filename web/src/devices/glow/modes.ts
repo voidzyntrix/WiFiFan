@@ -82,4 +82,5 @@ export interface BoardCaps {
   candleStyle: boolean  // 1.6.1: one flame / two candles
   sleep: boolean        // 1.7.0: sleep timer
   importLevels: boolean // 2.2.0: LED 1 steps by import (imp=)
+  boardLeds: boolean    // 2.3.3: the board reports its LED colours (leds)
 }

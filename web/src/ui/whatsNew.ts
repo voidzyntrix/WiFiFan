@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.12.0',
+    notes: [
+      'The LED preview shows the exact colour and brightness the board is sending, in every mode (firmware 2.3.3).',
+      'The Solar card’s “What you see” is in its own panel.',
+    ],
+  },
+  {
     version: '2.11.3',
     notes: [
       'Solar export colours are now distinct: green, lime, turquoise, sky blue, then violet from 5 kW (firmware 2.3.2).',
