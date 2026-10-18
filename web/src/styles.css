@@ -375,7 +375,7 @@ code { font-family: 'JetBrains Mono', monospace; font-size: 0.9em; }
 .slider-label { display: flex; justify-content: space-between; font-size: 12px; color: var(--on-bg-55); margin-bottom: -6px; }
 .slider-value { color: var(--on-bg-85); font-weight: 600; font-variant-numeric: tabular-nums; }
 .gbar { position: relative; height: 32px; cursor: grab; touch-action: none; border-radius: 16px; }
-.gbar.dragging { cursor: url("./assets/grabbing-cursor.svg") 12 14, grabbing; }   /* our own solid hand: the system's grabbing one renders half-see-through */
+.gbar.dragging { cursor: url("./assets/grabbing-cursor.png") 13 18, grabbing; }   /* the real grabbing hand, shipped as a bitmap: the keyword route renders it half-see-through */
 .gbar-track {
   position: absolute; left: 0; right: 0; top: 9px; height: 14px;
   border-radius: calc(min(var(--u), 1) * 7px);
@@ -394,8 +394,8 @@ code { font-family: 'JetBrains Mono', monospace; font-size: 0.9em; }
   /* it glides to a new place (a scene, a preset) and follows the pointer exactly while held */
   transition: left 0.4s var(--emph-decel), transform 0.15s;
 }
-.gbar.dragging .gbar-thumb { cursor: url("./assets/grabbing-cursor.svg") 12 14, grabbing; transition: transform 0.15s; }
-.gbar:active .gbar-thumb { cursor: url("./assets/grabbing-cursor.svg") 12 14, grabbing; transform: scale(1.12); }
+.gbar.dragging .gbar-thumb { cursor: url("./assets/grabbing-cursor.png") 13 18, grabbing; transition: transform 0.15s; }
+.gbar:active .gbar-thumb { cursor: url("./assets/grabbing-cursor.png") 13 18, grabbing; transform: scale(1.12); }
 .gbar-dot { width: 14px; height: 14px; border-radius: var(--r-pill); transition: background 0.3s; }
 .level-slider { display: flex; flex-direction: column; gap: 10px; }
 
@@ -742,7 +742,7 @@ input.text-field:focus { border-color: var(--primary); background: var(--on-bg-8
    own left transition (identical timing), instead of teleporting while the thumb still animates there */
 @property --pos { syntax: '<percentage>'; inherits: true; initial-value: 0%; }
 :root[data-design='material'] .gbar.m3e { height: 48px; border-radius: 0; --gap: 10px; cursor: grab; transition: --pos 0.4s var(--emph-decel); }
-:root[data-design='material'] .gbar.m3e.dragging { cursor: url("./assets/grabbing-cursor.svg") 12 14, grabbing; transition: none; }   /* pointer must be the solid hand and follow exactly */
+:root[data-design='material'] .gbar.m3e.dragging { cursor: url("./assets/grabbing-cursor.png") 13 18, grabbing; transition: none; }   /* pointer must be the solid hand and follow exactly */
 :root[data-design='material'] .gbar.m3e .gbar-track {
   top: 14px; height: 20px; border-radius: 10px; opacity: 1;
   box-shadow: inset 0 0 0 1px rgb(var(--mdui-color-outline-variant) / 0.4);
@@ -765,10 +765,10 @@ input.text-field:focus { border-color: var(--primary); background: var(--on-bg-8
 }
 :root[data-design='material'] .gbar.m3e.dragging .gbar-thumb {
   width: 16px; height: 38px; margin: -19px 0 0 -8px;
-  border-radius: calc(min(var(--u), 1) * 8px); background-color: rgb(var(--mdui-color-outline)); cursor: url("./assets/grabbing-cursor.svg") 12 14, grabbing;
+  border-radius: calc(min(var(--u), 1) * 8px); background-color: rgb(var(--mdui-color-outline)); cursor: url("./assets/grabbing-cursor.png") 13 18, grabbing;
   transition: width 0.2s var(--spring), height 0.2s var(--spring), margin 0.2s var(--spring), border-radius 0.2s var(--spring), background-color 0.2s var(--spring);
 }
-:root[data-design='material'] .gbar.m3e:active .gbar-thumb { cursor: url("./assets/grabbing-cursor.svg") 12 14, grabbing; transform: none; }
+:root[data-design='material'] .gbar.m3e:active .gbar-thumb { cursor: url("./assets/grabbing-cursor.png") 13 18, grabbing; transform: none; }
 :root[data-design='material'] .gbar.m3e .gbar-dot { display: none; }
 :root[data-design='material'] .gbar.m3e:focus-visible { outline: 2px solid rgb(var(--mdui-color-secondary)); outline-offset: 4px; border-radius: 12px; }
 
