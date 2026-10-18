@@ -2,6 +2,12 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.12.2',
+    notes: [
+      'Material You: the ripple click effect is gone from every button, chip, switch, tab and card; keyboard focus still shows a ring.',
+    ],
+  },
+  {
     version: '2.12.1',
     notes: [
       'The LED preview no longer asks the board for its colours: nothing extra runs on the board. The Solar card’s “What you see” is in its own panel.',

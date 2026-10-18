@@ -666,6 +666,18 @@ input.text-field:focus { border-color: var(--primary); background: var(--on-bg-8
 
 /* Material 3, the way Google's own apps look: a flat tonal background, large display titles, filled
    tonal cards with big shapes, and colourful container tiles. */
+/* no ripple in Material You: mdui draws its click wave and hover/press layers from these opacities, so zero them
+   on every mdui widget (the outer page's rule wins over the widget's own). Keyboard focus keeps a plain ring. */
+:root[data-design='material'] :is(mdui-button, mdui-button-icon, mdui-chip, mdui-fab, mdui-tab, mdui-tabs, mdui-list-item, mdui-switch, mdui-segmented-button, mdui-segmented-button-group, mdui-card, mdui-text-field, mdui-dialog, mdui-linear-progress) {
+  --mdui-state-layer-hover: 0 !important;
+  --mdui-state-layer-focus: 0 !important;
+  --mdui-state-layer-pressed: 0 !important;
+  --mdui-state-layer-dragged: 0 !important;
+}
+:root[data-design='material'] :is(mdui-button, mdui-button-icon, mdui-chip, mdui-fab, mdui-tab, mdui-list-item, mdui-switch, mdui-segmented-button):focus-visible {
+  outline: 2px solid rgb(var(--mdui-color-secondary));
+  outline-offset: 2px;
+}
 :root[data-design='material'] body { background: rgb(var(--mdui-color-surface)); font-size: 15px; }
 .header-sub { display: none; }
 :root[data-design='material'] .header-sub { display: block; margin: 0; font-size: 18px; line-height: 24px; color: rgb(var(--mdui-color-primary)); }
