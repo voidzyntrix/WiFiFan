@@ -2,6 +2,7 @@
 // The board does the work (solar.ts); this only configures it and shows its status.
 
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { openLink } from '../../platform'
 import { Dialog, Hint, PillButton, SegmentedPill, SettingHeading, SettingSwitch, TextField } from '../../ui/components/Controls'
 import { Txt } from '../../ui/motion'
@@ -215,7 +216,7 @@ export function SolarTab({ c }: { c: LedController }) {
           </div>
         </>
       )}
-      {showLeds && (
+      {showLeds && createPortal(
         <Dialog onDismiss={() => setShowLeds(false)} wide>
           <h2 className="dialog-title">What you see</h2>
           <div className="dialog-sub">The LEDs in each state</div>
@@ -239,7 +240,8 @@ export function SolarTab({ c }: { c: LedController }) {
             </ul>
           </div>
           <PillButton text="Got it" highlighted onClick={() => setShowLeds(false)} />
-        </Dialog>
+        </Dialog>,
+        document.body,
       )}
     </div>
   )
