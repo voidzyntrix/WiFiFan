@@ -29,6 +29,19 @@ jobs:
             desktop/package-lock.json
             web/package-lock.json
 
+      # The installed shells (node_modules, ~600 MB) and Electron's + electron-builder's download
+      # caches (~150 MB) are the slow part of a Windows build. They only change when a lockfile
+      # does, so they're reused until then and the install step is skipped entirely.
+      - uses: actions/cache@v4
+        id: deps
+        with:
+          path: |
+            desktop/node_modules
+            web/node_modules
+            ~\AppData\Local\electron\Cache
+            ~\AppData\Local\electron-builder\Cache
+          key: desktop-deps-${{ hashFiles('desktop/package-lock.json', 'web/package-lock.json') }}
+
       - name: Check the tag matches the desktop version
         run: |
           version=$(node -p "require('./package.json').version")
@@ -39,6 +52,7 @@ jobs:
           echo "VERSION=$version" >> "$GITHUB_ENV"
 
       - name: Install (the desktop shell and the shared app it builds)
+        if: steps.deps.outputs.cache-hit != 'true'
         run: npm ci && npm --prefix ../web ci
 
       - name: Build the portable exe
