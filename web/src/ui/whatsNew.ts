@@ -2,6 +2,12 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.11',
+    notes: [
+      'Material You sliders: a taller handle (32 px, 38 px while dragging), and its corners follow the app’s Shapes setting — square with Square chosen, fully round from Medium up.',
+    ],
+  },
+  {
     version: '2.13.10',
     notes: [
       'Material You sliders: the handle is a little taller (28 px, 34 px while dragging), still centred on the track.',
