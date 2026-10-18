@@ -2,6 +2,12 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.2',
+    notes: [
+      'Material You settings cards are smaller: less padding, and smaller headings.',
+    ],
+  },
+  {
     version: '2.13.1',
     notes: [
       'Solar export colours: sky blue replaced, so turquoise, violet and magenta are clearly different (firmware 2.3.4).',
