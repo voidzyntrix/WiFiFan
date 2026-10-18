@@ -874,6 +874,13 @@ mdui-chip.menu-item[selected]:not([selected='false' i]) {
   --mdui-comp-ripple-state-layer-color: rgb(var(--mdui-color-on-primary));
 }
 mdui-chip.menu-item:active { border-radius: calc(min(var(--u), 1) * 12px); }
+/* an unavailable mode: the disabled tonal look — a faint grey tile the rest can't be confused with */
+mdui-chip.menu-item[disabled]:not([disabled='false' i]) {
+  background-color: rgb(var(--mdui-color-on-surface) / 0.12);
+  color: rgb(var(--mdui-color-on-surface) / 0.38);
+  --mdui-comp-ripple-state-layer-color: transparent;
+  cursor: default;
+}
 mdui-chip.menu-item::part(selected-icon) { display: none; }   /* the check mark that popped in when chosen */
 mdui-chip.menu-item::part(label) { padding: 0 4px; }
 mdui-chip.chip.scene, mdui-chip.chip { width: 100%; }

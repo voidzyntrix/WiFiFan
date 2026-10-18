@@ -2,6 +2,12 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.14',
+    notes: [
+      'Modes that the board can’t run are now clearly greyed out, instead of looking ready to use.',
+    ],
+  },
+  {
     version: '2.13.13',
     notes: [
       'Modes are buttons again: solid Material tiles like the rest of the theme, with the chosen one filling in the colour — no outline and no check mark.',
