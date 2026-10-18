@@ -2,6 +2,12 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.10',
+    notes: [
+      'Material You sliders: the handle is a little taller (28 px, 34 px while dragging), still centred on the track.',
+    ],
+  },
+  {
     version: '2.13.9',
     notes: [
       'Material You sliders: the handle sits centred on the track again, and is back to the brighter primary colour.',

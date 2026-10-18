@@ -754,13 +754,13 @@ input.text-field:focus { border-color: var(--primary); background: var(--on-bg-8
   background: rgb(var(--mdui-color-on-surface-variant) / 0.6);
 }
 :root[data-design='material'] .gbar.m3e .gbar-thumb {
-  width: 12px; height: 24px; margin: -12px 0 0 -6px; border-radius: 6px; box-shadow: 0 2px 6px rgb(0 0 0 / 0.2);
+  width: 12px; height: 28px; margin: -14px 0 0 -6px; border-radius: 6px; box-shadow: 0 2px 6px rgb(0 0 0 / 0.2);
   background: rgb(var(--mdui-color-primary));
   cursor: grab;
   transition: left 0.4s var(--emph-decel), height 0.2s var(--spring), width 0.2s var(--spring), margin 0.2s var(--spring);
 }
 :root[data-design='material'] .gbar.m3e.dragging .gbar-thumb {
-  width: 16px; height: 32px; margin: -16px 0 0 -8px; border-radius: 8px; cursor: grabbing;
+  width: 16px; height: 34px; margin: -17px 0 0 -8px; border-radius: 8px; cursor: grabbing;
   transition: width 0.2s var(--spring), height 0.2s var(--spring), margin 0.2s var(--spring);
 }
 :root[data-design='material'] .gbar.m3e:active .gbar-thumb { cursor: grabbing; transform: none; }
