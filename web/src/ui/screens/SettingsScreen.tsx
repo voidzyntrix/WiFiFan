@@ -27,6 +27,11 @@ export function SettingsScreen({ onBack, onWhatsNew }: { onBack: () => void; onW
   const material = p.design === 'MATERIAL'
   const designs: Design[] = ['GLASS', 'MATERIAL']
 
+  // leaving Settings folds every card again, so the next visit starts closed
+  useEffect(() => () => {
+    settings.set({ collapsed: { ...settings.get().collapsed, ui: true, app: true, shape: true, behaviour: true, cloud: true } })
+  }, [])
+
   useEffect(() => {
     const k = (e: KeyboardEvent) => { if (e.key === 'Escape' && !document.querySelector('.scrim, mdui-dialog[open]')) onBack() }
     window.addEventListener('keydown', k)

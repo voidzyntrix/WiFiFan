@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.3',
+    notes: [
+      'Leaving Settings closes all its cards, so they start folded next time.',
+      'Solar: “What you see” opens in its own dialog from a button.',
+    ],
+  },
+  {
     version: '2.13.2',
     notes: [
       'Material You settings cards are smaller: less padding, and smaller headings.',

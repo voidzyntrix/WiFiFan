@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from 'react'
 import { openLink } from '../../platform'
-import { Hint, PillButton, SegmentedPill, SettingHeading, SettingSwitch, TextField } from '../../ui/components/Controls'
+import { Dialog, Hint, PillButton, SegmentedPill, SettingHeading, SettingSwitch, TextField } from '../../ui/components/Controls'
 import { Txt } from '../../ui/motion'
 import { board } from './board'
 import { MODE } from './modes'
@@ -28,6 +28,7 @@ const FOX_API = 'https://www.foxesscloud.com/user/center'
 
 export function SolarTab({ c }: { c: LedController }) {
   const [st, setSt] = useState<SolarStatus | null>(null)
+  const [showLeds, setShowLeds] = useState(false)
   const [key, setKey] = useState('')
   const [changing, setChanging] = useState(false)
   const [gl, setGl] = useState<GridLoss | null>(null)
@@ -175,25 +176,7 @@ export function SolarTab({ c }: { c: LedController }) {
           )}
           <SettingHeading title="Low battery alert" />
           <SegmentedPill options={LOWS.map((p) => `${p} %`)} selected={LOWS.indexOf(st.low)} onSelect={(i) => send({ low: LOWS[i] })} />
-          <div className="panel what-you-see">
-            <SettingHeading title="What you see" />
-          <Hint><b>LED 1, the grid</b></Hint>
-          <Hint>
-            Exporting (1 kW steps): green to 2 kW, lime 2-3 kW, turquoise 3-4 kW, violet 4-5 kW, magenta from 5 kW. Faster pulse with more export.
-            Importing: yellow steady below 0.5 kW, then yellow pulsing; orange from 1 kW; red from 2 kW, faster pulse at 3 kW and up. The steps can be set under Import levels.
-            Grid lost: off, unless "Battery colour on both LEDs" is on, then it shows the battery colour.
-          </Hint>
-          <Hint><b>LED 2, the battery</b></Hint>
-          <Hint>
-            Green steady from 80 %. Orange pulsing from 80 % down to 70 %, yellow pulsing from 70 % to 30 %, red pulsing below 30 %, and faster below 20 %.
-            When the battery runs the house alone, it fades out.
-          </Hint>
-          <Hint><b>Alerts (both LEDs, every 10 s)</b></Hint>
-          <Hint>
-            Red pulse: a fault, or the battery below the low-battery level. Green pulse: the battery is full and the sun is exporting.
-            Grid lost: both LEDs flash red every few seconds (Red flash setting).
-          </Hint>
-          </div>
+          <PillButton text="What you see" onClick={() => setShowLeds(true)} />
           {c.caps.importLevels && imp && (
             <>
               <SettingHeading title="Import levels" subtitle="Where LED 1 steps up as you import more" />
@@ -231,6 +214,27 @@ export function SolarTab({ c }: { c: LedController }) {
             <PillButton text="Stop Solar" onClick={() => void c.startMode(MODE.SOLID)} />
           </div>
         </>
+      )}
+      {showLeds && (
+        <Dialog onDismiss={() => setShowLeds(false)} wide>
+          <h2 className="dialog-title">What you see</h2>
+          <Hint><b>LED 1, the grid</b></Hint>
+          <Hint>
+            Exporting (1 kW steps): green to 2 kW, lime 2-3 kW, turquoise 3-4 kW, violet 4-5 kW, magenta from 5 kW. Faster pulse with more export.
+            Importing: yellow steady below 0.5 kW, then yellow pulsing; orange from 1 kW; red from 2 kW, faster pulse at 3 kW and up. The steps can be set under Import levels.
+            Grid lost: off, unless "Battery colour on both LEDs" is on, then it shows the battery colour.
+          </Hint>
+          <Hint><b>LED 2, the battery</b></Hint>
+          <Hint>
+            Green steady from 80 %. Orange pulsing from 80 % down to 70 %, yellow pulsing from 70 % to 30 %, red pulsing below 30 %, and faster below 20 %.
+            When the battery runs the house alone, it fades out.
+          </Hint>
+          <Hint><b>Alerts (both LEDs, every 10 s)</b></Hint>
+          <Hint>
+            Red pulse: a fault, or the battery below the low-battery level. Green pulse: the battery is full and the sun is exporting.
+            Grid lost: both LEDs flash red every few seconds (Red flash setting).
+          </Hint>
+        </Dialog>
       )}
     </div>
   )
