@@ -2,6 +2,14 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.22',
+    notes: [
+      'The app starts a quarter faster: screens, What\'s new, glass effects and extra fonts now load only when needed',
+      'Sliders drag with the real grabbing hand, shipped as a bitmap so it stays opaque',
+    ],
+  },
+
+  {
     version: '2.13.21',
     notes: [
       'Dragging a slider shows a solid grabbing hand instead of a see-through one',
