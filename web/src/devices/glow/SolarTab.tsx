@@ -177,7 +177,7 @@ export function SolarTab({ c }: { c: LedController }) {
           <SegmentedPill options={LOWS.map((p) => `${p} %`)} selected={LOWS.indexOf(st.low)} onSelect={(i) => send({ low: LOWS[i] })} />
           <SettingHeading title="What you see" />
           <Hint>
-            LED 1 is the grid: green exporting, yellow importing, then orange and red as the import rises (pulsing faster); blue when the grid is down.
+            LED 1 is the grid: green, teal, then cyan as you export more (1 kW steps to 6 kW); yellow, orange, then red as you import more; pulsing faster with more power; blue when the grid is down.
             LED 2 is the battery: green above 80 %, orange, then yellow, then red when low.
             Two red blinks every 10 s mean a fault.
           </Hint>

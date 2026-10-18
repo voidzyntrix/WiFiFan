@@ -2,6 +2,12 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.11.1',
+    notes: [
+      'Solar grid light: export shows green, teal, then cyan in 1 kW steps up to 6 kW, pulsing faster with more power (firmware 2.3.0).',
+    ],
+  },
+  {
     version: '2.11.0',
     notes: [
       'Solar: LED 1 now shows how much you import in steps: yellow, orange, then red, pulsing faster as the import rises (firmware 2.2.0).',
