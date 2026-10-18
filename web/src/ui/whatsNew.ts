@@ -2,6 +2,12 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.17',
+    notes: [
+      'Material sliders stay in one piece: the gap around the handle and the fill level now glide exactly with the thumb, so they no longer pull ahead of it — not in rainbow mode, not on preset clicks.',
+    ],
+  },
+  {
     version: '2.13.16',
     notes: [
       'Mode labels are now truly centred inside their tiles, both across and down.',

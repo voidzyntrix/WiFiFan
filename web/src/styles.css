@@ -738,8 +738,11 @@ input.text-field:focus { border-color: var(--primary); background: var(--on-bg-8
 :root[data-design='material'] mdui-fab:active { --shape-corner: 24px; }
 
 /* the expressive slider: 16 px two-tone track, a gap either side of a slim bar handle, stop dot at the end */
-:root[data-design='material'] .gbar.m3e { height: 48px; border-radius: 0; --gap: 10px; cursor: grab; }
-:root[data-design='material'] .gbar.m3e.dragging { cursor: grabbing; }
+/* --pos is registered so it can transition: the track gap and two-tone fill then glide with the thumb's
+   own left transition (identical timing), instead of teleporting while the thumb still animates there */
+@property --pos { syntax: '<percentage>'; inherits: true; initial-value: 0%; }
+:root[data-design='material'] .gbar.m3e { height: 48px; border-radius: 0; --gap: 10px; cursor: grab; transition: --pos 0.4s var(--emph-decel); }
+:root[data-design='material'] .gbar.m3e.dragging { cursor: grabbing; transition: none; }   /* the pointer must be followed exactly */
 :root[data-design='material'] .gbar.m3e .gbar-track {
   top: 14px; height: 20px; border-radius: 10px; opacity: 1;
   box-shadow: inset 0 0 0 1px rgb(var(--mdui-color-outline-variant) / 0.4);
