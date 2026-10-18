@@ -2,6 +2,12 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.15',
+    notes: [
+      'Unavailable Modes now fade to the standard disabled chip look — a solid tile with a faint outline and greyed-out text — instead of vanishing.',
+    ],
+  },
+  {
     version: '2.13.14',
     notes: [
       'Modes that the board can’t run are now clearly greyed out, instead of looking ready to use.',
