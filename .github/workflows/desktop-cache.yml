@@ -1,0 +1,57 @@
+# Keeps the desktop build's dependency caches warm where desktop releases can reach them.
+# Tag-triggered runs (desktop-release.yml) can't restore each other's caches — caches are
+# scoped by ref, and different tag names are sealed off from one another — but any run can
+# always fall back to the default branch's scope. So this job installs + builds once on main
+# (and weekly, if the repo goes quiet) and saves the caches there; the next desktop release
+# skips its install and reuses the Electron downloads.
+name: Desktop deps cache
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'desktop/package.json'
+      - 'web/package.json'
+      - 'desktop/package-lock.json'
+      - 'web/package-lock.json'
+  schedule:
+    - cron: '23 2 * * 1'   # weekly — a restore also counts as access, which keeps eviction away
+
+permissions:
+  contents: read   # nothing is published here
+
+jobs:
+  warm:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            desktop/package-lock.json
+            web/package-lock.json
+
+      - uses: actions/cache@v4
+        id: deps
+        with:
+          path: |
+            desktop/node_modules
+            web/node_modules
+            ~\AppData\Local\electron\Cache
+            ~\AppData\Local\electron-builder\Cache
+          key: desktop-deps-${{ hashFiles('desktop/package-lock.json', 'web/package-lock.json') }}
+
+      # The install + build is exactly what a release does; it's only needed when the caches
+      # are cold (first run, or a lockfile changed). On a hit there's nothing to save.
+      - name: Install and build once to populate the caches
+        if: steps.deps.outputs.cache-hit != 'true'
+        run: npm ci && npm --prefix ../web ci && npm run dist
