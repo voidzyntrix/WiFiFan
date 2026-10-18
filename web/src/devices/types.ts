@@ -8,7 +8,7 @@
 // (both glow/: the same protocol and control screen on a different link). Another type is a new
 // folder with its own DeviceType and a line in the registry.
 
-import type { ComponentType } from 'react'
+import type { ComponentType, LazyExoticComponent } from 'react'
 import type { BleLink, BleProfile, BtDevice } from '../platform'
 
 /** A device the user connected to before (kept in Settings). */
@@ -53,6 +53,9 @@ export interface SetupProps {
   onDismiss(): void
 }
 
+/** A screen component, or one loaded on first use with React.lazy (keeping its module off boot). */
+export type ScreenComponent<P> = ComponentType<P> | LazyExoticComponent<ComponentType<P>>
+
 export interface DeviceType {
   /** Stable id, saved with each device. */
   id: string
@@ -71,14 +74,14 @@ export interface DeviceType {
    * it advertises. A scan lists every device; this picks the type to connect it as.
    */
   match(device: BtDevice): number
-  /** The link is open: start the device's session on it. */
-  open(link: BleLink, device: SavedDevice): DeviceSession
+  /** The link is open: start the device's session on it (may load the session's module first). */
+  open(link: BleLink, device: SavedDevice): DeviceSession | Promise<DeviceSession>
   /** Its control screen (fills the window; nothing on it scrolls). */
-  ControlScreen: ComponentType<ControlScreenProps>
+  ControlScreen: ScreenComponent<ControlScreenProps>
   /** Pairing a new one, for types that need it before they can be found ("Set up a new …"). */
-  Setup?: ComponentType<SetupProps>
+  Setup?: ScreenComponent<SetupProps>
   /** Its own section in Settings, if it has options. */
   SettingsSection?: ComponentType
   /** A pretend link for trying the controls without a device, if the type offers one. */
-  demoLink?(): BleLink
+  demoLink?(): BleLink | Promise<BleLink>
 }

@@ -164,7 +164,8 @@ export const connection = {
       device = { ...device }
       const link = await openLink(type, device)
       const known = { ...device, advertised: (type.transport === 'ble' ? link.name : null) ?? device.advertised }
-      const session = type.open(link, known)
+      // The type's session module may still be loading the first time (registry.ts loads it then).
+      const session = await type.open(link, known)
       closeLink = () => link.close()
       link.onClose(() => {
         if (state.session !== session) return
@@ -184,14 +185,14 @@ export const connection = {
   },
 
   /** The controls without a device, on a pretend link. */
-  startDemo(typeId = DEVICE_TYPES[0].id) {
+  async startDemo(typeId = DEVICE_TYPES[0].id) {
     const type = deviceType(typeId)
-    const link = type?.demoLink?.()
-    if (!type || !link) return
+    if (!type?.demoLink) return
+    const demoLink = await type.demoLink()
     this.disconnect()
     const device: SavedDevice = { id: 'demo', type: type.id, name: `Demo ${type.label}`, advertised: null }
-    const session = type.open(link, device)
-    closeLink = () => link.close()
+    const session = await type.open(demoLink, device)
+    closeLink = () => demoLink.close()
     set({ phase: 'connected', device, session, demo: true })
   },
 

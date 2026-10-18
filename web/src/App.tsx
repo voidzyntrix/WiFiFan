@@ -2,7 +2,7 @@
 // shows (devices / a device's own control screen / settings), the app's own dialogs, toasts, and app
 // updates. It knows devices only through the connection manager and the device types' interface.
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, useEffect, useMemo, useRef, useState, lazy } from 'react'
 import { connection, displayName, useConnection } from './devices/connection'
 import { DEVICE_TYPES, deviceType } from './devices/registry'
 import type { SavedDevice } from './devices/types'
@@ -12,14 +12,31 @@ import { settings, useSettings, type Background } from './settings/store'
 import { checkAppUpdate, installAppUpdate, useAppUpdate, type AppUpdateState } from './ui/appUpdate'
 import { useAmbient } from './ui/ambient'
 import { BackgroundLayer } from './ui/backgrounds/Backgrounds'
-import { GlassLayer } from './ui/backgrounds/Glass'
 import { ActionsDialog, Dialog, DialogClosing, NameDialog, PillButton, ProgressBar } from './ui/components/Controls'
 import { DevicesScreen } from './ui/screens/DevicesScreen'
 import { SettingsScreen } from './ui/screens/SettingsScreen'
 import { applyTheme, useSystemAccent, useSystemDark } from './ui/theme'
 import { toast, useToasts } from './ui/toast'
-import { WHATS_NEW } from './ui/whatsNew'
 import { Swap, pulse, useExit, useFlip, useLeavingList } from './ui/motion'
+
+// Loaded the first time they are needed — refractive glass only when it is switched on, the "What's
+// new" notes only when that dialog opens — so none of it runs before the first paint.
+const GlassLayer = lazy(() => import('./ui/backgrounds/Glass').then((m) => ({ default: m.GlassLayer })))
+const WhatsNewList = lazy(async () => {
+  const { WHATS_NEW } = await import('./ui/whatsNew')
+  return {
+    default: () => (
+      <div className="whats-new">
+        {WHATS_NEW.map((w) => (
+          <div key={w.version}>
+            <h3>v{w.version}</h3>
+            <ul>{w.notes.map((n) => <li key={n}>{n}</li>)}</ul>
+          </div>
+        ))}
+      </div>
+    ),
+  }
+})
 
 const UPDATE_CHECK_MS = 5000
 
@@ -163,7 +180,7 @@ export function App() {
           <Backdrop background={prefs.background} tint={colors.onBg} imageDim={prefs.imageDim} />
         </div>
       )}
-      {glass.mounted && <GlassLayer bg={colors.bg} leaving={glass.leaving} />}
+      {glass.mounted && <Suspense fallback={null}><GlassLayer bg={colors.bg} leaving={glass.leaving} /></Suspense>}
       {/* refractive glass without WebGL: a CSS backdrop filter (no rim bend) */}
       <svg width="0" height="0" style={{ position: 'absolute' }} aria-hidden>
         <filter id="refract" x="0" y="0" width="100%" height="100%">
@@ -176,14 +193,16 @@ export function App() {
         {screen === 'settings' ? (
           <SettingsScreen onBack={() => setShowSettings(false)} onWhatsNew={() => setDialog({ kind: 'whatsNew' })} />
         ) : screen === 'control' && Control && conn.device ? (
-          <Control
-            device={conn.device}
-            onBack={() => setDeviceOpen(false)}
-            onSettings={() => setShowSettings(true)}
-            onDisconnect={() => connection.disconnect()}
-            onRename={() => conn.device && setDialog({ kind: 'rename', device: conn.device })}
-            onReset={conn.session?.reset ? () => conn.device && setDialog({ kind: 'reset', device: conn.device }) : undefined}
-          />
+          <Suspense fallback={null}>
+            <Control
+              device={conn.device}
+              onBack={() => setDeviceOpen(false)}
+              onSettings={() => setShowSettings(true)}
+              onDisconnect={() => connection.disconnect()}
+              onRename={() => conn.device && setDialog({ kind: 'rename', device: conn.device })}
+              onReset={conn.session?.reset ? () => conn.device && setDialog({ kind: 'reset', device: conn.device }) : undefined}
+            />
+          </Suspense>
         ) : (
           <DevicesScreen
             onSettings={() => setShowSettings(true)}
@@ -227,11 +246,13 @@ export function App() {
           {d.kind === 'setup' && (() => {
             const Setup = DEVICE_TYPES.find((t) => t.id === d.typeId)?.Setup
             return Setup && (
-              <Setup
-                ssid={d.ssid}
-                onDismiss={() => setDialog(null)}
-                onDone={(device) => { setDialog(null); void connection.connect(device) }}
-              />
+              <Suspense fallback={null}>
+                <Setup
+                  ssid={d.ssid}
+                  onDismiss={() => setDialog(null)}
+                  onDone={(device) => { setDialog(null); void connection.connect(device) }}
+                />
+              </Suspense>
             )
           })()}
           {d.kind === 'reset' && (
@@ -255,14 +276,9 @@ export function App() {
             <Dialog onDismiss={() => setDialog(null)} wide>
               <h2 className="dialog-title">What's new</h2>
               <div className="dialog-sub">{platform.name} v{APP_VERSION}</div>
-              <div className="whats-new">
-                {WHATS_NEW.map((w) => (
-                  <div key={w.version}>
-                    <h3>v{w.version}</h3>
-                    <ul>{w.notes.map((n) => <li key={n}>{n}</li>)}</ul>
-                  </div>
-                ))}
-              </div>
+              <Suspense fallback={null}>
+                <WhatsNewList />
+              </Suspense>
               <PillButton text="Got it" highlighted onClick={() => setDialog(null)} />
             </Dialog>
           )}

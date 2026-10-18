@@ -11,7 +11,6 @@
 // on the local network; a board also hands them to a Glow that has none. Changing the Wi-Fi, resetting
 // or updating a board is only possible on the local network, never through the broker.
 
-import { MqttClient } from '../platform/mqtt'
 import type { BleLink } from '../platform'
 import { settings, type CloudConfig } from '../settings/store'
 
@@ -83,7 +82,8 @@ export async function openCloudLink(mac: string): Promise<BleLink> {
   if (!crypto.subtle) throw new Error('Encryption is not available in this window')
   const k = await crypt(cfg, mac)
   const url = `${cfg.tls ? 'wss' : 'ws'}://${cfg.host}:${cfg.wsPort}/mqtt`
-  const client = await MqttClient.connect(url, { clientId: `glow-app-${Math.random().toString(16).slice(2, 10)}`, user: cfg.user || undefined, pass: cfg.pass || undefined })
+  // The MQTT client only ever runs here, so it isn't loaded until now.
+  const client = await import('../platform/mqtt').then((m) => m.MqttClient.connect(url, { clientId: `glow-app-${Math.random().toString(16).slice(2, 10)}`, user: cfg.user || undefined, pass: cfg.pass || undefined }))
     .catch((e: Error) => { throw new Error(`Internet: ${e.message}`) })
 
   const dataFns = new Set<(d: Uint8Array) => void>()

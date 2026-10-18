@@ -2,6 +2,7 @@
 // registered here, typed for JSX, and wrapped where React needs help (it passes custom elements
 // attributes, not properties, and doesn't hear their custom events). Their colours come from the
 // --mdui-color-* tokens that theme.ts sets from the Material You scheme.
+// Only the components the app renders are registered: every definition runs at boot.
 
 import { useEffect, useRef } from 'react'
 import 'mdui/mdui.css'
@@ -13,14 +14,9 @@ import 'mdui/components/tab.js'
 import 'mdui/components/chip.js'
 import 'mdui/components/dialog.js'
 import 'mdui/components/text-field.js'
-import 'mdui/components/linear-progress.js'
-import 'mdui/components/slider.js'
 import 'mdui/components/fab.js'
 import 'mdui/components/list.js'
 import 'mdui/components/list-item.js'
-import 'mdui/components/segmented-button-group.js'
-import 'mdui/components/segmented-button.js'
-import 'mdui/components/card.js'
 
 declare module 'react' {
   // eslint-disable-next-line @typescript-eslint/no-namespace
