@@ -2,6 +2,12 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.6',
+    notes: [
+      'Solar: “What you see” closes with the same fade as the other dialogs.',
+    ],
+  },
+  {
     version: '2.13.5',
     notes: [
       'Solar: “What you see” now opens as a proper dialog over the whole screen instead of inside the card.',

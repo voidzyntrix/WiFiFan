@@ -4,8 +4,8 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { openLink } from '../../platform'
-import { Dialog, Hint, PillButton, SegmentedPill, SettingHeading, SettingSwitch, TextField } from '../../ui/components/Controls'
-import { Txt } from '../../ui/motion'
+import { Dialog, DialogClosing, Hint, PillButton, SegmentedPill, SettingHeading, SettingSwitch, TextField } from '../../ui/components/Controls'
+import { Txt, useExit } from '../../ui/motion'
 import { board } from './board'
 import { MODE } from './modes'
 import { describeSolar, parseSolar, solarCommand, solarFlags, type SolarStatus } from './solar'
@@ -30,6 +30,7 @@ const FOX_API = 'https://www.foxesscloud.com/user/center'
 export function SolarTab({ c }: { c: LedController }) {
   const [st, setSt] = useState<SolarStatus | null>(null)
   const [showLeds, setShowLeds] = useState(false)
+  const ledsDialog = useExit(showLeds)
   const [key, setKey] = useState('')
   const [changing, setChanging] = useState(false)
   const [gl, setGl] = useState<GridLoss | null>(null)
@@ -216,7 +217,8 @@ export function SolarTab({ c }: { c: LedController }) {
           </div>
         </>
       )}
-      {showLeds && createPortal(
+      {ledsDialog.mounted && createPortal(
+        <DialogClosing.Provider value={ledsDialog.leaving}>
         <Dialog onDismiss={() => setShowLeds(false)} wide>
           <h2 className="dialog-title">What you see</h2>
           <div className="dialog-sub">The LEDs in each state</div>
@@ -240,7 +242,8 @@ export function SolarTab({ c }: { c: LedController }) {
             </ul>
           </div>
           <PillButton text="Got it" highlighted onClick={() => setShowLeds(false)} />
-        </Dialog>,
+        </Dialog>
+        </DialogClosing.Provider>,
         document.body,
       )}
     </div>
