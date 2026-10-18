@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "web-ui",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["--prefix", "web", "vite", "web", "--port", "5174", "--strictPort"],
+      "port": 5174
+    }
+  ]
+}

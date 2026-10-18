@@ -374,26 +374,20 @@ code { font-family: 'JetBrains Mono', monospace; font-size: 0.9em; }
 
 .slider-label { display: flex; justify-content: space-between; font-size: 12px; color: var(--on-bg-55); margin-bottom: -6px; }
 .slider-value { color: var(--on-bg-85); font-weight: 600; font-variant-numeric: tabular-nums; }
-.gbar { position: relative; height: 28px; cursor: pointer; touch-action: none; border-radius: 14px; }
-.gbar-track {
-  position: absolute; left: 0; right: 0; top: 7px; height: 14px;
-  border-radius: calc(min(var(--u), 1) * 7px);
-  opacity: 0.9;
-  transition:
-    --g0 0.3s, --g1 0.3s, --g2 0.3s, --g3 0.3s, --g4 0.3s, --g5 0.3s, --g6 0.3s, --g7 0.3s, --g8 0.3s,
-    border-radius 0.45s var(--emph-decel), opacity 0.3s;
-}
+.gbar { position: relative; height: 32px; cursor: grab; touch-action: none; border-radius: 16px; }
+.gbar.dragging { cursor: grabbing; }
 .gbar-thumb {
-  position: absolute; top: 50%; width: 26px; height: 26px; margin: -13px 0 0 -13px;
+  position: absolute; top: 50%; width: 28px; height: 28px; margin: -14px 0 0 -14px;
   border-radius: var(--r-pill);
-  background: rgb(255 255 255 / 0.55);
-  box-shadow: 0 0 0 2px rgb(0 0 0 / 0.12), 0 2px 8px rgb(0 0 0 / 0.25);
+  background: rgb(255 255 255 / 0.85);
+  box-shadow: 0 0 0 2px rgb(0 0 0 / 0.12), 0 3px 10px rgb(0 0 0 / 0.3);
   display: grid; place-items: center;
+  cursor: grab;
   /* it glides to a new place (a scene, a preset) and follows the pointer exactly while held */
   transition: left 0.4s var(--emph-decel), transform 0.15s;
 }
-.gbar.dragging .gbar-thumb { transition: transform 0.15s; }
-.gbar:active .gbar-thumb { transform: scale(1.12); }
+.gbar.dragging .gbar-thumb { cursor: grabbing; transition: transform 0.15s; }
+.gbar:active .gbar-thumb { cursor: grabbing; transform: scale(1.12); }
 .gbar-dot { width: 14px; height: 14px; border-radius: var(--r-pill); transition: background 0.3s; }
 .level-slider { display: flex; flex-direction: column; gap: 10px; }
 
@@ -736,27 +730,32 @@ input.text-field:focus { border-color: var(--primary); background: var(--on-bg-8
 :root[data-design='material'] mdui-fab:active { --shape-corner: 24px; }
 
 /* the expressive slider: 16 px two-tone track, a gap either side of a slim bar handle, stop dot at the end */
-:root[data-design='material'] .gbar.m3e { height: 44px; border-radius: 0; --gap: 8px; }
+:root[data-design='material'] .gbar.m3e { height: 48px; border-radius: 0; --gap: 10px; cursor: grab; }
+:root[data-design='material'] .gbar.m3e.dragging { cursor: grabbing; }
 :root[data-design='material'] .gbar.m3e .gbar-track {
-  top: 10px; height: 24px; border-radius: 12px; opacity: 1;
+  top: 14px; height: 20px; border-radius: 10px; opacity: 1;
+  box-shadow: inset 0 0 0 1px rgb(var(--mdui-color-outline-variant) / 0.4);
   -webkit-mask: linear-gradient(90deg, #000 calc(var(--pos) - var(--gap)), transparent calc(var(--pos) - var(--gap)), transparent calc(var(--pos) + var(--gap)), #000 calc(var(--pos) + var(--gap)));
   mask: linear-gradient(90deg, #000 calc(var(--pos) - var(--gap)), transparent calc(var(--pos) - var(--gap)), transparent calc(var(--pos) + var(--gap)), #000 calc(var(--pos) + var(--gap)));
 }
 :root[data-design='material'] .gbar.m3e.level .gbar-track {
-  background: linear-gradient(90deg, rgb(var(--mdui-color-primary)) 0 var(--pos), rgb(var(--mdui-color-secondary-container)) var(--pos) 100%) !important;
+  background: linear-gradient(90deg, rgb(var(--mdui-color-primary)) 0 var(--pos), rgb(var(--mdui-color-surface-container-highest)) var(--pos) 100%) !important;
 }
 :root[data-design='material'] .gbar.m3e.level::after {
-  content: ''; position: absolute; right: 6px; top: 20px; width: 4px; height: 4px; border-radius: 50%;
-  background: rgb(var(--mdui-color-on-secondary-container));
+  content: ''; position: absolute; right: 10px; top: 22px; width: 6px; height: 6px; border-radius: 50%;
+  background: rgb(var(--mdui-color-on-surface-variant) / 0.6);
 }
 :root[data-design='material'] .gbar.m3e .gbar-thumb {
-  width: 28px; height: 28px; margin: -14px 0 0 -14px; border-radius: 50%; box-shadow: none;
+  width: 12px; height: 32px; margin: -16px 0 0 -6px; border-radius: 6px; box-shadow: 0 2px 6px rgb(0 0 0 / 0.2);
   background: rgb(var(--mdui-color-primary));
-  transition: left 0.4s var(--emph-decel), width 0.2s var(--spring), margin 0.2s var(--spring);
+  cursor: grab;
+  transition: left 0.4s var(--emph-decel), height 0.2s var(--spring), width 0.2s var(--spring), margin 0.2s var(--spring);
 }
-:root[data-design='material'] .gbar.m3e.level .gbar-thumb { background: rgb(var(--mdui-color-primary)); }
-:root[data-design='material'] .gbar.m3e.dragging .gbar-thumb { width: 34px; height: 34px; margin: -17px 0 0 -17px; transition: width 0.2s var(--spring), height 0.2s var(--spring), margin 0.2s var(--spring); }
-:root[data-design='material'] .gbar.m3e:active .gbar-thumb { transform: none; }
+:root[data-design='material'] .gbar.m3e.dragging .gbar-thumb {
+  width: 16px; height: 38px; margin: -19px 0 0 -8px; border-radius: 8px; cursor: grabbing;
+  transition: width 0.2s var(--spring), height 0.2s var(--spring), margin 0.2s var(--spring);
+}
+:root[data-design='material'] .gbar.m3e:active .gbar-thumb { cursor: grabbing; transform: none; }
 :root[data-design='material'] .gbar.m3e .gbar-dot { display: none; }
 :root[data-design='material'] .gbar.m3e:focus-visible { outline: 2px solid rgb(var(--mdui-color-secondary)); outline-offset: 4px; border-radius: 12px; }
 
