@@ -735,9 +735,9 @@ input.text-field:focus { border-color: var(--primary); background: var(--on-bg-8
 :root[data-design='material'] mdui-fab:active { --shape-corner: 24px; }
 
 /* the expressive slider: 16 px two-tone track, a gap either side of a slim bar handle, stop dot at the end */
-:root[data-design='material'] .gbar.m3e { height: 44px; border-radius: 0; --gap: 6px; }
+:root[data-design='material'] .gbar.m3e { height: 44px; border-radius: 0; --gap: 8px; }
 :root[data-design='material'] .gbar.m3e .gbar-track {
-  top: 14px; height: 16px; border-radius: 8px; opacity: 1;
+  top: 10px; height: 24px; border-radius: 12px; opacity: 1;
   -webkit-mask: linear-gradient(90deg, #000 calc(var(--pos) - var(--gap)), transparent calc(var(--pos) - var(--gap)), transparent calc(var(--pos) + var(--gap)), #000 calc(var(--pos) + var(--gap)));
   mask: linear-gradient(90deg, #000 calc(var(--pos) - var(--gap)), transparent calc(var(--pos) - var(--gap)), transparent calc(var(--pos) + var(--gap)), #000 calc(var(--pos) + var(--gap)));
 }
@@ -749,13 +749,13 @@ input.text-field:focus { border-color: var(--primary); background: var(--on-bg-8
   background: rgb(var(--mdui-color-on-secondary-container));
 }
 :root[data-design='material'] .gbar.m3e .gbar-thumb {
-  width: 4px; height: 44px; margin: -22px 0 0 -2px; border-radius: 2px; box-shadow: none;
-  background: rgb(var(--mdui-color-on-surface));
+  width: 28px; height: 28px; margin: -14px 0 0 -14px; border-radius: 50%; box-shadow: none;
+  background: rgb(var(--mdui-color-primary));
   transition: left 0.4s var(--emph-decel), width 0.2s var(--spring), margin 0.2s var(--spring);
 }
 :root[data-design='material'] .gbar.m3e.level .gbar-thumb { background: rgb(var(--mdui-color-primary)); }
-:root[data-design='material'] .gbar.m3e.dragging .gbar-thumb { transition: width 0.2s var(--spring), margin 0.2s var(--spring); }
-:root[data-design='material'] .gbar.m3e:active .gbar-thumb { transform: none; width: 2px; margin-left: -1px; }
+:root[data-design='material'] .gbar.m3e.dragging .gbar-thumb { width: 34px; height: 34px; margin: -17px 0 0 -17px; transition: width 0.2s var(--spring), height 0.2s var(--spring), margin 0.2s var(--spring); }
+:root[data-design='material'] .gbar.m3e:active .gbar-thumb { transform: none; }
 :root[data-design='material'] .gbar.m3e .gbar-dot { display: none; }
 :root[data-design='material'] .gbar.m3e:focus-visible { outline: 2px solid rgb(var(--mdui-color-secondary)); outline-offset: 4px; border-radius: 12px; }
 

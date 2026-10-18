@@ -29,7 +29,7 @@ import { useBoard } from './board'
 import { FirmwareDialog } from './Firmware'
 import { LedPreview, LedPreviewPair } from './LedPreview'
 import { KELVIN_PRESETS, LED_EFFECTS, LED_PRESETS, MODE, modeLabel } from './modes'
-import { previewOf } from './preview'
+import { simulatedPreview } from './simulate'
 import { sceneSwatch, type Scene } from './scenes'
 import { hasTune, TuneTab, tuneLabel } from './Tune'
 import { checkFirmware, firmwareVersionOf, useOta } from './ota'
@@ -290,7 +290,7 @@ function Preview({ c, firmwareDot, onDisconnect, onFirmware, onReset }: {
 }) {
   const { s } = c
   const t = useClock(c.connected && c.ledOn && (ANIMATED.includes(s.mode as 1) || c.sync.active !== 'NONE'))
-  const preview = previewOf(c, t)
+  const preview = simulatedPreview(c, t)
 
   // The background follows the light.
   useEffect(() => { setAmbient({ active: c.connected && c.ledOn, hue: preview.hue, sat: Math.min(1, Math.max(0, preview.sat)) }) })

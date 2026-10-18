@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.0',
+    notes: [
+      'The LED preview simulates the board’s modes with the same formulas and gamma, so the colours and brightness match the LEDs (solid, breathe, rainbow, candle). Sound and Solar still use an estimate.',
+      'Sliders are redrawn: a thick filled track with a round handle that grows while you drag.',
+    ],
+  },
+  {
     version: '2.12.2',
     notes: [
       'Material You: the ripple click effect is gone from every button, chip, switch, tab and card; keyboard focus still shows a ring.',
