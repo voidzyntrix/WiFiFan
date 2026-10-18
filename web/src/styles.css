@@ -875,7 +875,9 @@ mdui-chip.menu-item[selected]:not([selected='false' i]):not([disabled]) {
 }
 mdui-chip.menu-item:active { border-radius: calc(min(var(--u), 1) * 12px); }
 mdui-chip.menu-item::part(selected-icon) { display: none; }   /* the check mark that popped in when chosen */
-mdui-chip.menu-item::part(label) { padding: 0 4px; }
+/* the chip's inner row shrinks to its content and hugs the left edge in the stretched tiles — fill the tile and centre it */
+mdui-chip.menu-item::part(button) { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; box-sizing: border-box; }
+mdui-chip.menu-item::part(label) { padding: 0 6px; }
 mdui-chip.chip.scene, mdui-chip.chip { width: 100%; }
 mdui-chip.chip.add.disabled { opacity: 0.45; }
 mdui-slider.md-slider { width: 100%; }
