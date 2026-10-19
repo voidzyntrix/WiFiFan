@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.40',
+    notes: [
+      'Removed the springy lean experiment from the material slider strip - the track stays steady, the diamond handle keeps all its spring',
+    ],
+  },
+
+  {
     version: '2.13.39',
     notes: [
       'The material slider lean is calmer now: half the lean on jumps, and it slides on its spring instead of snapping into the clamp',
