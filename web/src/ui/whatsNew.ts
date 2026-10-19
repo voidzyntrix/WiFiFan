@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.43',
+    notes: [
+      'Material slider handle: every grab flips a coin for which way the diamond turns, +45 or -45',
+    ],
+  },
+
+  {
     version: '2.13.42',
     notes: [
       'The material slider strip now joins the rubber band at half the handle\'s pull, and the handle gained a small shadow beneath it',
