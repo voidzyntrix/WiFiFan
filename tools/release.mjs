@@ -116,35 +116,37 @@ sh('git', ['push', 'origin', 'main'])
 sh('git', ['tag', tagApp]); sh('git', ['tag', tagDesktop])
 sh('git', ['push', 'origin', tagApp, tagDesktop])
 
-// ---------- watch the workflows (they can take a moment to appear) ----------
+// ---------- wait for the releases (they can take a moment to appear) ----------
+// Both waits are for the published ASSET, not the run: GitHub's run records can hang "in
+// progress" long after their own Publish step succeeded, and `gh run watch` would wait forever.
+// Everything is deadline-capped so a GitHub-side hiccup aborts the ritual, never wedges it.
 const sha = git(['rev-parse', 'HEAD'])
 const wait = (ms) => new Promise((r) => setTimeout(r, ms))
-const watch = async (workflow) => {
-  let id
-  for (let attempt = 0; attempt < 12 && !id; attempt++) {
-    const rows = JSON.parse(execFileSync('gh', ['run', 'list', '--workflow', workflow, '--limit', '10', '--json', 'databaseId,headSha'], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }))
-    id = rows.find((r) => r.headSha === sha)?.databaseId
-    if (!id) await wait(5000)
+const releaseJson = (tag) => {
+  try { return JSON.parse(execFileSync('gh', ['release', 'view', tag, '--json', 'isDraft,assets'], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] })) }
+  catch { return null }   // no release yet — that's the normal early state
+}
+const watch = async (workflow, tag, asset) => {
+  console.log(`waiting for ${workflow} → ${asset}…`)
+  const deadline = Date.now() + 20 * 60000
+  let logged = false
+  for (;;) {
+    const rel = releaseJson(tag)
+    if (rel && !rel.isDraft && rel.assets.some((a) => a.name === asset)) { console.log(`✓ ${tag} → ${asset}`); return }
+    const rows = JSON.parse(execFileSync('gh', ['run', 'list', '--workflow', workflow, '--limit', '10', '--json', 'databaseId,headSha,status,conclusion'], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }))
+    const ours = rows.find((r) => r.headSha === sha)
+    if (ours && !logged) { console.log(`watching ${workflow} run ${ours.databaseId}…`); logged = true }
+    if (ours?.status === 'completed' && ours.conclusion !== 'success') throw new Error(`${workflow}: ${ours.conclusion}`)
+    if (Date.now() > deadline) throw new Error(`${workflow}: ${asset} still missing after 20 min — check \`gh run list\` and \`gh run watch\``)
+    await wait(15000)
   }
-  if (!id) throw new Error(`no ${workflow} run found for ${sha.slice(0, 7)}`)
-  console.log(`watching ${workflow} run ${id}…`)
-  execFileSync('gh', ['run', 'watch', String(id), '--exit-status', '--interval', '15'], { cwd: root, stdio: 'inherit' })
 }
 
 try {
-  await watch('app-release.yml')
-  await watch('desktop-release.yml')
-
-  // ---------- each release must exist, published, with its exact asset ----------
-  const verify = (tag, asset) => {
-    const rel = JSON.parse(execFileSync('gh', ['release', 'view', tag, '--json', 'isDraft,assets'], { cwd: root, encoding: 'utf8' }))
-    if (rel.isDraft || !rel.assets.some((a) => a.name === asset)) throw new Error(`${tag}: ${asset} missing`)
-    console.log(`✓ ${tag} → ${asset}`)
-  }
-  verify(tagApp, `wififan-app-${version}.apk`)
-  verify(tagDesktop, `Glow-Desktop-${version}.exe`)
+  await watch('app-release.yml', tagApp, `wififan-app-${version}.apk`)
+  await watch('desktop-release.yml', tagDesktop, `Glow-Desktop-${version}.exe`)
   console.log(`\n✅ ${version} released`)
 } catch (e) {
-  console.error(`✗ ${e.message} — check \`gh run list\`, the version files are already committed`)
+  console.error(`✗ ${e.message} — the version files are already committed`)
   process.exit(1)
 }
