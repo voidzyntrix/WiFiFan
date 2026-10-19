@@ -32,6 +32,7 @@ export function GradientBar(props: {
   const [dragging, setDragging] = useState(false)   // while held the thumb follows the pointer exactly
   const step = useRef(-1)
   const finishTimer = useRef(0)
+  const grab = useRef(0)   // pointer-to-pebble offset (px) from a drag that started on the pebble itself
   const report = (f: number) => {
     const c = Math.min(1, Math.max(0, f))
     const s = Math.round(c * 20)            // a tick every 5 %
@@ -41,7 +42,9 @@ export function GradientBar(props: {
   }
   const at = (clientX: number) => {
     const r = ref.current!.getBoundingClientRect()
-    return (clientX - r.left) / r.width
+    // material's track is inset by the handle's 22px reach (styles.css), so the pointer maps to that span
+    const [inset, span] = material ? [22, r.width - 44] : [0, r.width]
+    return (clientX - r.left - inset) / span
   }
   // Wheel and keys finish a moment after the last nudge, like letting go of a drag.
   const finishSoon = () => {
@@ -67,9 +70,18 @@ export function GradientBar(props: {
         ref.current!.setPointerCapture(e.pointerId)
         setDragging(true)
         step.current = -1
-        report(at(e.clientX))
+        const onThumb = material && !!(e.target as Element).closest?.('.gbar-thumb')
+        if (!onThumb) {
+          grab.current = 0
+          report(at(e.clientX))          // a press on the track jumps to the finger, exactly as before
+        } else {
+          // grabbing the pebble: keep wherever on it you held it — it follows with that offset,
+          // never snapping its centre under the finger
+          const r = ref.current!.getBoundingClientRect()
+          grab.current = e.clientX - (r.left + 22 + (r.width - 44) * props.fraction)
+        }
       }}
-      onPointerMove={(e) => { if (ref.current!.hasPointerCapture(e.pointerId)) report(at(e.clientX)) }}
+      onPointerMove={(e) => { if (ref.current!.hasPointerCapture(e.pointerId)) report(at(e.clientX - grab.current)) }}
       onPointerUp={(e) => {
         if (!ref.current!.hasPointerCapture(e.pointerId)) return
         ref.current!.releasePointerCapture(e.pointerId)
