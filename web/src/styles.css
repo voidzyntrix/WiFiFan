@@ -758,19 +758,19 @@ input.text-field:focus { border-color: var(--primary); background: var(--on-bg-8
 }
 :root[data-design='material'] .gbar.m3e .gbar-thumb {
   /* our own handle: a pebble lying along the track, 4px taller than the track, painted in the
-     gradient colour right beneath it and ringed in the same colour (2px) */
+     gradient colour right beneath it, ringed in a constant secondary (never changing with the fill) */
   width: 36px; height: 24px; margin: -12px 0 0 -18px;
   border-radius: calc(min(var(--u), 1) * 8px);
-  box-shadow: 0 0 0 2px var(--thumb-fill, rgb(var(--mdui-color-primary))), 0 2px 6px rgb(0 0 0 / 0.2);
+  box-shadow: 0 0 0 2px rgb(var(--mdui-color-secondary)), 0 2px 6px rgb(0 0 0 / 0.2);
   background: var(--thumb-fill, rgb(var(--mdui-color-primary)));
   cursor: grab;
   transition: left 0.4s var(--emph-decel), width 0.2s var(--spring), height 0.2s var(--spring), margin 0.2s var(--spring), box-shadow 0.2s var(--spring);
 }
 :root[data-design='material'] .gbar.m3e.dragging .gbar-thumb {
   /* pressed: bigger, and the fixed-px radius squares it off (the buttons' press morph) with it
-     rising an elevation level. the ring and the colour keep matching the gradient beneath */
+     rising an elevation level. the ring stays secondary and the fill keeps matching the gradient */
   width: 40px; height: 28px; margin: -14px 0 0 -20px;
-  box-shadow: 0 0 0 2px var(--thumb-fill, rgb(var(--mdui-color-primary))), 0 3px 10px rgb(0 0 0 / 0.28);
+  box-shadow: 0 0 0 2px rgb(var(--mdui-color-secondary)), 0 3px 10px rgb(0 0 0 / 0.28);
   cursor: url("./assets/grabbing-cursor.png") 13 13, grabbing;
   transition: width 0.2s var(--spring), height 0.2s var(--spring), margin 0.2s var(--spring), box-shadow 0.2s var(--spring);
 }
