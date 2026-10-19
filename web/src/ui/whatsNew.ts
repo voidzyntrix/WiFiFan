@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.31',
+    notes: [
+      'Material slider handle now picks up the gradient colour beneath it, with a same-colour 2px edge',
+    ],
+  },
+
+  {
     version: '2.13.30',
     notes: [
       'Material slider pebble got a thin darker-primary outline and a little extra size',
