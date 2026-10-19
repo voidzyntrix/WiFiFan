@@ -31,6 +31,7 @@ export function GradientBar(props: {
   const material = useDesign() === 'MATERIAL'
   const [dragging, setDragging] = useState(false)   // while held the thumb follows the pointer exactly
   const [over, setOver] = useState(0)               // rubber-band drift past an end while held
+  const [spin, setSpin] = useState(45)              // which way the square turns this drag: ±45, coin-flipped per grab
   const step = useRef(-1)
   const finishTimer = useRef(0)
   const grab = useRef(0)   // pointer-to-pebble offset (px) from a drag that started on the pebble itself
@@ -60,7 +61,7 @@ export function GradientBar(props: {
     <div
       ref={ref}
       className={'gbar' + (dragging ? ' dragging' : '') + (material ? ' m3e' : '') + (props.level ? ' level' : '')}
-      style={{ ['--pos' as string]: `${props.fraction * 100}%`, ['--thumb-fill' as string]: underThumb, ['--over' as string]: `${over}px` }}
+      style={{ ['--pos' as string]: `${props.fraction * 100}%`, ['--thumb-fill' as string]: underThumb, ['--over' as string]: `${over}px`, ['--spin' as string]: `${spin}deg` }}
       role="slider"
       aria-label={props.label}
       aria-valuemin={0}
@@ -72,6 +73,7 @@ export function GradientBar(props: {
         setDragging(true)
         step.current = -1
         setOver(0)
+        setSpin(Math.random() < 0.5 ? 45 : -45)
         const onThumb = material && !!(e.target as Element).closest?.('.gbar-thumb')
         if (!onThumb) {
           grab.current = 0
