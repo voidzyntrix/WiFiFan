@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.23',
+    notes: [
+      'Grabbing cursor no longer upside down: the bitmap\'s rows were decoded wrong',
+    ],
+  },
+
+  {
     version: '2.13.22',
     notes: [
       'The app starts a quarter faster: screens, What\'s new, glass effects and extra fonts now load only when needed',
