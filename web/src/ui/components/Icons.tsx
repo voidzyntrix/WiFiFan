@@ -37,3 +37,33 @@ export const BulbIcon = ({ size = 28 }: P) => (
     <path d="M9,21c0,0.55 0.45,1 1,1h4c0.55,0 1,-0.45 1,-1v-1H9v1zM12,2C8.14,2 5,5.14 5,9c0,2.38 1.19,4.47 3,5.74V17c0,0.55 0.45,1 1,1h6c0.55,0 1,-0.45 1,-1v-2.26c1.81,-1.27 3,-3.36 3,-5.74 0,-3.86 -3.14,-7 -7,-7z" />
   </svg>
 )
+
+/* Material's palette (the colour dot circles are islands on the tilted disc) */
+export const PaletteIcon = ({ size = 22 }: P) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+    <path d="M12,2C6.49,2 2,6.49 2,12s4.49,10 10,10c1.38,0 2.5,-1.12 2.5,-2.5c0,-0.61 -0.23,-1.2 -0.64,-1.67c-0.08,-0.1 -0.13,-0.21 -0.13,-0.33c0,-0.28 0.22,-0.5 0.5,-0.5H16c3.31,0 6,-2.69 6,-6C22,6.05 17.51,2 12,2z M6.5,12C5.67,12 5,11.33 5,10.5S5.67,9 6.5,9S8,9.67 8,10.5S7.33,12 6.5,12z M9.5,8C8.67,8 8,7.33 8,6.5S8.67,5 9.5,5S11,5.67 11,6.5S10.33,8 9.5,8z M14.5,8C13.67,8 13,7.33 13,6.5S13.67,5 14.5,5S16,5.67 16,6.5S15.33,8 14.5,8z M17.5,12C16.67,12 16,11.33 16,10.5S16.67,9 17.5,9S19,9.67 19,10.5S18.33,12 17.5,12z" />
+  </svg>
+)
+
+/* Material's auto_awesome (sparkles): the modes / effects */
+export const ModesIcon = ({ size = 22 }: P) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+    <path d="M19,9l1.25,-2.75L23,5l-2.75,-1.25L19,1l-1.25,2.75L15,5l2.75,1.25L19,9z M11.5,9.5L9,4L6.5,9.5L1,12l5.5,2.5L9,20l2.5,-5.5L17,12L11.5,9.5z M19,15l-1.25,2.75L15,19l2.75,1.25L19,23l1.25,-2.75L23,19l-2.75,-1.25L19,15z" />
+  </svg>
+)
+
+/* Material's star: the scenes */
+export const ScenesIcon = ({ size = 22 }: P) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+    <path d="M12,17.27L18.18,21l-1.64,-7.03L22,9.24l-7.19,-0.61L12,2 9.19,8.63 2,9.24l5.46,4.73L5.82,21z" />
+  </svg>
+)
+
+/* Three sliders with staggered knobs: the current mode's own options */
+export const TuneIcon = ({ size = 22 }: P) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+    <path d="M3,5.2h4.2v1.6H3z" /><circle cx="9.4" cy="6" r="2.2" /><path d="M11.8,5.2H21v1.6h-9.2z" />
+    <path d="M3,11.2h8.2v1.6H3z" /><circle cx="13.4" cy="12" r="2.2" /><path d="M15.8,11.2H21v1.6h-5.2z" />
+    <path d="M3,17.2h2.8v1.6H3z" /><circle cx="8" cy="18" r="2.2" /><path d="M10.4,17.2H21v1.6h-10.6z" />
+  </svg>
+)

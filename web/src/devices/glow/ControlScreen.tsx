@@ -2,23 +2,24 @@
 //  - the header (back to the device list, the board's name, settings, power),
 //  - the live LED preview, which takes whatever height is left and clips inside its own box,
 //  - brightness, always there,
-//  - a deck with tabs: Colour, Modes, Scenes (paged), and Tune: the options of the mode that runs.
+//  - a deck: brightness, the content panel (Colour, Modes, Scenes (paged), or Tune: the options of
+//    the mode that runs), and a bottom switcher between them.
 // Wide windows put the preview on the left and the controls, centred, on the right.
 //
 // The preview's clock lives in the preview (and the rainbow sliders'), so an animating LED redraws
 // those two, not the whole screen.
 //
 // Right-click (a long press on a phone) does more: power -> sleep timer, a scene -> rename / update /
-// delete. Keyboard: Space power · 1-9 scenes · [ ] brightness · M modes · , settings
+// delete. Keyboard: Space power · 1-9 scenes · [ ] brightness · C colour · M modes · S scenes · T tune · , settings
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { platform } from '../../platform'
 import { hexOf, hsvCss, kelvinScreenColor, KELVIN_MAX, KELVIN_MIN } from '../../lib/color'
 import { setAmbient } from '../../ui/ambient'
 import {
-  ActionsDialog, Chip, CircleIconButton, GradientBar, LevelBar, NameDialog, SegmentedPill, SliderLabel, TabBar,
+  ActionsDialog, Chip, CircleIconButton, DeckNav, GradientBar, LevelBar, NameDialog, SegmentedPill, SliderLabel,
 } from '../../ui/components/Controls'
-import { AddIcon, BackIcon, EditIcon, PowerIcon, SettingsIcon } from '../../ui/components/Icons'
+import { AddIcon, BackIcon, EditIcon, ModesIcon, PaletteIcon, PowerIcon, ScenesIcon, SettingsIcon, TuneIcon } from '../../ui/components/Icons'
 import { Pager } from '../../ui/components/Pager'
 import { Presence, Swap, Txt } from '../../ui/motion'
 import { sound } from '../../ui/sound'
@@ -116,14 +117,21 @@ export function ControlScreen(props: ControlScreenProps) {
         cc.setBrightness(Math.min(1, Math.max(0, cc.s.bri + (e.key === ']' ? 0.05 : -0.05))))
         cc.sendCurrent()
       } else if (e.key === 'm' || e.key === 'M') setTab('modes')
+      else if (e.key === 'c' || e.key === 'C') setTab('colour')
+      else if (e.key === 's' || e.key === 'S') setTab('scenes')
+      else if (e.key === 't' || e.key === 'T') { if (hasTune(cc.s.mode)) setTab('tune') }
       else if (e.key === ',') live.current.props.onSettings()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  const tabs: [Tab, string][] = [['colour', 'Colour'], ['modes', 'Modes'], ['scenes', 'Scenes']]
-  if (tunable) tabs.push(['tune', tuneLabel(s.mode)])
+  const tabs: [Tab, string, ReactNode][] = [
+    ['colour', 'Colour', <PaletteIcon />],
+    ['modes', 'Modes', <ModesIcon />],
+    ['scenes', 'Scenes', <ScenesIcon />],
+  ]
+  if (tunable) tabs.push(['tune', tuneLabel(s.mode), <TuneIcon />])
   const briTop = c.s.kelvinMode ? kelvinScreenColor(s.kelvin) : hsvCss(s.hue, s.sat)
 
   return (
@@ -166,8 +174,6 @@ export function ControlScreen(props: ControlScreenProps) {
             <LevelBar label="Brightness" fraction={s.bri} stops={['#000', briTop]} thumbColor={briTop}
               onFraction={c.setBrightness} onFinished={c.sendCurrent} />
           </div>
-
-          <TabBar tabs={tabs.map(([, l]) => l)} active={tabs.findIndex(([k]) => k === tab)} onChange={(i) => setTab(tabs[i][0])} />
 
           <div className="panel deck-panel">
             <Swap k={tab === 'tune' ? 'tune' + s.mode : tab} className="fill">
@@ -232,6 +238,12 @@ export function ControlScreen(props: ControlScreenProps) {
               )}
             </Swap>
           </div>
+
+          <DeckNav
+            items={tabs.map(([, l, icon]) => ({ icon, label: l }))}
+            active={tabs.findIndex(([k]) => k === tab)}
+            onChange={(i) => setTab(tabs[i][0])}
+          />
         </div>
       </div>
 

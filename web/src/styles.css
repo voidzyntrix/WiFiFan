@@ -48,6 +48,8 @@
 @property --on-bg-85 { syntax: '<color>'; inherits: true; initial-value: transparent; }
 @property --u { syntax: '<number>'; inherits: true; initial-value: 1; }
 @property --led-radius { syntax: '<percentage>'; inherits: true; initial-value: 50%; }
+/* the material slider's handle corner (theme.ts): px below Large, a full circle from Large up */
+@property --thumb-r { syntax: '<length-percentage>'; inherits: true; initial-value: 8px; }
 /* the colour stops of a slider's gradient (Controls.tsx), so a new colour slides in */
 @property --g0 { syntax: '<color>'; inherits: false; initial-value: transparent; }
 @property --g1 { syntax: '<color>'; inherits: false; initial-value: transparent; }
@@ -98,7 +100,7 @@
     --on-bg-4 0.5s, --on-bg-5 0.5s, --on-bg-6 0.5s, --on-bg-7 0.5s, --on-bg-8 0.5s, --on-bg-10 0.5s, --on-bg-12 0.5s,
     --on-bg-14 0.5s, --on-bg-18 0.5s, --on-bg-30 0.5s, --on-bg-45 0.5s, --on-bg-50 0.5s, --on-bg-55 0.5s,
     --on-bg-60 0.5s, --on-bg-70 0.5s, --on-bg-85 0.5s,
-    --u 0.45s var(--emph-decel), --led-radius 0.45s var(--emph-decel);
+    --u 0.45s var(--emph-decel), --led-radius 0.45s var(--emph-decel), --thumb-r 0.45s var(--emph-decel);
 }
 :root[data-theme='light'] { color-scheme: light; }
 :root[data-effects='light'] { --mb: 0px; }
@@ -737,7 +739,7 @@ input.text-field:focus { border-color: var(--primary); background: var(--on-bg-8
 :root[data-design='material'] mdui-fab { --shape-corner: 16px; }
 :root[data-design='material'] mdui-fab:active { --shape-corner: 24px; }
 
-/* the expressive slider: 20 px two-tone track with the handle riding on it, stop dot for level bars */
+/* the expressive slider: 16 px two-tone track with the handle riding on it, stop dot for level bars */
 /* --pos is registered so it can transition: the two-tone fill then glides with the thumb's own left
    transition (identical timing), instead of teleporting while the thumb still animates there.
    --thumb-fill is the gradient colour beneath the handle: the handle is painted with it.
@@ -751,7 +753,7 @@ input.text-field:focus { border-color: var(--primary); background: var(--on-bg-8
 :root[data-design='material'] .gbar.m3e .gbar-track {
   /* inset by the handle's reach so the square stays inside the cards at 0 and 100. the strip drifts
      with the rubber band too, at half the handle's pull, and springs home with it on release */
-  left: 16px; right: 16px; top: 14px; height: 20px; border-radius: 10px; opacity: 1;
+  left: 16px; right: 16px; top: 16px; height: 16px; border-radius: 8px; opacity: 1;
   transform: translateX(calc(var(--over, 0px) * 0.5));
   box-shadow: inset 0 0 0 1px rgb(var(--mdui-color-outline-variant) / 0.4);
 }
@@ -767,7 +769,7 @@ input.text-field:focus { border-color: var(--primary); background: var(--on-bg-8
      right beneath it (its contrast lift), ringed 2px in a darker shade of that same track colour */
   width: 26px; height: 26px; margin: -13px 0 0 -13px;
   transform: translateX(var(--over, 0px));
-  border-radius: calc(min(var(--u), 1) * 8px);
+  border-radius: var(--thumb-r, 8px);
   box-shadow: 0 0 0 2px color-mix(in oklab, var(--thumb-fill, rgb(var(--mdui-color-primary))) 60%, black), 0 2px 6px rgb(0 0 0 / 0.2), 0 5px 7px -2px rgb(0 0 0 / 0.3);
   background: color-mix(in oklab, var(--thumb-fill, rgb(var(--mdui-color-primary))) 85%, white);
   cursor: grab;
@@ -789,6 +791,27 @@ input.text-field:focus { border-color: var(--primary); background: var(--on-bg-8
 :root[data-design='material'] .gbar.m3e .gbar-dot { display: none; }
 :root[data-design='material'] .gbar.m3e:focus-visible { outline: 2px solid rgb(var(--mdui-color-secondary)); outline-offset: 4px; border-radius: 12px; }
 
+/* the control deck's bottom switcher: round icon buttons; the chosen one grows into a labelled pill
+   (a Material You toolbar morph). One DOM for both designs; the colours and corners differ below */
+.decknav { display: flex; gap: 6px; height: 44px; flex: none; }
+.decknav .opt {
+  flex: 0 0 44px; min-width: 0; height: 100%;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 0;
+  border-radius: calc(var(--u) * 22px);
+  background: var(--on-bg-6); color: var(--on-bg-70);
+  transition: var(--t), transform 0.15s var(--emph), border-radius 0.25s var(--spring), flex 0.4s var(--emph-decel);
+}
+.decknav .opt svg { flex: none; }
+.decknav .lab {
+  max-width: 0; overflow: hidden; white-space: nowrap; opacity: 0;
+  font: 600 13px/1 var(--font); letter-spacing: 0.01em;
+  transition: max-width 0.4s var(--emph-decel), opacity 0.25s;
+}
+.decknav .opt:hover:not(.on) { background: var(--on-bg-12); }
+.decknav .opt:active:not(.on) { transform: scale(0.92); }
+.decknav .opt.on { flex: 1 1 0; background: var(--active); color: var(--on-active); }
+.decknav .opt.on .lab { max-width: 150px; opacity: 1; }
+
 /* connected button group */
 .m3e-group { display: flex; gap: 2px; width: 100%; flex: none; }
 .m3e-group.disabled { opacity: 0.5; pointer-events: none; }
@@ -808,6 +831,16 @@ input.text-field:focus { border-color: var(--primary); background: var(--on-bg-8
 .m3e-seg:not(.on):active { border-radius: 12px; }
 .m3e-seg:focus-visible { outline: 2px solid rgb(var(--mdui-color-secondary)); outline-offset: 2px; }
 .m3e-seg-label { position: relative; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* the deck navbar, material colours: fixed Material corners, no ripple */
+:root[data-design='material'] .decknav .opt {
+  border-radius: 22px;
+  background: rgb(var(--mdui-color-surface-container-high)); color: rgb(var(--mdui-color-on-surface-variant));
+}
+:root[data-design='material'] .decknav .opt:hover:not(.on) { background: rgb(var(--mdui-color-surface-container-highest)); }
+:root[data-design='material'] .decknav .opt:active:not(.on) { border-radius: 12px; }
+:root[data-design='material'] .decknav .opt.on { background: rgb(var(--mdui-color-primary)); color: rgb(var(--mdui-color-on-primary)); }
+:root[data-design='material'] .decknav .opt:focus-visible { outline: 2px solid rgb(var(--mdui-color-secondary)); outline-offset: 2px; }
 
 /* the morphing loading indicator */
 .m3e-loading { display: inline-grid; place-items: center; flex: none; animation: m3e-spin 4.8s linear infinite; }
@@ -874,7 +907,6 @@ mdui-segmented-button { flex: 1 1 0; min-width: 0; font-size: 13px; }
 .icon-btn { flex: none; width: 44px; height: 44px; }
 .md-progress { width: 100%; }
 mdui-switch { flex: none; }
-.md-tabs { flex: none; width: 100%; background-color: transparent; }
 mdui-chip { height: 40px; }
 mdui-chip.menu-item { height: 100%; width: 100%; }
 /* Modes menu tiles: tonal buttons like the app's connected button groups — no outline and no check

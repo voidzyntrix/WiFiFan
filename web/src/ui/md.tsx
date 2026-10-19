@@ -9,8 +9,6 @@ import 'mdui/mdui.css'
 import 'mdui/components/button.js'
 import 'mdui/components/button-icon.js'
 import 'mdui/components/switch.js'
-import 'mdui/components/tabs.js'
-import 'mdui/components/tab.js'
 import 'mdui/components/chip.js'
 import 'mdui/components/dialog.js'
 import 'mdui/components/text-field.js'
@@ -46,16 +44,3 @@ export function useElementEvent<T extends HTMLElement>(event: string, fn: (el: T
   return ref
 }
 
-/** Material 3 primary tabs. */
-export function Tabs(props: { tabs: string[]; active: number; onChange: (i: number) => void }) {
-  const ref = useElementEvent<HTMLElement & { value: string }>('change', (el) => {
-    const i = Number(el.value)
-    if (!Number.isNaN(i) && i !== props.active) props.onChange(i)
-  })
-  useEffect(() => { if (ref.current && ref.current.value !== String(props.active)) ref.current.value = String(props.active) }, [props.active, props.tabs.length])
-  return (
-    <mdui-tabs ref={ref} class="md-tabs" variant="primary" value={String(props.active)} full-width>
-      {props.tabs.map((t, i) => <mdui-tab key={t} value={String(i)}>{t}</mdui-tab>)}
-    </mdui-tabs>
-  )
-}

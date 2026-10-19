@@ -91,6 +91,8 @@ export function applyTheme(s: Settings, systemDark: boolean, systemAccent: strin
   if (dark && s.pureBlack) { r.setProperty('--card', '#0d0d0d'); r.setProperty('--card-high', '#141414'); r.setProperty('--card-highest', '#1c1c1c') }
   r.setProperty('--u', String(cornerUnit(s)))
   r.setProperty('--led-radius', s.roundLedPreview ? '50%' : `${Math.min(50, 50 * cornerUnit(s))}%`)
+  /* the material slider's handle: it rounds with the corner scale, and from Large up it is a full circle */
+  r.setProperty('--thumb-r', cornerUnit(s) >= 1.7 ? '50%' : `${Math.min(1, cornerUnit(s)) * 8}px`)
   r.setProperty('--font', s.monoFont ? "'JetBrains Mono', ui-monospace, monospace" : "'Roboto', system-ui, sans-serif")
   document.documentElement.dataset.theme = dark ? 'dark' : 'light'
   platform.systemBars?.(dark)

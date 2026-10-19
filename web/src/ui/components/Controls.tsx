@@ -8,7 +8,7 @@ import { useSetting, type Design } from '../../settings/store'
 import { clamp, hsvCss, hsvToRgb, hexToHsv, gradientAt } from '../../lib/color'
 import { sound } from '../sound'
 import { Txt } from '../motion'
-import { flag, Tabs as MdTabs, useElementEvent } from '../md'
+import { flag, useElementEvent } from '../md'
 
 /** Which design is on; a component using it re-renders only when the design changes. */
 export const useDesign = (): Design => useSetting('design')
@@ -198,11 +198,26 @@ export function SegmentedPill(props: { options: string[]; selected: number; onSe
   )
 }
 
-/** Tabs: Material primary tabs, or the same pill as above in glass. */
-export function TabBar(props: { tabs: string[]; active: number; onChange: (i: number) => void }) {
-  const design = useDesign()
-  if (design === 'MATERIAL') return <MdTabs tabs={props.tabs} active={props.active} onChange={props.onChange} />
-  return <SegmentedPill options={props.tabs} selected={props.active} onSelect={props.onChange} />
+/** The control deck's bottom switcher: round icon buttons, the chosen one grows into a labelled
+ * pill (a Material You toolbar morph). The same DOM in both designs; the colours differ in CSS. */
+export function DeckNav(props: { items: { icon: ReactNode; label: string }[]; active: number; onChange: (i: number) => void }) {
+  return (
+    <nav className="decknav" aria-label="Controls" role="tablist">
+      {props.items.map((it, i) => (
+        <button
+          key={i}
+          role="tab"
+          aria-selected={i === props.active}
+          className={'opt' + (i === props.active ? ' on' : '')}
+          title={it.label}
+          onClick={() => { if (i !== props.active) { sound.tap(); props.onChange(i) } }}
+        >
+          {it.icon}
+          <span className="lab">{it.label}</span>
+        </button>
+      ))}
+    </nav>
+  )
 }
 
 /** An on / off switch. */
