@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.49',
+    notes: [
+      'The brightness bar is now a slim 8px gauge — the other sliders keep their 12px tracks.',
+    ],
+  },
+
+  {
     version: '2.13.48',
     notes: [
       'The slider handle now follows the Shapes setting exactly like every other control: circular from Medium corners up, gently squared below — the special Large-only threshold is gone.',
