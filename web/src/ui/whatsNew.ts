@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.46',
+    notes: [
+      'Switching Colour / Modes / Scenes / the mode options now slides the deck along the tab order — the same shared-axis motion as screen navigation, forward when moving right and back when moving left.',
+    ],
+  },
+
+  {
     version: '2.13.45',
     notes: [
       'The switcher\'s icons now sit exactly in the middle of their buttons.',
