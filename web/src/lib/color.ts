@@ -39,6 +39,27 @@ export const hsvCss = (h: number, s: number, v = 1, a = 1) => rgbCss(hsvToRgb(h,
 export const hexOf = (h: number, s: number) =>
   '#' + hsvToRgb(h, s, 1).map((c) => c.toString(16).padStart(2, '0')).join('').toUpperCase()
 
+/** The colour of an even linear gradient at a position 0..1. Works with the stops GradientBar
+ *  actually ships ('#aabbcc', '#abc', 'rgb(255 0 0)'); 'var(…)' strings can't be read in JS. */
+export function gradientAt(stops: string[], f: number): string | null {
+  if (stops.length === 0) return null
+  const parse = (c: string): [number, number, number] | null => {
+    if (c.startsWith('#')) {
+      const h = c.slice(1)
+      const n = parseInt(h.length === 3 ? h.split('').map((x) => x + x).join('') : h, 16)
+      return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
+    }
+    const m = c.match(/^rgb\((\d+)\s+(\d+)\s+(\d+)\)$/)
+    return m ? [+m[1], +m[2], +m[3]] : null
+  }
+  const t = clamp(f, 0, 1) * (stops.length - 1)
+  const i = Math.min(Math.floor(t), stops.length - 2)
+  const a = parse(stops[i]), b = parse(stops[Math.max(i + 1, 0)])
+  if (!a || !b) return null
+  const k = t - i
+  return rgbCss(a.map((c, j) => Math.round(c + (b[j] - c) * k)) as [number, number, number])
+}
+
 /** Blackbody chromaticity (Kim et al. approximation, 1667-25000 K). */
 function blackbodyXy(k: number): [number, number] {
   const x = k <= 4000

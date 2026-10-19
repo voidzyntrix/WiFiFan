@@ -5,7 +5,7 @@
 
 import { createContext, useContext, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { useSetting, type Design } from '../../settings/store'
-import { clamp, hsvCss, hsvToRgb, hexToHsv } from '../../lib/color'
+import { clamp, hsvCss, hsvToRgb, hexToHsv, gradientAt } from '../../lib/color'
 import { sound } from '../sound'
 import { Txt } from '../motion'
 import { flag, Tabs as MdTabs, useElementEvent } from '../md'
@@ -48,11 +48,15 @@ export function GradientBar(props: {
     window.clearTimeout(finishTimer.current)
     finishTimer.current = window.setTimeout(() => props.onFinished(), 250)
   }
+  // the thumb shows the colour of the gradient right beneath it (level bars are solid primary).
+  // it's a registered colour property, so it glides to a new colour exactly like the track stops and
+  // follows the pointer instantly while held.
+  const underThumb = props.level ? 'rgb(var(--mdui-color-primary))' : gradientAt(props.stops, props.fraction) ?? 'rgb(var(--mdui-color-primary))'
   return (
     <div
       ref={ref}
       className={'gbar' + (dragging ? ' dragging' : '') + (material ? ' m3e' : '') + (props.level ? ' level' : '')}
-      style={{ ['--pos' as string]: `${props.fraction * 100}%` }}
+      style={{ ['--pos' as string]: `${props.fraction * 100}%`, ['--thumb-fill' as string]: underThumb }}
       role="slider"
       aria-label={props.label}
       aria-valuemin={0}
