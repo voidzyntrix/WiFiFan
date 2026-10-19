@@ -99,7 +99,8 @@ export function GradientBar(props: {
           ...Object.fromEntries(props.stops.map((c, i) => [`--g${i}`, c])),
         }}
       />
-      <div className="gbar-thumb" style={{ left: `${props.fraction * 100}%` }}>
+      <div className="gbar-thumb" style={{ left: material ? `calc(22px + (100% - 44px) * ${props.fraction})` : `${props.fraction * 100}%` }}>
+        {/* material rides within the track's own inset span so the pebble never pokes past the cards */}
         <div className="gbar-dot" style={{ background: props.thumbColor }} />
       </div>
     </div>
