@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.37',
+    notes: [
+      'Material slider handle is 26px, springs up to 30px and turns 45 degrees like a diamond while held; its colour now lifts slightly lighter than the track beneath for contrast',
+    ],
+  },
+
+  {
     version: '2.13.36',
     notes: [
       'Material slider handle is a lot smaller now: a 24px square that grows to 28px held',
