@@ -307,6 +307,11 @@ code { font-family: 'JetBrains Mono', monospace; font-size: 0.9em; }
 .swap.stack > .swap-in, .swap.stack > .swap-out { display: flex; flex-direction: column; gap: 12px; --gap: 12px; }
 @keyframes swap-in { from { opacity: 0; transform: translateY(12px); } }
 @keyframes swap-out { to { opacity: 0; transform: translateY(-8px) scale(0.98); } }
+/* directed swaps (the deck's tab switches) slide like the screens do, along the deck's order */
+.swap.fwd .swap-in.changed { animation-name: sa-in-fwd; }
+.swap.back .swap-in.changed { animation-name: sa-in-back; }
+.swap.fwd > .swap-out { animation-name: sa-out-fwd; }
+.swap.back > .swap-out { animation-name: sa-out-back; }
 .stack { display: flex; flex-direction: column; gap: 12px; --gap: 12px; }
 
 /* text that changed */

@@ -132,6 +132,12 @@ export function ControlScreen(props: ControlScreenProps) {
     ['scenes', 'Scenes', <ScenesIcon />],
   ]
   if (tunable) tabs.push(['tune', tuneLabel(s.mode), <TuneIcon />])
+  /* tab switches slide the deck like the screens do: forward when the deck order moves right, back
+     when it moves left (a vanished tune tab or an untunable mode always slides back) */
+  const tabIdx = tabs.findIndex(([k]) => k === tab)
+  const prevIdx = useRef(tabIdx)
+  const tabDir = tabIdx < 0 ? -1 : Math.sign(tabIdx - prevIdx.current)
+  if (tabIdx >= 0) prevIdx.current = tabIdx
   const briTop = c.s.kelvinMode ? kelvinScreenColor(s.kelvin) : hsvCss(s.hue, s.sat)
 
   return (
@@ -176,7 +182,7 @@ export function ControlScreen(props: ControlScreenProps) {
           </div>
 
           <div className="panel deck-panel">
-            <Swap k={tab === 'tune' ? 'tune' + s.mode : tab} className="fill">
+            <Swap k={tab === 'tune' ? 'tune' + s.mode : tab} className="fill" dir={tabDir}>
               {tab === 'colour' ? (
                 <ColourTab c={c} />
               ) : tab === 'modes' ? (

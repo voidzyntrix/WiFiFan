@@ -46,12 +46,13 @@ export function Presence({ show, children, className = '' }: { show: boolean; ch
   )
 }
 
-/** Cross-fades when `k` changes: the old content fades out on top while the new fades in, and the height glides. */
-export function Swap({ k, children, className = '' }: { k: string | number; children: ReactNode; className?: string }) {
+/** Cross-fades when `k` changes: the old content fades out on top while the new fades in, and the height glides.
+ *  `dir` (+1 forward, -1 back) slides it along the x axis instead, like the app's screens. */
+export function Swap({ k, children, className = '', dir = 0 }: { k: string | number; children: ReactNode; className?: string; dir?: number }) {
   const last = useRef<{ k: string | number; node: ReactNode }>({ k, node: children })
-  const [leaving, setLeaving] = useState<{ k: string | number; node: ReactNode } | null>(null)
+  const [leaving, setLeaving] = useState<{ k: string | number; node: ReactNode; dir: number } | null>(null)
   const [prevK, setPrevK] = useState(k)
-  if (k !== prevK) { setPrevK(k); setLeaving(last.current) }
+  if (k !== prevK) { setPrevK(k); setLeaving({ ...last.current, dir }) }
   last.current = { k, node: children }
 
   useEffect(() => {
@@ -89,8 +90,9 @@ export function Swap({ k, children, className = '' }: { k: string | number; chil
     if (!gliding.current && wrap.current) height.current = wrap.current.offsetHeight
   })
 
+  const slide = leaving ? (leaving.dir > 0 ? ' fwd' : leaving.dir < 0 ? ' back' : '') : ''
   return (
-    <div ref={wrap} className={'swap' + (className ? ' ' + className : '')}>
+    <div ref={wrap} className={'swap' + slide + (className ? ' ' + className : '')}>
       {leaving && <div key={'out' + leaving.k} className="swap-out" aria-hidden>{leaving.node}</div>}
       <div key={k} className={'swap-in' + (leaving ? ' changed' : '')}>{children}</div>
     </div>
