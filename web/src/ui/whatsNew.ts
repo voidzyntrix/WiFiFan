@@ -2,6 +2,14 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.44',
+    notes: [
+      'The Colour, Modes, Scenes and mode-options tabs are now a bottom switcher: round icon buttons, the chosen one grows into a labelled pill (keys C / M / S / T too).',
+      'Material slider: slimmer 16px track, and the handle is a full circle from the Large corner setting up.',
+    ],
+  },
+
+  {
     version: '2.13.43',
     notes: [
       'Material slider handle: every grab flips a coin for which way the diamond turns, +45 or -45',
