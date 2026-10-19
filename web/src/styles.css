@@ -740,10 +740,13 @@ input.text-field:focus { border-color: var(--primary); background: var(--on-bg-8
 /* the expressive slider: 20 px two-tone track with the handle riding on it, stop dot for level bars */
 /* --pos is registered so it can transition: the two-tone fill then glides with the thumb's own left
    transition (identical timing), instead of teleporting while the thumb still animates there.
-   --thumb-fill is the gradient colour beneath the handle: the handle is painted with it. */
+   --thumb-fill is the gradient colour beneath the handle: the handle is painted with it.
+   --over is the rubber-band drift when the handle is pulled past an end: it follows the pointer
+   instantly while held (the dragging rule kills all transitions) and springs home on release. */
 @property --pos { syntax: '<percentage>'; inherits: true; initial-value: 0%; }
 @property --thumb-fill { syntax: '<color>'; inherits: true; initial-value: transparent; }
-:root[data-design='material'] .gbar.m3e { height: 48px; border-radius: 0; cursor: grab; transition: --pos 0.4s var(--emph-decel), --thumb-fill 0.4s var(--emph-decel); }
+@property --over { syntax: '<length>'; inherits: true; initial-value: 0px; }
+:root[data-design='material'] .gbar.m3e { height: 48px; border-radius: 0; cursor: grab; transition: --pos 0.4s var(--emph-decel), --thumb-fill 0.4s var(--emph-decel), --over 0.4s var(--spring); }
 :root[data-design='material'] .gbar.m3e.dragging { cursor: url("./assets/grabbing-cursor.png") 13 13, grabbing; transition: none; }   /* pointer and the fill must follow exactly */
 :root[data-design='material'] .gbar.m3e .gbar-track {
   /* inset by the handle's reach so the square stays inside the cards at 0 and 100 */
@@ -761,6 +764,7 @@ input.text-field:focus { border-color: var(--primary); background: var(--on-bg-8
   /* our own handle: a square tile riding the track, a touch lighter than the gradient colour
      right beneath it (its contrast lift), ringed 2px in a darker shade of that same track colour */
   width: 26px; height: 26px; margin: -13px 0 0 -13px;
+  transform: translateX(var(--over, 0px));
   border-radius: calc(min(var(--u), 1) * 8px);
   box-shadow: 0 0 0 2px color-mix(in oklab, var(--thumb-fill, rgb(var(--mdui-color-primary))) 60%, black), 0 2px 6px rgb(0 0 0 / 0.2);
   background: color-mix(in oklab, var(--thumb-fill, rgb(var(--mdui-color-primary))) 85%, white);
@@ -770,9 +774,10 @@ input.text-field:focus { border-color: var(--primary); background: var(--on-bg-8
 :root[data-design='material'] .gbar.m3e.dragging .gbar-thumb {
   /* pressed: bigger, the fixed-px radius squares it off (the buttons' press morph) with it
      rising an elevation level, and it springs a 45° diamond turn on the same material spring.
-     the ring stays a darker shade of the track colour beneath */
+     translate comes before the rotate so the rubber-band drift stays along the track. the ring
+     stays a darker shade, the fill a lighter lift of the track colour beneath */
   width: 30px; height: 30px; margin: -15px 0 0 -15px;
-  transform: rotate(45deg);
+  transform: translateX(var(--over, 0px)) rotate(45deg);
   box-shadow: 0 0 0 2px color-mix(in oklab, var(--thumb-fill, rgb(var(--mdui-color-primary))) 60%, black), 0 3px 10px rgb(0 0 0 / 0.28);
   cursor: url("./assets/grabbing-cursor.png") 13 13, grabbing;
   transition: width 0.2s var(--spring), height 0.2s var(--spring), margin 0.2s var(--spring), box-shadow 0.2s var(--spring), transform 0.3s var(--spring);

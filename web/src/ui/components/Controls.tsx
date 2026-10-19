@@ -30,6 +30,7 @@ export function GradientBar(props: {
   const ref = useRef<HTMLDivElement>(null)
   const material = useDesign() === 'MATERIAL'
   const [dragging, setDragging] = useState(false)   // while held the thumb follows the pointer exactly
+  const [over, setOver] = useState(0)               // rubber-band drift past an end while held
   const step = useRef(-1)
   const finishTimer = useRef(0)
   const grab = useRef(0)   // pointer-to-pebble offset (px) from a drag that started on the pebble itself
@@ -59,7 +60,7 @@ export function GradientBar(props: {
     <div
       ref={ref}
       className={'gbar' + (dragging ? ' dragging' : '') + (material ? ' m3e' : '') + (props.level ? ' level' : '')}
-      style={{ ['--pos' as string]: `${props.fraction * 100}%`, ['--thumb-fill' as string]: underThumb }}
+      style={{ ['--pos' as string]: `${props.fraction * 100}%`, ['--thumb-fill' as string]: underThumb, ['--over' as string]: `${over}px` }}
       role="slider"
       aria-label={props.label}
       aria-valuemin={0}
@@ -70,6 +71,7 @@ export function GradientBar(props: {
         ref.current!.setPointerCapture(e.pointerId)
         setDragging(true)
         step.current = -1
+        setOver(0)
         const onThumb = material && !!(e.target as Element).closest?.('.gbar-thumb')
         if (!onThumb) {
           grab.current = 0
@@ -81,11 +83,20 @@ export function GradientBar(props: {
           grab.current = e.clientX - (r.left + 16 + (r.width - 32) * props.fraction)
         }
       }}
-      onPointerMove={(e) => { if (ref.current!.hasPointerCapture(e.pointerId)) report(at(e.clientX - grab.current)) }}
+      onPointerMove={(e) => {
+        if (!ref.current!.hasPointerCapture(e.pointerId)) return
+        const f = at(e.clientX - grab.current)
+        report(f)
+        // rubber band: pulled past an end the square drifts along the finger, damped (12px*saturating
+        // on the raw overtravel) and springs home on release; the value itself stays clamped
+        const extra = f < 0 ? f : f > 1 ? f - 1 : 0
+        setOver(12 * Math.tanh((extra * (ref.current!.getBoundingClientRect().width - 32)) / 12))
+      }}
       onPointerUp={(e) => {
         if (!ref.current!.hasPointerCapture(e.pointerId)) return
         ref.current!.releasePointerCapture(e.pointerId)
         setDragging(false)
+        setOver(0)
         props.onFinished()
       }}
       onWheel={(e) => {
