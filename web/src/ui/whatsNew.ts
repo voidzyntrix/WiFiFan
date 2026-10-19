@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.48',
+    notes: [
+      'The slider handle now follows the Shapes setting exactly like every other control: circular from Medium corners up, gently squared below — the special Large-only threshold is gone.',
+    ],
+  },
+
+  {
     version: '2.13.47',
     notes: [
       'Tab switches: the outgoing panel now fades away as quickly as when screens change, so it no longer lingers under the incoming one.',
