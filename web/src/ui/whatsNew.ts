@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.27',
+    notes: [
+      'Material slider handle is a pebble lying along the track now - it squares off and rises while pressed',
+    ],
+  },
+
+  {
     version: '2.13.26',
     notes: [
       'Material slider handle restyled: a rounded tile in your shape setting that grows, squares off and rises while pressed, with the track springing open around it',
