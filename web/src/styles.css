@@ -739,7 +739,7 @@ input.text-field:focus { border-color: var(--primary); background: var(--on-bg-8
 :root[data-design='material'] mdui-fab { --shape-corner: 16px; }
 :root[data-design='material'] mdui-fab:active { --shape-corner: 24px; }
 
-/* the expressive slider: 16 px two-tone track with the handle riding on it, stop dot for level bars */
+/* the expressive slider: 12 px two-tone track with the handle riding on it, stop dot for level bars */
 /* --pos is registered so it can transition: the two-tone fill then glides with the thumb's own left
    transition (identical timing), instead of teleporting while the thumb still animates there.
    --thumb-fill is the gradient colour beneath the handle: the handle is painted with it.
@@ -753,7 +753,7 @@ input.text-field:focus { border-color: var(--primary); background: var(--on-bg-8
 :root[data-design='material'] .gbar.m3e .gbar-track {
   /* inset by the handle's reach so the square stays inside the cards at 0 and 100. the strip drifts
      with the rubber band too, at half the handle's pull, and springs home with it on release */
-  left: 16px; right: 16px; top: 16px; height: 16px; border-radius: 8px; opacity: 1;
+  left: 16px; right: 16px; top: 18px; height: 12px; border-radius: 6px; opacity: 1;
   transform: translateX(calc(var(--over, 0px) * 0.5));
   box-shadow: inset 0 0 0 1px rgb(var(--mdui-color-outline-variant) / 0.4);
 }
@@ -796,10 +796,10 @@ input.text-field:focus { border-color: var(--primary); background: var(--on-bg-8
 .decknav { display: flex; gap: 6px; height: 44px; flex: none; }
 .decknav .opt {
   flex: 0 0 44px; min-width: 0; height: 100%;
-  display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center; gap: 0; padding: 0;
   border-radius: calc(var(--u) * 22px);
   background: var(--on-bg-6); color: var(--on-bg-70);
-  transition: var(--t), transform 0.15s var(--emph), border-radius 0.25s var(--spring), flex 0.4s var(--emph-decel);
+  transition: var(--t), transform 0.15s var(--emph), border-radius 0.25s var(--spring), flex 0.4s var(--emph-decel), gap 0.3s;
 }
 .decknav .opt svg { flex: none; }
 .decknav .lab {
@@ -809,7 +809,7 @@ input.text-field:focus { border-color: var(--primary); background: var(--on-bg-8
 }
 .decknav .opt:hover:not(.on) { background: var(--on-bg-12); }
 .decknav .opt:active:not(.on) { transform: scale(0.92); }
-.decknav .opt.on { flex: 1 1 0; background: var(--active); color: var(--on-active); }
+.decknav .opt.on { flex: 1 1 0; gap: 8px; background: var(--active); color: var(--on-active); }
 .decknav .opt.on .lab { max-width: 150px; opacity: 1; }
 
 /* connected button group */
