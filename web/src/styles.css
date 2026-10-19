@@ -737,19 +737,15 @@ input.text-field:focus { border-color: var(--primary); background: var(--on-bg-8
 :root[data-design='material'] mdui-fab { --shape-corner: 16px; }
 :root[data-design='material'] mdui-fab:active { --shape-corner: 24px; }
 
-/* the expressive slider: 20 px two-tone track, a gap either side of the handle, stop dot at the end */
-/* --pos and --gap are registered so they can transition: the track gap and two-tone fill then glide
-   with the thumb's own left transition (identical timing), instead of teleporting while the thumb
-   still animates there; while dragging the gap springs open with the raised handle. */
+/* the expressive slider: 20 px two-tone track with the handle riding on it, stop dot for level bars */
+/* --pos is registered so it can transition: the two-tone fill then glides with the thumb's own left
+   transition (identical timing), instead of teleporting while the thumb still animates there */
 @property --pos { syntax: '<percentage>'; inherits: true; initial-value: 0%; }
-@property --gap { syntax: '<length>'; inherits: true; initial-value: 13px; }
-:root[data-design='material'] .gbar.m3e { height: 48px; border-radius: 0; --gap: 13px; cursor: grab; transition: --pos 0.4s var(--emph-decel), --gap 0.3s var(--spring); }
-:root[data-design='material'] .gbar.m3e.dragging { --gap: 15px; cursor: url("./assets/grabbing-cursor.png") 13 13, grabbing; transition: --gap 0.3s var(--spring); }   /* pointer and --pos follow exactly; only the gap springs */
+:root[data-design='material'] .gbar.m3e { height: 48px; border-radius: 0; cursor: grab; transition: --pos 0.4s var(--emph-decel); }
+:root[data-design='material'] .gbar.m3e.dragging { cursor: url("./assets/grabbing-cursor.png") 13 13, grabbing; transition: none; }   /* pointer and the fill must follow exactly */
 :root[data-design='material'] .gbar.m3e .gbar-track {
   top: 14px; height: 20px; border-radius: 10px; opacity: 1;
   box-shadow: inset 0 0 0 1px rgb(var(--mdui-color-outline-variant) / 0.4);
-  -webkit-mask: linear-gradient(90deg, #000 calc(var(--pos) - var(--gap)), transparent calc(var(--pos) - var(--gap)), transparent calc(var(--pos) + var(--gap)), #000 calc(var(--pos) + var(--gap)));
-  mask: linear-gradient(90deg, #000 calc(var(--pos) - var(--gap)), transparent calc(var(--pos) - var(--gap)), transparent calc(var(--pos) + var(--gap)), #000 calc(var(--pos) + var(--gap)));
 }
 :root[data-design='material'] .gbar.m3e.level .gbar-track {
   background: linear-gradient(90deg, rgb(var(--mdui-color-primary)) 0 var(--pos), rgb(var(--mdui-color-surface-container-highest)) var(--pos) 100%) !important;
@@ -759,18 +755,18 @@ input.text-field:focus { border-color: var(--primary); background: var(--on-bg-8
   background: rgb(var(--mdui-color-on-surface-variant) / 0.6);
 }
 :root[data-design='material'] .gbar.m3e .gbar-thumb {
-  /* our own handle: a pebble lying along the track (the chip shape), neither Material's slim
-     vertical bar nor a plain dot like the glass design */
-  width: 24px; height: 16px; margin: -8px 0 0 -12px;
+  /* our own handle: a pebble lying along the track, tall enough to cover it (no hole in the track
+     beneath it), and unlike anything in the glass design */
+  width: 28px; height: 20px; margin: -10px 0 0 -14px;
   border-radius: calc(min(var(--u), 1) * 8px); box-shadow: 0 2px 6px rgb(0 0 0 / 0.2);
   background: rgb(var(--mdui-color-primary));
   cursor: grab;
   transition: left 0.4s var(--emph-decel), width 0.2s var(--spring), height 0.2s var(--spring), margin 0.2s var(--spring), box-shadow 0.2s var(--spring);
 }
 :root[data-design='material'] .gbar.m3e.dragging .gbar-thumb {
-  /* pressed: it grows and the fixed-px radius squares it off (the buttons' press morph) and it
-     rises an elevation level; the gap opens wider around it and the colour never changes */
-  width: 28px; height: 22px; margin: -11px 0 0 -14px;
+  /* pressed: bigger, and the fixed-px radius squares it off (the buttons' press morph) with it
+     rising an elevation level. the colour never changes */
+  width: 32px; height: 24px; margin: -12px 0 0 -16px;
   box-shadow: 0 3px 10px rgb(0 0 0 / 0.28);
   cursor: url("./assets/grabbing-cursor.png") 13 13, grabbing;
   transition: width 0.2s var(--spring), height 0.2s var(--spring), margin 0.2s var(--spring), box-shadow 0.2s var(--spring);
