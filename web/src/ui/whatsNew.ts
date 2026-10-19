@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.26',
+    notes: [
+      'Material slider handle restyled: a rounded tile in your shape setting that grows, squares off and rises while pressed, with the track springing open around it',
+    ],
+  },
+
+  {
     version: '2.13.25',
     notes: [
       'Slider thumbs keep their colour while pressed and only grow taller, not wider',
