@@ -42,8 +42,8 @@ export function GradientBar(props: {
   }
   const at = (clientX: number) => {
     const r = ref.current!.getBoundingClientRect()
-    // material's track is inset by the handle's 22px reach (styles.css), so the pointer maps to that span
-    const [inset, span] = material ? [22, r.width - 44] : [0, r.width]
+    // material's track is inset by the handle's 16px reach (styles.css), so the pointer maps to that span
+    const [inset, span] = material ? [16, r.width - 32] : [0, r.width]
     return (clientX - r.left - inset) / span
   }
   // Wheel and keys finish a moment after the last nudge, like letting go of a drag.
@@ -78,7 +78,7 @@ export function GradientBar(props: {
           // grabbing the pebble: keep wherever on it you held it — it follows with that offset,
           // never snapping its centre under the finger
           const r = ref.current!.getBoundingClientRect()
-          grab.current = e.clientX - (r.left + 22 + (r.width - 44) * props.fraction)
+          grab.current = e.clientX - (r.left + 16 + (r.width - 32) * props.fraction)
         }
       }}
       onPointerMove={(e) => { if (ref.current!.hasPointerCapture(e.pointerId)) report(at(e.clientX - grab.current)) }}
@@ -111,7 +111,7 @@ export function GradientBar(props: {
           ...Object.fromEntries(props.stops.map((c, i) => [`--g${i}`, c])),
         }}
       />
-      <div className="gbar-thumb" style={{ left: material ? `calc(22px + (100% - 44px) * ${props.fraction})` : `${props.fraction * 100}%` }}>
+      <div className="gbar-thumb" style={{ left: material ? `calc(16px + (100% - 32px) * ${props.fraction})` : `${props.fraction * 100}%` }}>
         {/* material rides within the track's own inset span so the pebble never pokes past the cards */}
         <div className="gbar-dot" style={{ background: props.thumbColor }} />
       </div>
