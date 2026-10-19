@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.36',
+    notes: [
+      'Material slider handle is a lot smaller now: a 24px square that grows to 28px held',
+    ],
+  },
+
+  {
     version: '2.13.35',
     notes: [
       'Material slider handle is a square tile now, growing to 40px while held',
