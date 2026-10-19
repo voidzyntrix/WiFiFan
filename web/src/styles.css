@@ -755,19 +755,20 @@ input.text-field:focus { border-color: var(--primary); background: var(--on-bg-8
   background: rgb(var(--mdui-color-on-surface-variant) / 0.6);
 }
 :root[data-design='material'] .gbar.m3e .gbar-thumb {
-  /* our own handle: a pebble lying along the track, 4px taller than it so it fully covers the
-     colour split beneath it, and unlike anything in the glass design */
-  width: 32px; height: 24px; margin: -12px 0 0 -16px;
-  border-radius: calc(min(var(--u), 1) * 8px); box-shadow: 0 2px 6px rgb(0 0 0 / 0.2);
+  /* our own handle: a pebble lying along the track, 4px taller than the track, with a darker
+     primary edge (secondary is the one-word alternative); not Material's slim bar */
+  width: 36px; height: 24px; margin: -12px 0 0 -18px;
+  border-radius: calc(min(var(--u), 1) * 8px);
+  box-shadow: 0 0 0 1.5px color-mix(in oklab, rgb(var(--mdui-color-primary)) 60%, black), 0 2px 6px rgb(0 0 0 / 0.2);
   background: rgb(var(--mdui-color-primary));
   cursor: grab;
   transition: left 0.4s var(--emph-decel), width 0.2s var(--spring), height 0.2s var(--spring), margin 0.2s var(--spring), box-shadow 0.2s var(--spring);
 }
 :root[data-design='material'] .gbar.m3e.dragging .gbar-thumb {
   /* pressed: bigger, and the fixed-px radius squares it off (the buttons' press morph) with it
-     rising an elevation level. the colour never changes */
-  width: 36px; height: 28px; margin: -14px 0 0 -18px;
-  box-shadow: 0 3px 10px rgb(0 0 0 / 0.28);
+     rising an elevation level. the ring and the colour never change */
+  width: 40px; height: 28px; margin: -14px 0 0 -20px;
+  box-shadow: 0 0 0 1.5px color-mix(in oklab, rgb(var(--mdui-color-primary)) 60%, black), 0 3px 10px rgb(0 0 0 / 0.28);
   cursor: url("./assets/grabbing-cursor.png") 13 13, grabbing;
   transition: width 0.2s var(--spring), height 0.2s var(--spring), margin 0.2s var(--spring), box-shadow 0.2s var(--spring);
 }
