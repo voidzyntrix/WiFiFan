@@ -395,7 +395,7 @@ code { font-family: 'JetBrains Mono', monospace; font-size: 0.9em; }
   transition: left 0.4s var(--emph-decel), transform 0.15s;
 }
 .gbar.dragging .gbar-thumb { cursor: url("./assets/grabbing-cursor.png") 13 13, grabbing; transition: transform 0.15s; }
-.gbar:active .gbar-thumb { cursor: url("./assets/grabbing-cursor.png") 13 13, grabbing; transform: scale(1.12); }
+.gbar:not(.m3e):active .gbar-thumb { cursor: url("./assets/grabbing-cursor.png") 13 13, grabbing; transform: scale(1.12); }
 .gbar-dot { width: 14px; height: 14px; border-radius: var(--r-pill); transition: background 0.3s; }
 .level-slider { display: flex; flex-direction: column; gap: 10px; }
 
@@ -758,24 +758,26 @@ input.text-field:focus { border-color: var(--primary); background: var(--on-bg-8
   background: rgb(var(--mdui-color-on-surface-variant) / 0.6);
 }
 :root[data-design='material'] .gbar.m3e .gbar-thumb {
-  /* our own handle: a square tile riding the track, painted in the
-     gradient colour right beneath it, ringed 2px in a darker shade of that same track colour */
-  width: 24px; height: 24px; margin: -12px 0 0 -12px;
+  /* our own handle: a square tile riding the track, a touch lighter than the gradient colour
+     right beneath it (its contrast lift), ringed 2px in a darker shade of that same track colour */
+  width: 26px; height: 26px; margin: -13px 0 0 -13px;
   border-radius: calc(min(var(--u), 1) * 8px);
   box-shadow: 0 0 0 2px color-mix(in oklab, var(--thumb-fill, rgb(var(--mdui-color-primary))) 60%, black), 0 2px 6px rgb(0 0 0 / 0.2);
-  background: var(--thumb-fill, rgb(var(--mdui-color-primary)));
+  background: color-mix(in oklab, var(--thumb-fill, rgb(var(--mdui-color-primary))) 85%, white);
   cursor: grab;
-  transition: left 0.4s var(--emph-decel), width 0.2s var(--spring), height 0.2s var(--spring), margin 0.2s var(--spring), box-shadow 0.2s var(--spring);
+  transition: left 0.4s var(--emph-decel), width 0.2s var(--spring), height 0.2s var(--spring), margin 0.2s var(--spring), box-shadow 0.2s var(--spring), transform 0.3s var(--spring);
 }
 :root[data-design='material'] .gbar.m3e.dragging .gbar-thumb {
-  /* pressed: bigger, and the fixed-px radius squares it off (the buttons' press morph) with it
-     rising an elevation level. the ring stays a darker shade of the fill's track colour */
-  width: 28px; height: 28px; margin: -14px 0 0 -14px;
+  /* pressed: bigger, the fixed-px radius squares it off (the buttons' press morph) with it
+     rising an elevation level, and it springs a 45° diamond turn on the same material spring.
+     the ring stays a darker shade of the track colour beneath */
+  width: 30px; height: 30px; margin: -15px 0 0 -15px;
+  transform: rotate(45deg);
   box-shadow: 0 0 0 2px color-mix(in oklab, var(--thumb-fill, rgb(var(--mdui-color-primary))) 60%, black), 0 3px 10px rgb(0 0 0 / 0.28);
   cursor: url("./assets/grabbing-cursor.png") 13 13, grabbing;
-  transition: width 0.2s var(--spring), height 0.2s var(--spring), margin 0.2s var(--spring), box-shadow 0.2s var(--spring);
+  transition: width 0.2s var(--spring), height 0.2s var(--spring), margin 0.2s var(--spring), box-shadow 0.2s var(--spring), transform 0.3s var(--spring);
 }
-:root[data-design='material'] .gbar.m3e:active .gbar-thumb { cursor: url("./assets/grabbing-cursor.png") 13 13, grabbing; transform: none; }
+:root[data-design='material'] .gbar.m3e:active .gbar-thumb { cursor: url("./assets/grabbing-cursor.png") 13 13, grabbing; }
 :root[data-design='material'] .gbar.m3e .gbar-dot { display: none; }
 :root[data-design='material'] .gbar.m3e:focus-visible { outline: 2px solid rgb(var(--mdui-color-secondary)); outline-offset: 4px; border-radius: 12px; }
 
