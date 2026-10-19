@@ -2,6 +2,14 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.45',
+    notes: [
+      'The switcher\'s icons now sit exactly in the middle of their buttons.',
+      'Material slider: the track is a much slimmer 12px.',
+    ],
+  },
+
+  {
     version: '2.13.44',
     notes: [
       'The Colour, Modes, Scenes and mode-options tabs are now a bottom switcher: round icon buttons, the chosen one grows into a labelled pill (keys C / M / S / T too).',
