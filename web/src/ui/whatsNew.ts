@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.24',
+    notes: [
+      'Material slider thumbs stretch to 40px while pressed',
+    ],
+  },
+
+  {
     version: '2.13.23',
     notes: [
       'Grabbing cursor no longer upside down: the bitmap\'s rows were decoded wrong',
