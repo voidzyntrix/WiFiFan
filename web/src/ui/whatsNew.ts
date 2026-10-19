@@ -2,6 +2,16 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.50',
+    notes: [
+      'The deck switcher now keeps every segment in place — the active one only lights up with its label.',
+      'The brightness card is a bit slimmer.',
+      'Mode tiles and scene tiles are the same compact size and style now (scenes use the modes\' buttons).',
+      'The solar card is the height of the other cards and scrolls inside, so the bottom preview buttons stay reachable.',
+    ],
+  },
+
+  {
     version: '2.13.49',
     notes: [
       'The brightness bar is now a slim 8px gauge — the other sliders keep their 12px tracks.',
