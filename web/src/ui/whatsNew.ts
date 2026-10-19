@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.33',
+    notes: [
+      'Material slider pebble edge is the darker primary again (2px), and the handle stays inside the cards at every value',
+    ],
+  },
+
+  {
     version: '2.13.32',
     notes: [
       'Material slider pebble edge is now the secondary colour, constant while the fill follows the gradient',
