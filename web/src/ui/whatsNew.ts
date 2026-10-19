@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.34',
+    notes: [
+      'Slider grabs no longer snap: the pebble keeps wherever you held it, and its edge is a darker shade of the colour under it',
+    ],
+  },
+
+  {
     version: '2.13.33',
     notes: [
       'Material slider pebble edge is the darker primary again (2px), and the handle stays inside the cards at every value',
