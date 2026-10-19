@@ -215,7 +215,7 @@ export function ControlScreen(props: ControlScreenProps) {
                     render={(sc) => (
                       <Chip
                         key={sc.id}
-                        className="chip scene"
+                        className="menu-item scene"
                         label={sc.name}
                         selected={sc.id === c.selectedSceneId}
                         title={`${sc.name} · right-click / long press for options`}
@@ -227,7 +227,7 @@ export function ControlScreen(props: ControlScreenProps) {
                     tail={
                       <Chip
                         assist
-                        className={'chip add' + (c.canSaveScene ? '' : ' disabled')}
+                        className={'menu-item add' + (c.canSaveScene ? '' : ' disabled')}
                         label="Save"
                         title="Save the current light as a scene"
                         icon={<AddIcon />}

@@ -206,14 +206,13 @@ code { font-family: 'JetBrains Mono', monospace; font-size: 0.9em; }
 .control-preview .led-disc { max-height: 340px; }
 @container (max-height: 170px) { .mode-name, .preview-links { display: none; } }
 .control-deck { flex: none; display: flex; flex-direction: column; gap: 10px; min-height: 0; }
-.brightness-panel { padding: 12px 16px; gap: 8px; }
+.brightness-panel { padding: 8px 16px; gap: 6px; }
 .deck-panel { height: clamp(272px, 44dvh, 340px); padding: 14px 16px; overflow: hidden; }
 .deck { display: flex; flex-direction: column; gap: 12px; --gap: 12px; height: 100%; min-height: 0; }
 .deck.scenes { gap: 0; }
 .deck.tune { gap: 12px; }
 .deck.colour { justify-content: center; }
-/* Solar has a lot to show (sign-in, live data, grid-loss settings): its card is taller and scrolls inside */
-.deck-panel:has(.deck.solar) { height: clamp(300px, 42dvh, 440px); }   /* phones: the light preview above keeps its room */
+/* Solar has a lot to show (sign-in, live data, grid-loss settings): it scrolls inside the normal card */
 .deck.solar { overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; padding-bottom: 18px; -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent); }   /* the fade says there is more below */
 .deck.solar > * { flex: none; }
 .deck.colour, .deck.colour .stack, .deck.colour .swap.stack > .swap-in, .deck.colour .swap.stack > .swap-out { gap: 8px; --gap: 8px; }
@@ -223,7 +222,6 @@ code { font-family: 'JetBrains Mono', monospace; font-size: 0.9em; }
   .control-preview { flex: 1.05 1 0; min-width: 0; justify-content: center; }
   .control-deck { flex: 1 1 0; min-width: 0; align-self: center; max-width: 560px; }
   .deck-panel { height: clamp(280px, 44dvh, 380px); }
-  .deck-panel:has(.deck.solar) { height: clamp(380px, 72dvh, 680px); }   /* the preview is beside it here: more room */
 }
 /* short phones: brightness shares a row with its label */
 @media (max-height: 700px) and (max-width: 899px) {
@@ -234,12 +232,12 @@ code { font-family: 'JetBrains Mono', monospace; font-size: 0.9em; }
   .control-body { gap: 8px; }
 }
 
-/* modes: the groups share the height, their buttons stretch (never squashed) */
+/* modes: the groups share the height, their buttons stay the one scene-tile size (40 px) */
 .deck.modes { gap: 8px; }
 .mode-group { flex: var(--rows, 1) 1 0; min-height: 0; display: flex; flex-direction: column; gap: 4px; }
 .menu-title { flex: none; font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--on-bg-55); padding: 0 4px; }
-.menu-grid { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: repeat(var(--rows, 1), minmax(34px, 1fr)); gap: 6px; }
-.menu-grid > * { min-width: 0; min-height: 0; height: 100%; max-height: 64px; align-self: center; }
+.menu-grid { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: repeat(var(--rows, 1), minmax(34px, 40px)); align-content: center; gap: 6px; }
+.menu-grid > * { min-width: 0; min-height: 0; height: 40px; }
 
 /* ── Pages (lists that never scroll) ───────────────────────── */
 
@@ -258,8 +256,8 @@ code { font-family: 'JetBrains Mono', monospace; font-size: 0.9em; }
 .deck .presets .preset { width: auto; height: auto; flex: 0 1 30px; aspect-ratio: 1; min-width: 0; }
 
 /* scenes fill their page cell */
-.deck.scenes .chip { width: 100%; height: 40px; min-width: 0; }
-.deck.scenes .chip.add { justify-content: center; gap: 6px; }
+.deck.scenes .menu-item { width: 100%; height: 40px; min-width: 0; }
+.deck.scenes .menu-item.add { justify-content: center; gap: 6px; }
 
 /* ── The device list ───────────────────────────────────────── */
 
@@ -319,8 +317,8 @@ code { font-family: 'JetBrains Mono', monospace; font-size: 0.9em; }
 
 /* list items on their way out (and the generic way in) */
 .leaving { pointer-events: none; }
-.chip.scene { animation: item-in 0.42s var(--emph-decel) both; }
-.chip.scene.leaving { overflow: hidden; animation: chip-out 0.3s var(--emph-accel) forwards; }
+.menu-item.scene { animation: item-in 0.42s var(--emph-decel) both; }
+.menu-item.scene.leaving { overflow: hidden; animation: chip-out 0.3s var(--emph-accel) forwards; }
 .board-tile, .nearby-row { animation: item-in 0.42s var(--emph-decel) both; }
 .board-tile.leaving, .nearby-row.leaving { animation: item-out 0.3s var(--emph-accel) forwards; }
 @keyframes item-in { from { opacity: 0; transform: scale(0.92); } }
@@ -616,19 +614,17 @@ button.pill-button:disabled { opacity: 0.4; }
 .progress-fill.indeterminate { width: 35%; animation: indet 1.2s ease-in-out infinite; }
 @keyframes indet { from { transform: translateX(-100%); } to { transform: translateX(290%); } }
 
-button.chip, button.menu-item {
+button.menu-item {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 0 6px; border-radius: var(--r-lg);
   background: var(--on-bg-7); color: var(--on-bg-85); font-weight: 500;
   transition: var(--t), transform 0.15s;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
 }
-button.chip { height: 40px; padding: 0 14px 0 10px; border-radius: calc(var(--u) * 20px); }
-button.menu-item { padding: 0 6px; border-radius: var(--r-lg); }
-button.chip:hover:not(:disabled), button.menu-item:hover:not(:disabled) { background: var(--on-bg-12); }
-button.chip:active:not(:disabled), button.menu-item:active:not(:disabled) { transform: scale(0.95); }
-button.chip.selected, button.menu-item.selected { background: var(--active); color: var(--on-active); font-weight: 600; }
-button.chip.add { background: transparent; border: 1px solid var(--on-bg-14); color: var(--on-bg-70); }
-button.chip.add.disabled, button.menu-item:disabled { opacity: 0.4; }
+button.menu-item:hover:not(:disabled) { background: var(--on-bg-12); }
+button.menu-item:active:not(:disabled) { transform: scale(0.95); }
+button.menu-item.selected { background: var(--active); color: var(--on-active); font-weight: 600; }
+button.menu-item:disabled { opacity: 0.4; }
 .chip-text { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .scrim { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 16px; background: rgb(0 0 0 / 0.4); animation: fade-in 0.25s; }
@@ -676,13 +672,13 @@ input.text-field:focus { border-color: var(--primary); background: var(--on-bg-8
    tonal cards with big shapes, and colourful container tiles. */
 /* no ripple in Material You: mdui draws its click wave and hover/press layers from these opacities, so zero them
    on every mdui widget (the outer page's rule wins over the widget's own). Keyboard focus keeps a plain ring. */
-:root[data-design='material'] :is(mdui-button, mdui-button-icon, mdui-chip, mdui-fab, mdui-tab, mdui-tabs, mdui-list-item, mdui-switch, mdui-segmented-button, mdui-segmented-button-group, mdui-card, mdui-text-field, mdui-dialog, mdui-linear-progress) {
+:root[data-design='material'] :is(mdui-button, mdui-button-icon, mdui-chip, mdui-fab, mdui-list-item, mdui-switch, mdui-segmented-button, mdui-segmented-button-group, mdui-card, mdui-text-field, mdui-dialog, mdui-linear-progress) {
   --mdui-state-layer-hover: 0 !important;
   --mdui-state-layer-focus: 0 !important;
   --mdui-state-layer-pressed: 0 !important;
   --mdui-state-layer-dragged: 0 !important;
 }
-:root[data-design='material'] :is(mdui-button, mdui-button-icon, mdui-chip, mdui-fab, mdui-tab, mdui-list-item, mdui-switch, mdui-segmented-button):focus-visible {
+:root[data-design='material'] :is(mdui-button, mdui-button-icon, mdui-chip, mdui-fab, mdui-list-item, mdui-switch, mdui-segmented-button):focus-visible {
   outline: 2px solid rgb(var(--mdui-color-secondary));
   outline-offset: 2px;
 }
@@ -803,11 +799,11 @@ input.text-field:focus { border-color: var(--primary); background: var(--on-bg-8
    (a Material You toolbar morph). One DOM for both designs; the colours and corners differ below */
 .decknav { display: flex; gap: 6px; height: 44px; flex: none; }
 .decknav .opt {
-  flex: 0 0 44px; min-width: 0; height: 100%;
+  flex: 1 1 0; min-width: 0; height: 100%;
   display: inline-flex; align-items: center; justify-content: center; gap: 0; padding: 0;
   border-radius: calc(var(--u) * 22px);
   background: var(--on-bg-6); color: var(--on-bg-70);
-  transition: var(--t), transform 0.15s var(--emph), border-radius 0.25s var(--spring), flex 0.4s var(--emph-decel), gap 0.3s;
+  transition: var(--t), transform 0.15s var(--emph), border-radius 0.25s var(--spring), gap 0.3s;
 }
 .decknav .opt svg { flex: none; }
 .decknav .lab {
@@ -816,8 +812,8 @@ input.text-field:focus { border-color: var(--primary); background: var(--on-bg-8
   transition: max-width 0.4s var(--emph-decel), opacity 0.25s;
 }
 .decknav .opt:hover:not(.on) { background: var(--on-bg-12); }
-.decknav .opt:active:not(.on) { transform: scale(0.92); }
-.decknav .opt.on { flex: 1 1 0; gap: 8px; background: var(--active); color: var(--on-active); }
+.decknav .opt:active:not(.on) { transform: scale(0.96); }
+.decknav .opt.on { gap: 8px; background: var(--active); color: var(--on-active); }
 .decknav .opt.on .lab { max-width: 150px; opacity: 1; }
 
 /* connected button group */
@@ -938,8 +934,7 @@ mdui-chip.menu-item::part(selected-icon) { display: none; }   /* the check mark 
 /* the chip's inner row shrinks to its content and hugs the left edge in the stretched tiles — fill the tile and centre it */
 mdui-chip.menu-item::part(button) { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; box-sizing: border-box; }
 mdui-chip.menu-item::part(label) { padding: 0 6px; }
-mdui-chip.chip.scene, mdui-chip.chip { width: 100%; }
-mdui-chip.chip.add.disabled { opacity: 0.45; }
+mdui-chip.menu-item { width: 100%; }
 mdui-slider.md-slider { width: 100%; }
 .md-dialog { --mdui-shape-corner-extra-large: var(--r-xl); padding: 16px; }
 .md-dialog::part(panel) { min-width: min(320px, calc(100vw - 32px)); max-width: min(400px, calc(100vw - 32px)); }
