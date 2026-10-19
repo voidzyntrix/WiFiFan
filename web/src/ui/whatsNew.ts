@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.47',
+    notes: [
+      'Tab switches: the outgoing panel now fades away as quickly as when screens change, so it no longer lingers under the incoming one.',
+    ],
+  },
+
+  {
     version: '2.13.46',
     notes: [
       'Switching Colour / Modes / Scenes / the mode options now slides the deck along the tab order — the same shared-axis motion as screen navigation, forward when moving right and back when moving left.',
