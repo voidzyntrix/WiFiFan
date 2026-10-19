@@ -737,12 +737,14 @@ input.text-field:focus { border-color: var(--primary); background: var(--on-bg-8
 :root[data-design='material'] mdui-fab { --shape-corner: 16px; }
 :root[data-design='material'] mdui-fab:active { --shape-corner: 24px; }
 
-/* the expressive slider: 16 px two-tone track, a gap either side of a slim bar handle, stop dot at the end */
-/* --pos is registered so it can transition: the track gap and two-tone fill then glide with the thumb's
-   own left transition (identical timing), instead of teleporting while the thumb still animates there */
+/* the expressive slider: 20 px two-tone track, a gap either side of the handle, stop dot at the end */
+/* --pos and --gap are registered so they can transition: the track gap and two-tone fill then glide
+   with the thumb's own left transition (identical timing), instead of teleporting while the thumb
+   still animates there; while dragging the gap springs open with the raised handle. */
 @property --pos { syntax: '<percentage>'; inherits: true; initial-value: 0%; }
-:root[data-design='material'] .gbar.m3e { height: 48px; border-radius: 0; --gap: 10px; cursor: grab; transition: --pos 0.4s var(--emph-decel); }
-:root[data-design='material'] .gbar.m3e.dragging { cursor: url("./assets/grabbing-cursor.png") 13 13, grabbing; transition: none; }   /* pointer must be the solid hand and follow exactly */
+@property --gap { syntax: '<length>'; inherits: true; initial-value: 13px; }
+:root[data-design='material'] .gbar.m3e { height: 48px; border-radius: 0; --gap: 13px; cursor: grab; transition: --pos 0.4s var(--emph-decel), --gap 0.3s var(--spring); }
+:root[data-design='material'] .gbar.m3e.dragging { --gap: 15px; cursor: url("./assets/grabbing-cursor.png") 13 13, grabbing; transition: --gap 0.3s var(--spring); }   /* pointer and --pos follow exactly; only the gap springs */
 :root[data-design='material'] .gbar.m3e .gbar-track {
   top: 14px; height: 20px; border-radius: 10px; opacity: 1;
   box-shadow: inset 0 0 0 1px rgb(var(--mdui-color-outline-variant) / 0.4);
@@ -757,17 +759,20 @@ input.text-field:focus { border-color: var(--primary); background: var(--on-bg-8
   background: rgb(var(--mdui-color-on-surface-variant) / 0.6);
 }
 :root[data-design='material'] .gbar.m3e .gbar-thumb {
-  width: 12px; height: 32px; margin: -16px 0 0 -6px;
-  border-radius: calc(min(var(--u), 1) * 6px); box-shadow: 0 2px 6px rgb(0 0 0 / 0.2);
+  /* our own handle: a rounded tile on the shape scale, not Material's slim vertical bar */
+  width: 22px; height: 22px; margin: -11px 0 0 -11px;
+  border-radius: calc(min(var(--u), 1) * 10px); box-shadow: 0 2px 6px rgb(0 0 0 / 0.2);
   background: rgb(var(--mdui-color-primary));
   cursor: grab;
-  transition: left 0.4s var(--emph-decel), height 0.2s var(--spring), width 0.2s var(--spring), margin 0.2s var(--spring), border-radius 0.2s var(--spring), background-color 0.2s var(--spring);
+  transition: left 0.4s var(--emph-decel), width 0.2s var(--spring), height 0.2s var(--spring), margin 0.2s var(--spring), box-shadow 0.2s var(--spring);
 }
 :root[data-design='material'] .gbar.m3e.dragging .gbar-thumb {
-  /* pressed: the pill lengthens but keeps its Material You colour and width (only height changes) */
-  height: 40px; margin: -20px 0 0 -6px;
+  /* pressed: it grows evenly and squares off (radius stays fixed in px, so the corners steepen —
+     the buttons' own press morph), rises an elevation level; the colour never changes */
+  width: 26px; height: 26px; margin: -13px 0 0 -13px;
+  box-shadow: 0 3px 10px rgb(0 0 0 / 0.28);
   cursor: url("./assets/grabbing-cursor.png") 13 13, grabbing;
-  transition: height 0.2s var(--spring), margin 0.2s var(--spring);
+  transition: width 0.2s var(--spring), height 0.2s var(--spring), margin 0.2s var(--spring), box-shadow 0.2s var(--spring);
 }
 :root[data-design='material'] .gbar.m3e:active .gbar-thumb { cursor: url("./assets/grabbing-cursor.png") 13 13, grabbing; transform: none; }
 :root[data-design='material'] .gbar.m3e .gbar-dot { display: none; }
