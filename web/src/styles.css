@@ -764,9 +764,10 @@ input.text-field:focus { border-color: var(--primary); background: var(--on-bg-8
   transition: left 0.4s var(--emph-decel), height 0.2s var(--spring), width 0.2s var(--spring), margin 0.2s var(--spring), border-radius 0.2s var(--spring), background-color 0.2s var(--spring);
 }
 :root[data-design='material'] .gbar.m3e.dragging .gbar-thumb {
-  width: 16px; height: 40px; margin: -20px 0 0 -8px;
-  border-radius: calc(min(var(--u), 1) * 8px); background-color: rgb(var(--mdui-color-outline)); cursor: url("./assets/grabbing-cursor.png") 13 13, grabbing;
-  transition: width 0.2s var(--spring), height 0.2s var(--spring), margin 0.2s var(--spring), border-radius 0.2s var(--spring), background-color 0.2s var(--spring);
+  /* pressed: the pill lengthens but keeps its Material You colour and width (only height changes) */
+  height: 40px; margin: -20px 0 0 -6px;
+  cursor: url("./assets/grabbing-cursor.png") 13 13, grabbing;
+  transition: height 0.2s var(--spring), margin 0.2s var(--spring);
 }
 :root[data-design='material'] .gbar.m3e:active .gbar-thumb { cursor: url("./assets/grabbing-cursor.png") 13 13, grabbing; transform: none; }
 :root[data-design='material'] .gbar.m3e .gbar-dot { display: none; }
