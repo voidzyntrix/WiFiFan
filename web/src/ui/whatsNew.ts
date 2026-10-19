@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.25',
+    notes: [
+      'Slider thumbs keep their colour while pressed and only grow taller, not wider',
+    ],
+  },
+
+  {
     version: '2.13.24',
     notes: [
       'Material slider thumbs stretch to 40px while pressed',
