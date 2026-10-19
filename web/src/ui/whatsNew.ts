@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.42',
+    notes: [
+      'The material slider strip now joins the rubber band at half the handle\'s pull, and the handle gained a small shadow beneath it',
+    ],
+  },
+
+  {
     version: '2.13.41',
     notes: [
       'The material slider handle is a rubber band now: drag it past either end and it drifts a little outward, springing back home on release',
