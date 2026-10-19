@@ -381,8 +381,9 @@ code { font-family: 'JetBrains Mono', monospace; font-size: 0.9em; }
   border-radius: calc(min(var(--u), 1) * 7px);
   opacity: 0.9;
   transition:
+    transform 0.15s var(--spring),
     --g0 0.3s, --g1 0.3s, --g2 0.3s, --g3 0.3s, --g4 0.3s, --g5 0.3s, --g6 0.3s, --g7 0.3s, --g8 0.3s,
-    border-radius 0.45s var(--emph-decel), opacity 0.3s;
+    border-radius 0.45s var(--emph-decel), opacity 0.3s;   /* the lean slides, never snaps into the clamp */
 }
 .gbar-thumb {
   position: absolute; top: 50%; width: 28px; height: 28px; margin: -14px 0 0 -14px;
@@ -750,9 +751,9 @@ input.text-field:focus { border-color: var(--primary); background: var(--on-bg-8
 :root[data-design='material'] .gbar.m3e.dragging { cursor: url("./assets/grabbing-cursor.png") 13 13, grabbing; transition: --track-pos 0.5s var(--spring); }   /* pointer and the fill must follow exactly; the strip keeps chasing on its spring */
 :root[data-design='material'] .gbar.m3e .gbar-track {
   /* inset by the handle's reach so the square stays inside the cards at 0 and 100; the lean is the
-     instantaneous gap between the handle and its chaser, clamped to a nudge */
+     instantaneous gap between the handle and its chaser, clamped to a ±2% nudge */
   left: 16px; right: 16px; top: 14px; height: 20px; border-radius: 10px; opacity: 1;
-  transform: translateX(clamp(-4%, calc(var(--pos) - var(--track-pos)), 4%));
+  transform: translateX(clamp(-2%, calc(var(--pos) - var(--track-pos)), 2%));
   box-shadow: inset 0 0 0 1px rgb(var(--mdui-color-outline-variant) / 0.4);
 }
 :root[data-design='material'] .gbar.m3e.level .gbar-track {
