@@ -307,11 +307,12 @@ code { font-family: 'JetBrains Mono', monospace; font-size: 0.9em; }
 .swap.stack > .swap-in, .swap.stack > .swap-out { display: flex; flex-direction: column; gap: 12px; --gap: 12px; }
 @keyframes swap-in { from { opacity: 0; transform: translateY(12px); } }
 @keyframes swap-out { to { opacity: 0; transform: translateY(-8px) scale(0.98); } }
-/* directed swaps (the deck's tab switches) slide like the screens do, along the deck's order */
+/* directed swaps (the deck's tab switches) slide like the screens do, along the deck's order —
+   and the old panel leaves as fast as a screen does, so it never lingers over the incoming one */
 .swap.fwd .swap-in.changed { animation-name: sa-in-fwd; }
 .swap.back .swap-in.changed { animation-name: sa-in-back; }
-.swap.fwd > .swap-out { animation-name: sa-out-fwd; }
-.swap.back > .swap-out { animation-name: sa-out-back; }
+.swap.fwd > .swap-out { animation: sa-out-fwd 0.12s var(--emph-accel) forwards; }
+.swap.back > .swap-out { animation: sa-out-back 0.12s var(--emph-accel) forwards; }
 .stack { display: flex; flex-direction: column; gap: 12px; --gap: 12px; }
 
 /* text that changed */
