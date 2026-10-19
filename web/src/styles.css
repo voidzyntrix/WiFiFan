@@ -48,8 +48,6 @@
 @property --on-bg-85 { syntax: '<color>'; inherits: true; initial-value: transparent; }
 @property --u { syntax: '<number>'; inherits: true; initial-value: 1; }
 @property --led-radius { syntax: '<percentage>'; inherits: true; initial-value: 50%; }
-/* the material slider's handle corner (theme.ts): px below Large, a full circle from Large up */
-@property --thumb-r { syntax: '<length-percentage>'; inherits: true; initial-value: 8px; }
 /* the colour stops of a slider's gradient (Controls.tsx), so a new colour slides in */
 @property --g0 { syntax: '<color>'; inherits: false; initial-value: transparent; }
 @property --g1 { syntax: '<color>'; inherits: false; initial-value: transparent; }
@@ -100,7 +98,7 @@
     --on-bg-4 0.5s, --on-bg-5 0.5s, --on-bg-6 0.5s, --on-bg-7 0.5s, --on-bg-8 0.5s, --on-bg-10 0.5s, --on-bg-12 0.5s,
     --on-bg-14 0.5s, --on-bg-18 0.5s, --on-bg-30 0.5s, --on-bg-45 0.5s, --on-bg-50 0.5s, --on-bg-55 0.5s,
     --on-bg-60 0.5s, --on-bg-70 0.5s, --on-bg-85 0.5s,
-    --u 0.45s var(--emph-decel), --led-radius 0.45s var(--emph-decel), --thumb-r 0.45s var(--emph-decel);
+    --u 0.45s var(--emph-decel), --led-radius 0.45s var(--emph-decel);
 }
 :root[data-theme='light'] { color-scheme: light; }
 :root[data-effects='light'] { --mb: 0px; }
@@ -775,7 +773,9 @@ input.text-field:focus { border-color: var(--primary); background: var(--on-bg-8
      right beneath it (its contrast lift), ringed 2px in a darker shade of that same track colour */
   width: 26px; height: 26px; margin: -13px 0 0 -13px;
   transform: translateX(var(--over, 0px));
-  border-radius: var(--thumb-r, 8px);
+  /* it rounds like every control does: the radius unit is half the tile's size, so it is a full
+     circle from Medium up and squares off as the corner scale lowers (press squishes it back) */
+  border-radius: calc(var(--u) * 13px);
   box-shadow: 0 0 0 2px color-mix(in oklab, var(--thumb-fill, rgb(var(--mdui-color-primary))) 60%, black), 0 2px 6px rgb(0 0 0 / 0.2), 0 5px 7px -2px rgb(0 0 0 / 0.3);
   background: color-mix(in oklab, var(--thumb-fill, rgb(var(--mdui-color-primary))) 85%, white);
   cursor: grab;
