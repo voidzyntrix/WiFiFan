@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.29',
+    notes: [
+      'Material slider handle is now 4px taller than the track',
+    ],
+  },
+
+  {
     version: '2.13.28',
     notes: [
       'Material slider: a bigger pebble handle riding a continuous track - no gap opens beneath it',
