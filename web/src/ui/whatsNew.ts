@@ -2,6 +2,18 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.56',
+    notes: [
+      'The ring is here: Colour gets a Linked / Individual switcher and the preview draws the 24-dot ring, one clickable dot per pixel.',
+      'New Spinner board mode (firmware 2.0.0+) with hue, saturation, brightness and a seconds-per-turn slider.',
+      'Rainbow speed is a slider now (2-120 s a turn); the wheel rainbow needs firmware 2.0.0+.',
+      'The candle style choice is hidden on firmware 2.0.0+: every flame is its own.',
+      'Fixed the update dialog flipping back to Check for Updates one second after finding an update.',
+      'The demo board now speaks virtual firmware 2.0.0.',
+    ],
+  },
+
+  {
     version: '2.13.55',
     notes: [
       'The device name now opens a menu with Firmware and Reset (the pencil lives in the menu\'s title)',
