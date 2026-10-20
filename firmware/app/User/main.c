@@ -85,7 +85,7 @@
 
 #define WS_USE_DMA   0               /* 1 = timer + DMA, 0 = polled SysTick */
 
-#define FW_VERSION   "2.1.2"     /* reported by "ver"; bump for each release */
+#define FW_VERSION   "2.1.3"     /* reported by "ver"; bump for each release */
 
 #define START_BAUD   115200          /* used until a baud rate has been detected */
 
@@ -860,6 +860,22 @@ static void spin_frame(uint32_t t)
     }
 }
 
+/* Candle output (2.1.3): the flame colour is worked out at full brightness and then
+ * scaled as a whole by the gamma-corrected level. Gamma on each channel of a dim
+ * flame rounds the channels apart (pink, and a flicker as they step), so the hue
+ * is kept by scaling the colour instead. */
+static void candle_out(uint8_t px[RING_PIXELS][3])
+{
+    for (int i = 0; i < RING_PIXELS; i++) {
+        hsv_t   full = L[i].shown;
+        uint8_t rgb[3];
+        full.v = 255;
+        hsv_to_rgb(full, rgb);
+        uint32_t level = ((uint32_t)gamma8[L[i].shown.v] * sleep_k) >> 8;
+        for (int c = 0; c < 3; c++) px[i][c] = (uint8_t)((rgb[c] * level + 127u) / 255u);
+    }
+}
+
 static void led_poll(void)
 {
     uint32_t t     = now();
@@ -974,7 +990,8 @@ static void led_poll(void)
             if (L[i].fading || anim) hsv_to_rgb(L[i].shown, px[i]);
             else memcpy(px[i], L[i].target_rgb, 3);    /* settled: exact requested RGB */
         }
-        ws_set((const uint8_t (*)[3])px);
+        if (candle) { candle_out(px); ws_write((const uint8_t (*)[3])px); }
+        else        ws_set((const uint8_t (*)[3])px);
         dirty = 0;
         last_frame = t;
     }
