@@ -30,8 +30,9 @@
  * application that looks valid: the board just stays here and the update can
  * be retried.
  *
- * LED (WS2812 on PB3): dim blue = waiting, cyan/blue blink = receiving,
- * green = done, red = error.
+ * LED (WS2812 ring of 24 on PB3): dim blue = waiting, a white arc turns round the
+ * ring while receiving (at the brightness the app last sent, BKP_DR4), green = done,
+ * red = error.
  *
  * No interrupts are used except the software interrupt that jumps to the app.
  */
@@ -51,6 +52,7 @@
 #define BKP_REQ        BKP_DR1                     /* OTA_MAGIC = "stay in bootloader" */
 #define BKP_BAUD       BKP_DR2                     /* UART baud / 100 */
 #define BKP_RESETS     BKP_DR3                     /* quick-reset counter (safe mode) */
+#define BKP_BRIGHT     BKP_DR4                     /* last brightness the app sent (0-255) */
 #define OTA_MAGIC      0xB007
 
 #define SAFE_RESETS    3                           /* resets within the window -> safe mode */
@@ -109,6 +111,12 @@ static void jump_to_app(void)
 #define WS_HIGH()    (GPIOB->BSHR = GPIO_Pin_3)
 #define WS_LOW()     (GPIOB->BCR  = GPIO_Pin_3)
 #define DIM          0x10
+#define RING         24                 /* WS2812s on the ring */
+#define ARC          8                  /* lit pixels in the receiving arc */
+#define SPIN_MS      60                 /* one step of the arc, ms (24 steps a turn) */
+
+static uint8_t spin_pos;                /* head of the receiving arc, 0..RING-1 */
+static uint32_t spin_t;                 /* when the arc last stepped */
 
 static void ws_init(void)
 {
@@ -142,6 +150,36 @@ static void ws_set(uint8_t r, uint8_t g, uint8_t b)
     WS_LOW();
     uint32_t t0 = now();
     while ((uint32_t)(now() - t0) < 100 * TICKS_PER_US);   /* >80 us reset */
+}
+
+/* The whole ring, one colour per pixel (GRB, pixel 0 first). */
+static void ws_frame(const uint8_t px[RING][3])
+{
+    for (int i = 0; i < RING; i++) {
+        ws_send_byte(px[i][1]);
+        ws_send_byte(px[i][0]);
+        ws_send_byte(px[i][2]);
+    }
+    WS_LOW();
+    uint32_t t0 = now();
+    while ((uint32_t)(now() - t0) < 100 * TICKS_PER_US);   /* >80 us reset */
+}
+
+/* One step of the receiving arc: ARC white pixels, the rest dark, at the last
+ * brightness the app sent (BKP_DR4); 0 or unset falls back to a dim level. */
+static void spin_step(void)
+{
+    uint16_t bright = BKP_ReadBackupRegister(BKP_BRIGHT) & 0xFF;
+    uint8_t  v = bright ? (uint8_t)bright : 0x40;
+    uint8_t  px[RING][3];
+
+    for (int p = 0; p < RING; p++) {
+        uint8_t behind = (uint8_t)((spin_pos + RING - p) % RING);
+        uint8_t on = behind < ARC ? v : 0;
+        px[p][0] = px[p][1] = px[p][2] = on;     /* white */
+    }
+    ws_frame((const uint8_t (*)[3])px);
+    spin_pos = (uint8_t)((spin_pos + 1) % RING);
 }
 
 /* ------------------------------------------------------------ serial --- */
@@ -345,7 +383,7 @@ static void cmd_start(const uint8_t *p, uint16_t len)
     expected = 0;
     started  = 1;
     reply("OK,START");
-    ws_set(0, DIM, DIM);
+    spin_t = now();
 }
 
 static void cmd_data(const uint8_t *p, uint16_t len)
@@ -377,7 +415,6 @@ static void cmd_data(const uint8_t *p, uint16_t len)
 
     expected++;
     reply_n("OK,", seq);
-    ws_set(0, (seq & 1) ? DIM : 0, DIM);           /* blink cyan/blue */
 }
 
 static void cmd_end(void)
@@ -464,6 +501,11 @@ static void update_mode(void)
 
     while (1) {
         uint32_t t = now();
+
+        if (started && (uint32_t)(t - spin_t) >= SPIN_MS * TICKS_PER_MS) {
+            spin_t = t;
+            spin_step();                           /* receiving: the arc turns */
+        }
 
         uint32_t nb = ab_poll();
         if (nb) {

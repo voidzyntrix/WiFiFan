@@ -85,7 +85,7 @@
 
 #define WS_USE_DMA   0               /* 1 = timer + DMA, 0 = polled SysTick */
 
-#define FW_VERSION   "2.1.3"     /* reported by "ver"; bump for each release */
+#define FW_VERSION   "2.1.4"     /* reported by "ver"; bump for each release */
 
 #define START_BAUD   115200          /* used until a baud rate has been detected */
 
@@ -95,6 +95,7 @@
  * this firmware start at the right speed. */
 #define BKP_REQ      BKP_DR1         /* OTA_MAGIC = "stay in the bootloader" */
 #define BKP_BAUD     BKP_DR2         /* UART baud / 100 */
+#define BKP_BRIGHT   BKP_DR4         /* last brightness (0-255) for the bootloader's receiving arc */
 #define OTA_MAGIC    0xB007
 #define STR2(x)      #x
 #define STR(x)       STR2(x)
@@ -597,7 +598,10 @@ static void fade_led(uint8_t i, hsv_t to, const uint8_t rgb[3])
     memcpy(d->target_rgb, rgb, 3);
     d->fade_from = d->shown;
     d->fade_to   = to;
-    if (to.v) last_v = to.v;                /* rainbow reuses this brightness */
+    if (to.v && to.v != last_v) {
+        last_v = to.v;                      /* rainbow reuses this brightness */
+        BKP_WriteBackupRegister(BKP_BRIGHT, last_v);   /* the bootloader's arc uses it */
+    }
 
     /* Black and greys have no hue: borrow it from the other end, so fading
      * up from off, down to off, or to/from white doesn't sweep the wheel. */
