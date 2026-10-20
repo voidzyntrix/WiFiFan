@@ -320,6 +320,9 @@ code { font-family: 'JetBrains Mono', monospace; font-size: 0.9em; }
 .leaving { pointer-events: none; }
 .menu-item.scene { animation: item-in 0.42s var(--emph-decel) both; }
 .menu-item.scene.leaving { overflow: hidden; animation: chip-out 0.3s var(--emph-accel) forwards; }
+/* a directed deck swap holds the incoming panel a beat before the reveal — its intro animations
+   wait too, and play fresh when the panel actually appears, as they never run out of sight */
+.swap-in.pending .menu-item.scene { animation: none; }
 .board-tile, .nearby-row { animation: item-in 0.42s var(--emph-decel) both; }
 .board-tile.leaving, .nearby-row.leaving { animation: item-out 0.3s var(--emph-accel) forwards; }
 @keyframes item-in { from { opacity: 0; transform: scale(0.92); } }
@@ -795,9 +798,12 @@ input.text-field:focus { border-color: var(--primary); background: var(--on-bg-8
 :root[data-design='material'] .gbar.m3e:active .gbar-thumb { cursor: url("./assets/grabbing-cursor.png") 13 13, grabbing; }
 :root[data-design='material'] .gbar.m3e .gbar-dot { display: none; }
 :root[data-design='material'] .gbar.m3e:focus-visible { outline: 2px solid rgb(var(--mdui-color-secondary)); outline-offset: 4px; border-radius: 12px; }
-/* the brightness bar's own handle is smaller than the colour strips' (it rides a gauge) */
+/* the brightness bar's own handle is smaller than the colour strips' (it rides a gauge):
+   16 resting, 24 on hover, 28 while pressed — the fixed-px radius squishes proportionally
+   as it grows, the same fit the press morph gives the strips; order puts press above hover */
 :root[data-design='material'] .gbar.m3e.level .gbar-thumb { width: 16px; height: 16px; margin: -8px 0 0 -8px; border-radius: calc(var(--u) * 8px); }
-:root[data-design='material'] .gbar.m3e.level.dragging .gbar-thumb { width: 20px; height: 20px; margin: -10px 0 0 -10px; border-radius: calc(var(--u) * 8px); }
+:root[data-design='material'] .gbar.m3e.level:hover .gbar-thumb { width: 24px; height: 24px; margin: -12px 0 0 -12px; }
+:root[data-design='material'] .gbar.m3e.level.dragging .gbar-thumb { width: 28px; height: 28px; margin: -14px 0 0 -14px; border-radius: calc(var(--u) * 8px); }
 
 /* the control deck's bottom switcher: icon buttons; the chosen one grows a little into a labelled
    pill (a soft Material You toolbar morph) — a gentle growth, so the other buttons barely move */
