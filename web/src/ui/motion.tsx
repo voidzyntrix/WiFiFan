@@ -46,13 +46,21 @@ export function Presence({ show, children, className = '' }: { show: boolean; ch
   )
 }
 
-/** Cross-fades when `k` changes: the old content fades out on top while the new fades in, and the height glides.
- *  `dir` (+1 forward, -1 back) slides it along the x axis instead, like the app's screens. */
+/** Replaces `k`-content. With `dir`: the screens' exact shared-axis swap — the old panel leaves alone
+ *  (0.12 s), then the new one slides in (0.45 s), never overlapping. Without: a cross-fade. */
 export function Swap({ k, children, className = '', dir = 0 }: { k: string | number; children: ReactNode; className?: string; dir?: number }) {
   const last = useRef<{ k: string | number; node: ReactNode }>({ k, node: children })
   const [leaving, setLeaving] = useState<{ k: string | number; node: ReactNode; dir: number } | null>(null)
   const [prevK, setPrevK] = useState(k)
-  if (k !== prevK) { setPrevK(k); setLeaving({ ...last.current, dir }) }
+  // started: the slide-in's animation, which (for directed swaps) only begins once the leave is over
+  const [started, setStarted] = useState(false)
+  const [hold, setHold] = useState(0)   // a directed swap is underway; bumped again on each fresh change
+  if (k !== prevK) {
+    setPrevK(k)
+    setLeaving({ ...last.current, dir })
+    setStarted(dir === 0)
+    if (dir !== 0) setHold((h) => h + 1)
+  }
   last.current = { k, node: children }
 
   useEffect(() => {
@@ -60,6 +68,12 @@ export function Swap({ k, children, className = '', dir = 0 }: { k: string | num
     const t = window.setTimeout(() => setLeaving(null), EXIT_MS)
     return () => window.clearTimeout(t)
   }, [leaving])
+  // the old stack's 0.12 s are its own, like the screens: only then does the enter begin
+  useEffect(() => {
+    if (!hold) return
+    const t = window.setTimeout(() => { setHold(0); setStarted(true) }, 120)
+    return () => window.clearTimeout(t)
+  }, [hold])
 
   const wrap = useRef<HTMLDivElement>(null)
   const height = useRef<number | null>(null)
@@ -94,7 +108,11 @@ export function Swap({ k, children, className = '', dir = 0 }: { k: string | num
   return (
     <div ref={wrap} className={'swap' + slide + (className ? ' ' + className : '')}>
       {leaving && <div key={'out' + leaving.k} className="swap-out" aria-hidden>{leaving.node}</div>}
-      <div key={k} className={'swap-in' + (leaving ? ' changed' : '')}>{children}</div>
+      <div
+        key={k}
+        onAnimationEnd={(e) => { if (e.target === e.currentTarget) setStarted(false) }}
+        className={'swap-in' + (started ? ' changed' : hold ? ' pending' : '')}
+      >{children}</div>
     </div>
   )
 }

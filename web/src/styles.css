@@ -298,7 +298,8 @@ code { font-family: 'JetBrains Mono', monospace; font-size: 0.9em; }
 
 /* one thing replaced by another: the old fades up and away on top while the new rises in */
 .swap { position: relative; min-width: 0; }
-.swap-in.changed { animation: swap-in 0.45s var(--emph-decel) both; }
+.swap-in.changed { animation: swap-in var(--d-long) var(--emph-decel) both; }
+.swap-in.pending { opacity: 0; }
 .swap-out { position: absolute; left: 0; right: 0; top: 0; pointer-events: none; animation: swap-out 0.28s var(--emph-accel) forwards; }
 .swap.stack > .swap-in, .swap.stack > .swap-out { display: flex; flex-direction: column; gap: 12px; --gap: 12px; }
 @keyframes swap-in { from { opacity: 0; transform: translateY(12px); } }
@@ -794,6 +795,9 @@ input.text-field:focus { border-color: var(--primary); background: var(--on-bg-8
 :root[data-design='material'] .gbar.m3e:active .gbar-thumb { cursor: url("./assets/grabbing-cursor.png") 13 13, grabbing; }
 :root[data-design='material'] .gbar.m3e .gbar-dot { display: none; }
 :root[data-design='material'] .gbar.m3e:focus-visible { outline: 2px solid rgb(var(--mdui-color-secondary)); outline-offset: 4px; border-radius: 12px; }
+/* the brightness bar's own handle is smaller than the colour strips' (it rides a gauge) */
+:root[data-design='material'] .gbar.m3e.level .gbar-thumb { width: 20px; height: 20px; margin: -10px 0 0 -10px; border-radius: calc(var(--u) * 10px); }
+:root[data-design='material'] .gbar.m3e.level.dragging .gbar-thumb { width: 24px; height: 24px; margin: -12px 0 0 -12px; border-radius: calc(var(--u) * 10px); }
 
 /* the control deck's bottom switcher: icon buttons; the chosen one grows a little into a labelled
    pill (a soft Material You toolbar morph) — a gentle growth, so the other buttons barely move */

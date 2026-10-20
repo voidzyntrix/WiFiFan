@@ -40,7 +40,19 @@ export function SolarTab({ c }: { c: LedController }) {
   const [foxUserIn, setFoxUserIn] = useState(prefs.foxUser)
   const [foxPassIn, setFoxPassIn] = useState('')
   const [signing, setSigning] = useState(false)
-  const [foxMsg, setFoxMsg] = useState<string | null>(null)
+  const [foxMsg, setFoxMsg] = useState<{ text: string; kind: 'err' | 'ok' | 'info' } | null>(null)
+
+  // the board's own answer settles the story: as soon as it contradicts the card's message, the
+  // message clears itself (an outdated error is the classic case — the board retried and it worked)
+  useEffect(() => {
+    if (!fox) return
+    const fine = !!fox.token && !fox.bad
+    setFoxMsg((m) => !m ? null
+      : m.kind === 'err' && fine ? null
+      : m.kind === 'ok' && fox.live === 2 ? null
+      : m.kind === 'info' && !fox.token ? null
+      : m)
+  }, [fox])
 
   // the live-data stream's state on the board, every few seconds
   useEffect(() => {
@@ -66,15 +78,15 @@ export function SolarTab({ c }: { c: LedController }) {
       else settings.set({ foxUser: user })
       await refreshBoardToken()
       setFoxPassIn('')
-      setFoxMsg('Signed in. The board connects to the live stream now.')
+      setFoxMsg({ text: 'Signed in. The board connects to the live stream now.', kind: 'ok' })
     } catch (e) {
-      setFoxMsg((e as Error).message)
+      setFoxMsg({ text: (e as Error).message, kind: 'err' })
     } finally { setSigning(false) }
   }
   const signOut = () => {
     board.sendData('fox={"off":true}')
     settings.set({ foxUser: '', foxPassMd5: '' })
-    setFoxPassIn(''); setFoxMsg('Live data off. Solar uses the API key every few minutes.')
+    setFoxPassIn(''); setFoxMsg({ text: 'Live data off. Solar uses the API key every few minutes.', kind: 'info' })
   }
   const liveText = !fox ? '' : fox.live === 2 ? 'Live, about every 5 seconds'
     : fox.bad ? 'The sign-in expired: tap Sign in'
@@ -194,7 +206,7 @@ export function SolarTab({ c }: { c: LedController }) {
             <TextField label={prefs.foxPassMd5 ? 'Password (saved; type to change)' : 'FoxESS password'} value={foxPassIn} onChange={setFoxPassIn} maxLength={60} password onEnter={() => void signIn()} />
             </>
           )}
-          {foxMsg && <Hint>{foxMsg}</Hint>}
+          {foxMsg && <Hint>{foxMsg.text}</Hint>}
           <div className="button-row">
             {(prefs.foxUser || fox?.token) ? <PillButton text="Sign out" onClick={signOut} /> : null}
             {!signedIn && <PillButton text={signing ? 'Signing in…' : 'Sign in'} highlighted enabled={!signing && !!foxUserIn.trim() && (!!foxPassIn || !!prefs.foxPassMd5)} onClick={() => void signIn()} />}
