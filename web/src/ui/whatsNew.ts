@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.62',
+    notes: [
+      'Desktop windows use their full width now: the app fills the real window size instead of stopping at a 1080px centred strip.',
+    ],
+  },
+
+  {
     version: '2.13.61',
     notes: [
       'Going from Linked to Individual keeps the ring the one colour it was showing - it no longer splits into two colours when switching the layout.',
