@@ -1,45 +1,33 @@
 /*
- * CH32V203C8U6 - USART1 (PA9 = TX, PA10 = RX, 8N1) controls two chained
- * WS2812 LEDs on PB3 (LED1 DOUT -> LED2 DIN). Full protocol: firmware/PROTOCOL.md.
+ * CH32V203C8U6 - USART1 (PA9 = TX, PA10 = RX, 8N1) drives a ring of 24
+ * chained WS2812 LEDs on PB3. Full protocol: firmware/PROTOCOL.md.
  *
- * Since 1.6.0 each LED has its own colour and fade. "split" picks how the
- * commands below drive them:
- *   send  split=0  ->  Linked (default at boot): both LEDs always show the same
- *                      thing, so apps written for one LED light both
- *   send  split=1  ->  Separate: the effects get two-LED variants (rainbow with
- *                      LED2 180 deg apart, a two-LED candle flame, own party
- *                      colours, breathe in opposite phase, ocean/aurora offset)
- *   send  h1=H/S/V, h2=H/S/V, l1=R/G/B, l2=R/G/B -> colour of one LED only
- *                      (works in both modes); ends any effect, the other LED
- *                      keeps its last colour
- *   send  hh=H1/S1/V1/H2/S2/V2 -> both LEDs in one command (for streaming)
- *   send  chase[=V] -> the colour last chosen swings between the two LEDs
- *                      (1.2 s per swing); Linked: both pulse together
- * All the commands below drive both LEDs the same way, in either mode.
+ * The ring is shown as two LEDs for the two-LED commands: LED1 is the first
+ * 12 pixels, LED2 the last 12. Each pixel has its own colour and fade.
+ *   send  split=0  ->  Linked (default at boot): every pixel shows the same
+ *   send  split=1  ->  Separate: every pixel is individual (candles, breathe)
+ *   send  h1=H/S/V, h2=H/S/V, l1=R/G/B, l2=R/G/B -> colour of one half of the ring
+ *                      (works in both modes); ends any effect
+ *   send  hh=H1/S1/V1/H2/S2/V2 -> both halves in one command (for streaming)
  *
- *   send  h=H/S/V  ->  set LED colour as hue 0-359, saturation and brightness
- *                      0-100 (e.g. h=300/100/50); ends rainbow mode
- *   send  l=R/G/B  ->  set LED colour, each value 0-255 (e.g. l=255/0/128)
- *   send  off      ->  turn LED off
- *   send  rain     ->  rainbow mode (hue cycles); any colour command ends it
- *   send  rain=S/V ->  rainbow mode with saturation/brightness 0-100; while the
- *                      rainbow runs this only adjusts S/V and keeps it cycling
- *   send  candle   ->  candle flame: warm orange that breathes and flickers;
- *   send  candle=V ->  ... at brightness V 0-100; any colour command ends it
+ *   send  h=H/S/V  ->  set the whole ring to hue 0-359, saturation and brightness
+ *                      0-100 (e.g. h=300/100/50); ends the running effect
+ *   send  l=R/G/B  ->  set the whole ring, each value 0-255 (e.g. l=255/0/128)
+ *   send  off      ->  turn the ring off
+ *   send  rain     ->  rainbow: a wheel of colour round the ring, turning
+ *   send  rain=S/V ->  rainbow with saturation/brightness 0-100; while it runs this
+ *                      only adjusts S/V and keeps it turning
+ *   send  rain=S/V/T -> rainbow taking T seconds (2-120) per turn of the wheel
+ *   send  candle   ->  candle: every pixel is its own flame (warm, breathing, flickering)
+ *   send  candle=V ->  ... at brightness V 0-100
  *   send  candle=V/M -> M=1: smooth candle (slow, gentle), M=0: lively flicker
  *   send  candle=V/M/H -> ... with flame hue H in degrees (0-60, default 19)
- *   send  candle=V/M/H/S -> S = what Separate mode shows (1.6.1): 0 = one
- *                      flame (default; LED1 = bright yellower core, LED2 =
- *                      dimmer redder tip, swaying between them), 1 = two
- *                      independent candles. Linked mode ignores S.
- *   send  rain=S/V/T -> rainbow taking T seconds (2-120) per trip round the wheel
+ *   send  candle=V/M/H/S -> S is accepted and ignored (every flame is individual)
+ *   send  spin=H/S/V/T -> spinner: a loading ring, a bright tail chasing round the
+ *                      ring in this colour, one turn every T seconds (1-60)
+ *   send  breathe=V -> the last colour fades up and down over 4 s (Separate: as a wave round the ring)
  *   send  fade=MS  ->  colour change duration 0-5000 ms (default 1500)
- *   send  breathe=V / ocean=V / party=V / aurora=V -> animated effects at
- *                      brightness V 0-100 (or without "=V": last brightness):
- *                      breathe = the current colour slowly fades up and down,
- *                      ocean = drifting blues and teals, party = smooth jumps
- *                      between random colours, aurora = slow green-violet waves
- *   candle, rainbow, chase and the effects all replace each other.
+ *   Rainbow, candle, breathe and spin replace each other; a colour command ends them.
  *   send  sleep=M  ->  sleep timer (1.7.0): the light, whatever it shows, fades
  *                      smoothly to off over M minutes (1-240), then the LEDs
  *                      are off. Colours and modes sent meanwhile keep fading
@@ -94,7 +82,7 @@
 
 #define WS_USE_DMA   0               /* 1 = timer + DMA, 0 = polled SysTick */
 
-#define FW_VERSION   "1.10.0"     /* reported by "ver"; bump for each release */
+#define FW_VERSION   "2.0.0"     /* reported by "ver"; bump for each release */
 
 #define START_BAUD   115200          /* used until a baud rate has been detected */
 
@@ -168,14 +156,13 @@ static void ws_hw_init(void)
 }
 
 /* One frame: px[i] = R,G,B of LED i (LED1 first). Each LED fills its share of the ring. */
-static void ws_write(const uint8_t px[NUM_LEDS][3])
+static void ws_write(const uint8_t px[RING_PIXELS][3])
 {
     int n = 0;
 
     ws_buf[n++] = 0;                              /* dummy slot: first update fires after one period */
     for (int pix = 0; pix < RING_PIXELS; pix++) {
-        int led = pix / PX_PER_LED;
-        uint32_t grb = ((uint32_t)px[led][1] << 16) | ((uint32_t)px[led][0] << 8) | px[led][2];
+        uint32_t grb = ((uint32_t)px[pix][1] << 16) | ((uint32_t)px[pix][0] << 8) | px[pix][2];
         for (int bit = 23; bit >= 0; bit--)
             ws_buf[n++] = (grb & (1u << bit)) ? T_1H : T_0H;
     }
@@ -257,14 +244,13 @@ static uint32_t ws_end;
  * straight after). Instead of waiting for the latch gap after the frame
  * (which would block reception), the gap is enforced before the next frame;
  * frames are >= 10 ms apart, so this normally never waits. */
-static void ws_write(const uint8_t px[NUM_LEDS][3])
+static void ws_write(const uint8_t px[RING_PIXELS][3])
 {
     while (ws_sent && (uint32_t)(now() - ws_end) < WS_LATCH_US * TICKS_PER_US);
     for (int pix = 0; pix < RING_PIXELS; pix++) {
-        int led = pix / PX_PER_LED;
-        ws_send_byte(px[led][1]);        /* WS2812 order is GRB */
-        ws_send_byte(px[led][0]);
-        ws_send_byte(px[led][2]);
+        ws_send_byte(px[pix][1]);        /* WS2812 order is GRB */
+        ws_send_byte(px[pix][0]);
+        ws_send_byte(px[pix][2]);
     }
     WS_LOW();
     ws_end  = now();
@@ -300,10 +286,10 @@ static const uint8_t gamma8[256] = {
 /* Sleep timer: every colour is scaled by this (0..256) before the gamma table. */
 static uint16_t sleep_k = 256;
 
-static void ws_set(const uint8_t px[NUM_LEDS][3])
+static void ws_set(const uint8_t px[RING_PIXELS][3])
 {
-    uint8_t g[NUM_LEDS][3];
-    for (int i = 0; i < NUM_LEDS; i++)
+    uint8_t g[RING_PIXELS][3];
+    for (int i = 0; i < RING_PIXELS; i++)
         for (int c = 0; c < 3; c++) g[i][c] = gamma8[(uint8_t)((px[i][c] * sleep_k) >> 8)];
     ws_write((const uint8_t (*)[3])g);
 }
@@ -502,35 +488,35 @@ static void hsv_to_rgb(hsv_t c, uint8_t out[3])
     }
 }
 
-/* Per-LED state. Rainbow / candle / effect modes are board-wide; what each
- * LED shows in them depends on "split" (0 = Linked: LED2 mirrors LED1,
- * 1 = Separate: two-LED variants). */
+/* Per-pixel state. Every pixel of the ring has its own state. The two-LED
+ * commands (h1=, h2=, hh=, l1=, l2=) address the halves: LED1 is the first
+ * half of the ring, LED2 the second. Linked (split=0): all pixels show the
+ * same. Separate (split=1): each pixel is individual. */
 typedef struct {
-    hsv_t    shown, fade_from, fade_to;      /* HSV: on the LED now, fade start, fade end */
+    hsv_t    shown, fade_from, fade_to;      /* HSV: on the pixel now, fade start, fade end */
     int16_t  fade_dh;                        /* hue step (signed: direction) */
     uint8_t  target_rgb[3];                  /* exact colour to end on */
     uint8_t  fading;
     uint32_t fade_start;
     hsv_t    rb_from;                        /* rainbow: S/V when the current ease started */
-    hsv_t    fx_base;                        /* breathe/chase: the colour that animates */
-    int16_t  fx_target;                      /* party: hue it glides towards */
-    uint32_t fx_next;                        /* party: next jump (effect ms) */
+    hsv_t    fx_base;                        /* breathe: the colour that animates */
     float    cd_flick, cd_target;            /* candle flicker */
     uint32_t rnd;                            /* own xorshift32 state */
 } led_t;
 
-static led_t    L[NUM_LEDS] = { [0].rnd = 0x1234567u, [1].rnd = 0x9E3779B9u };
+static led_t    L[RING_PIXELS];
 static uint8_t  split;                       /* 0 = Linked (boot default), 1 = Separate */
 static uint8_t  flashing, dirty;
 static uint8_t  sleeping;                    /* "sleep=M" running */
 static uint32_t sleep_start, sleep_ms;       /* when it started, how long it takes */
 static uint32_t flash_end, last_frame;
 
-#define LED2_RB_OFS  (HUE_MAX / 2)           /* Separate rainbow: LED2 180 deg on */
+/* Hue step between neighbouring pixels: a full wheel round the ring. */
+#define RING_STEP    (HUE_MAX / RING_PIXELS)
 
-/* Rainbow mode: hue keeps cycling at rb_s / rb_v. Hue advances by elapsed
- * time accumulated per frame (not from a start time), so it never jumps when
- * the 32-bit tick counter wraps (~every 59 s). */
+/* Rainbow mode: the wheel turns at rb_s / rb_v, one trip per RAINBOW seconds
+ * (rain=S/V/T). Hue advances by elapsed time accumulated per frame, so it
+ * never jumps when the 32-bit tick counter wraps (~every 59 s). */
 #define TICKS_PER_HUE  (RAINBOW_MS * TICKS_PER_MS / HUE_MAX)
 
 static uint32_t fade_ms = FADE_MS;          /* "fade=" */
@@ -539,26 +525,22 @@ static uint8_t  rainbow, rb_ramp;            /* mode on / still easing S and V *
 static uint8_t  rb_s = 255, rb_v = 255;      /* rainbow saturation / brightness */
 static uint8_t  last_v = 255;                /* brightness of the last real colour */
 static uint32_t rb_start, rb_last, rb_ticks, rb_ramp_ticks;
+static int      rb_hue;                      /* rainbow: hue of pixel 0 */
 
-/* Candle mode: a warm flame whose brightness breathes (two slow sines) and
- * flickers (random targets, smoothed), around brightness cd_v. */
+/* Candle mode: each pixel is its own flame (its breathing and flicker are its
+ * own), around brightness cd_v. */
 #define CANDLE_HUE   80              /* ~19 deg: deep orange (hue units 0..1535) */
 #define CANDLE_SAT   240
 static uint8_t  candle, cd_smooth, cd_v = 255;
-static uint8_t  cd_style;                    /* Separate: 0 = one flame, 1 = two candles */
 static int16_t  cd_hue = CANDLE_HUE;         /* flame hue, 0..1535 units */
 static uint32_t cd_ms, cd_last;              /* candle clock in ms, last tick */
 
-/* One flame over two LEDs (Separate, cd_style 0): LED1 is the core, LED2 the
- * tip. They share the breathing and the gusts (L[0].cd_flick); the tip sees
- * each gust a few frames late (delay line), adds its own fast flicker
- * (L[1].cd_flick) and a sway moves light between core and tip. */
-#define FL_DELAY     8                       /* delay line length, frames (10 ms) */
-#define FL_HUE_OFS   21                      /* ~5 deg: core yellower, tip redder */
-static float    fl_gust[FL_DELAY];           /* past gust levels, for the tip */
-static uint8_t  fl_pos;                      /* next slot in fl_gust */
-static float    fl_sway, fl_sway_to;         /* +: leans to the core, -: to the tip */
-static float    fl_mix;                      /* 0..1: eases in the core/tip look */
+/* Spinner: a loading ring, a bright tail chasing round the ring in one colour. */
+#define SPIN_TAIL    8                       /* tail length, pixels */
+#define SPIN_FP      256u                    /* sub-pixel steps per pixel */
+static uint8_t  spin;
+static hsv_t    spin_c;
+static uint32_t spin_period, spin_t, spin_last;   /* one turn in ms, clock, last tick */
 
 /* sin(2*pi*x): parabolic approximation (error < 0.1 %), so no libm is needed */
 static float sin_turns(float x)
@@ -571,10 +553,15 @@ static float sin_turns(float x)
     return 0.225f * (y * ay - y) + y;        /* refinement */
 }
 
-/* Effects: animated modes that set the colour every frame. */
-enum { FX_NONE, FX_BREATHE, FX_OCEAN, FX_PARTY, FX_AURORA, FX_CHASE };
+/* Breathe: the last colour slowly fades up and down (4 s). */
+enum { FX_NONE, FX_BREATHE };
 static uint8_t  fx, fx_v = 255;
 static uint32_t fx_ms, fx_last;              /* effect clock (ms), last tick */
+
+static void leds_init(void)
+{
+    for (int p = 0; p < RING_PIXELS; p++) L[p].rnd = 0x1234567u + (uint32_t)p * 0x9E3779B9u;
+}
 
 static float frand(led_t *d)                 /* 0..1, xorshift32 */
 {
@@ -598,7 +585,7 @@ static int hue_diff(int a, int b)
     return dh;
 }
 
-/* Fade LED [i] to colour [to] (HSV), ending exactly on [rgb]. Leaves the
+/* Fade pixel [i] to colour [to] (HSV), ending exactly on [rgb]. Leaves the
  * modes alone (see end_modes). */
 static void fade_led(uint8_t i, hsv_t to, const uint8_t rgb[3])
 {
@@ -628,12 +615,12 @@ static void fade_led(uint8_t i, hsv_t to, const uint8_t rgb[3])
     flashing  = 0;                  /* a new colour cancels a feedback flash */
 }
 
-/* End rainbow/candle/effects. A LED not fading keeps the colour it shows
- * right now (so after a one-LED command the other LED stays put). */
+/* End rainbow/candle/breathe/spinner. A pixel not fading keeps the colour it
+ * shows right now. */
 static void end_modes(void)
 {
-    if (rainbow || candle || fx)
-        for (int i = 0; i < NUM_LEDS; i++)
+    if (rainbow || candle || fx || spin)
+        for (int i = 0; i < RING_PIXELS; i++)
             if (!L[i].fading) {
                 hsv_to_rgb(L[i].shown, L[i].target_rgb);
                 L[i].fade_to = L[i].shown;
@@ -641,47 +628,54 @@ static void end_modes(void)
     rainbow = 0;
     candle  = 0;
     fx      = FX_NONE;
+    spin    = 0;
 }
 
-/* One LED, from an HSV command (h1=/h2=/hh=): keeps the exact hue. */
-static void led_hsv_one(uint8_t i, hsv_t c)
+/* One half of the ring (0 = LED1, 1 = LED2), from an HSV command (h1=/h2=/hh=). */
+static void led_hsv_one(uint8_t half, hsv_t c)
 {
     uint8_t rgb[3];
     hsv_to_rgb(c, rgb);
     end_modes();
-    fade_led(i, c, rgb);
+    for (uint8_t p = half * PX_PER_LED; p < (half + 1) * PX_PER_LED; p++) fade_led(p, c, rgb);
 }
 
-/* One LED, from an RGB command (l1=/l2=): ends on exactly that RGB. */
-static void led_colour_one(uint8_t i, const uint8_t rgb[3])
+/* One half of the ring, from an RGB command (l1=/l2=): ends on exactly that RGB. */
+static void led_colour_one(uint8_t half, const uint8_t rgb[3])
 {
     end_modes();
-    fade_led(i, rgb_to_hsv(rgb[0], rgb[1], rgb[2]), rgb);
+    hsv_t c = rgb_to_hsv(rgb[0], rgb[1], rgb[2]);
+    for (uint8_t p = half * PX_PER_LED; p < (half + 1) * PX_PER_LED; p++) fade_led(p, c, rgb);
 }
 
-/* Both LEDs, from an RGB command (l=, picker, off). */
+/* The whole ring, from an RGB command (l=, picker, off). */
 static void led_colour(uint8_t r, uint8_t g, uint8_t b)
 {
     const uint8_t rgb[3] = { r, g, b };
-    for (uint8_t i = 0; i < NUM_LEDS; i++) led_colour_one(i, rgb);
+    end_modes();
+    hsv_t c = rgb_to_hsv(r, g, b);
+    for (uint8_t p = 0; p < RING_PIXELS; p++) fade_led(p, c, rgb);
 }
 
-/* Both LEDs, from an HSV command (h=). */
+/* The whole ring, from an HSV command (h=). */
 static void led_hsv(hsv_t c)
 {
-    for (uint8_t i = 0; i < NUM_LEDS; i++) led_hsv_one(i, c);
+    uint8_t rgb[3];
+    hsv_to_rgb(c, rgb);
+    end_modes();
+    for (uint8_t p = 0; p < RING_PIXELS; p++) fade_led(p, c, rgb);
 }
 
-/* Rainbow mode with saturation [s] and brightness [v] (0-255). Started from
- * a colour it keeps that hue; from off/white it eases in from red over
+/* Rainbow mode with saturation [s] and brightness [v] (0-255). The wheel sits
+ * round the ring: pixel p is RING_STEP hue units further on than p-1. Started
+ * from a colour it keeps that hue; from off/white it eases in from red over
  * FADE_MS. If the rainbow is already running only S/V change (quickly, over
- * RB_ADJUST_MS) and the hue keeps cycling. LED2 glides to its place on the
- * wheel (same hue when Linked, 180 deg on when Separate). */
+ * RB_ADJUST_MS) and the wheel keeps turning. */
 static void led_rainbow(uint8_t s, uint8_t v)
 {
     uint32_t t = now();
 
-    for (int i = 0; i < NUM_LEDS; i++) {
+    for (int i = 0; i < RING_PIXELS; i++) {
         L[i].rb_from = L[i].shown;
         if (!rainbow && (L[i].shown.v == 0 || L[i].shown.s == 0)) L[i].shown.h = 0;
         L[i].fading = 0;
@@ -691,10 +685,12 @@ static void led_rainbow(uint8_t s, uint8_t v)
     } else {
         rb_last  = t;
         rb_ticks = 0;
+        rb_hue   = L[0].shown.h;
         rb_ramp_ticks = fade_ms * TICKS_PER_MS;
     }
     candle = 0;                     /* rainbow replaces candle mode */
-    fx     = FX_NONE;               /* ... and effects */
+    fx     = FX_NONE;               /* ... effects */
+    spin   = 0;                     /* ... and the spinner */
     rb_s = s;
     rb_v = v;
     if (v) last_v = v;
@@ -705,18 +701,8 @@ static void led_rainbow(uint8_t s, uint8_t v)
     dirty    = 1;
 }
 
-/* Restart the one-flame model from the current shared flicker: no lean, the
- * core/tip difference eases in again (so nothing jumps). */
-static void flame_reset(void)
-{
-    for (uint8_t k = 0; k < FL_DELAY; k++) fl_gust[k] = L[0].cd_flick;
-    fl_sway = fl_sway_to = 0.0f;
-    fl_mix  = 0.0f;
-}
-
-/* Candle mode at brightness [v]: fades to the flame colour, then flickers
- * (Separate: one flame over both LEDs, or with cd_style 1 each LED with its
- * own random flicker and breathing phase). */
+/* Candle mode at brightness [v]: fades every pixel to the flame colour, then
+ * each one flickers on its own (Linked: all the same). */
 static void led_candle(uint8_t v, uint8_t smooth)
 {
     hsv_t   c = { cd_hue, CANDLE_SAT, v };
@@ -725,127 +711,81 @@ static void led_candle(uint8_t v, uint8_t smooth)
     hsv_to_rgb(c, rgb);
     rainbow = 0;
     fx      = FX_NONE;
-    for (uint8_t i = 0; i < NUM_LEDS; i++) fade_led(i, c, rgb);
+    spin    = 0;
+    for (uint8_t i = 0; i < RING_PIXELS; i++) fade_led(i, c, rgb);
     cd_smooth = smooth;
     cd_v = v;
     cd_last = now();
-    flame_reset();
     candle = 1;
 }
 
-/* Colour of LED [i] at effect time [tt] s for breathe/ocean/aurora/chase.
- * i = 0: LED1, or both LEDs when Linked; i = 1: LED2 when Separate. */
-static hsv_t fx_eval(uint8_t i, float tt)
+/* Colour of pixel [p] at effect time [tt] s for breathe. Separate: each pixel
+ * is a step further round the breath, so a wave runs round the ring. */
+static hsv_t fx_eval(uint8_t p, float tt)
 {
-    hsv_t c = L[i].fx_base;
-    int   h = c.h;
-    float f = 1.0f;
-
-    switch (fx) {
-    case FX_BREATHE:                          /* 15 % .. 100 %, 4 s per breath */
-        f = 0.575f + 0.425f * sin_turns(tt / 4.0f + (i ? 0.5f : 0.0f));   /* LED2: opposite */
-        break;
-    case FX_OCEAN:                            /* hue drifts 190..225 deg, gentle swell */
-        if (i) tt += 3.5f;                    /* LED2: half a hue drift later */
-        h = 874 + (int)(90.0f * sin_turns(tt / 7.0f) + 40.0f * sin_turns(tt / 2.9f));
-        c.s = 230;
-        f = 0.75f + 0.15f * sin_turns(tt / 5.0f) + 0.10f * sin_turns(tt / 1.7f);
-        break;
-    case FX_AURORA:                           /* hue waves 120..280 deg, slow */
-        if (i) tt += 9.0f;                    /* LED2: half a wave later */
-        h = 853 + (int)(341.0f * sin_turns(tt / 18.0f));
-        c.s = 210;
-        f = 0.70f + 0.30f * sin_turns(tt / 6.0f);
-        break;
-    default: {                                /* chase: 1.2 s per swing, LED1 first */
-        float a = 0.5f + 0.5f * sin_turns(tt / 2.4f + 0.25f);
-        f = i ? 1.0f - a : a;                 /* Linked: both pulse with LED1 */
-        break;
-    }
-    }
-    if (f < 0.0f) f = 0.0f;
-    if (f > 1.0f) f = 1.0f;
-    c.h = hue_wrap(h);
+    hsv_t c = L[p].fx_base;
+    float f = 0.575f + 0.425f * sin_turns(tt / 4.0f + (split ? (float)p / RING_PIXELS : 0.0f));
     c.v = (uint8_t)(fx_v * f);
     return c;
 }
 
-/* Start effect [which] at brightness [v]: fades each LED to its first
- * colour, then animates. */
-static void led_fx(uint8_t which, uint8_t v)
+/* Start breathe at brightness [v]: fades each pixel to its first colour, then
+ * animates. */
+static void led_fx(uint8_t v)
 {
     uint8_t keep_v = last_v;
 
-    for (int i = 0; i < NUM_LEDS; i++) {
-        /* breathe: each LED's own last colour (Linked: LED1's); chase: LED1's */
-        const led_t *src = (split && which != FX_CHASE) ? &L[i] : &L[0];
-        L[i].fx_base   = src->fade_to;
-        L[i].fx_target = src->shown.h;
-        L[i].fx_next   = (split && i) ? 750 : 0;   /* party: LED2 jumps between LED1's */
-    }
+    for (int p = 0; p < RING_PIXELS; p++) L[p].fx_base = split ? L[p].fade_to : L[0].fade_to;
     rainbow = 0;
     candle  = 0;
-    fx = which; fx_v = v;
+    spin    = 0;
+    fx = FX_BREATHE; fx_v = v;
     fx_ms = 0; fx_last = now();
 
-    for (uint8_t i = 0; i < NUM_LEDS; i++) {
-        uint8_t k = split ? i : 0;
-        hsv_t   c;
+    for (uint8_t p = 0; p < RING_PIXELS; p++) {
+        hsv_t   c = fx_eval(p, 0.0f);
         uint8_t rgb[3];
-        if (which == FX_PARTY) { c.h = L[k].fx_target; c.s = 255; c.v = v; }
-        else                   c = fx_eval(k, 0.0f);
         hsv_to_rgb(c, rgb);
-        fade_led(i, c, rgb);
+        fade_led(p, c, rgb);
     }
     last_v = v ? v : keep_v;                  /* not the effect's first-frame level */
 }
 
-/* "split=": Linked <-> Separate. A running effect restarts (fading smoothly
- * into the new layout); a rainbow's LED2 glides to its new hue; Linked solid
- * colours: LED2 fades to LED1's colour. */
+/* "split=": Linked <-> Separate. A running breathe restarts (fading smoothly
+ * into the new layout); Linked solid colours: every pixel fades to pixel 0's. */
 static void set_split(uint8_t s)
 {
     if (s == split) return;
     split = s;
     if (fx) {
-        led_fx(fx, fx_v);
-    } else if (candle) {
-        L[1].cd_flick  = L[0].cd_flick;
-        L[1].cd_target = L[0].cd_target;
-        flame_reset();
-    } else if (!rainbow && !split) {
-        fade_led(1, L[0].fade_to, L[0].target_rgb);
+        led_fx(fx_v);
+    } else if (!rainbow && !spin && !candle && !split) {
+        for (uint8_t p = 1; p < RING_PIXELS; p++) fade_led(p, L[0].fade_to, L[0].target_rgb);
     }
 }
 
-/* Show a colour briefly on both LEDs, then return to the fade/colour (non-blocking). */
+/* Show a colour briefly on the whole ring, then return to the fade/colour (non-blocking). */
 static void led_flash(uint8_t r, uint8_t g, uint8_t b, uint32_t ms)
 {
-    uint8_t px[NUM_LEDS][3];
-    for (int i = 0; i < NUM_LEDS; i++) { px[i][0] = r; px[i][1] = g; px[i][2] = b; }
+    uint8_t px[RING_PIXELS][3];
+    for (int i = 0; i < RING_PIXELS; i++) { px[i][0] = r; px[i][1] = g; px[i][2] = b; }
     ws_set((const uint8_t (*)[3])px);
     flashing  = 1;
     flash_end = now() + ms * TICKS_PER_MS;
 }
 
-/* One effect frame for LED [i] (see fx_eval for [i]). */
-static void fx_frame(uint8_t i, float tt)
+/* Spinner: colour [c], one turn of the ring every [secs] seconds. */
+static void led_spin(hsv_t c, uint32_t secs)
 {
-    led_t *d = &L[i];
-
-    if (fx != FX_PARTY) { d->shown = fx_eval(i, tt); return; }
-
-    /* party: new random hue every 1.5 s (each LED its own when Separate) */
-    if (fx_ms >= d->fx_next) {
-        d->fx_next = fx_ms + 1500;
-        d->fx_target = (int16_t)(frand(d) * HUE_MAX);
-    }
-    int h  = d->shown.h;
-    int dh = hue_diff(h, d->fx_target);
-    h += dh / 12 + (dh > 0) - (dh < 0);       /* glide, always moves */
-    d->shown.h = hue_wrap(h);
-    d->shown.s = 255;
-    d->shown.v = fx_v;
+    end_modes();
+    for (int i = 0; i < RING_PIXELS; i++) L[i].fading = 0;
+    spin_c      = c;
+    spin_period = secs * 1000u;
+    spin_t      = 0;
+    spin_last   = now();
+    spin        = 1;
+    flashing    = 0;
+    dirty       = 1;
 }
 
 /* Candle breathing at time [tt] s (two incommensurate sines) and the dip
@@ -866,92 +806,56 @@ static float clampf(float x, float lo, float hi)
     return x < lo ? lo : x > hi ? hi : x;
 }
 
-/* Flame hue: base + [ofs] units, never wrapping below red into magenta. */
-static int16_t flame_hue(int ofs)
+/* One candle frame for pixel [p]: its own flicker, and in Separate its own
+ * point in the breathing. */
+static void candle_frame(uint8_t p, float tt)
 {
-    int h = cd_hue + ofs;
-    return hue_wrap(h < 0 ? 0 : h);
-}
+    led_t *d = &L[p];
 
-/* One frame of the one-flame model (Separate, cd_style 0): LED1 = core,
- * LED2 = tip. Shared breathing and gusts; the tip gets each gust 50 ms
- * (lively) / 80 ms (smooth) late, ~70 % brightness, ~5 deg redder, more
- * saturated and its own small fast flicker; the core is ~5 deg yellower and
- * a little paler. The sway (+-0.25, a slowly gliding random lean that gusts
- * nudge) shifts brightness between the two. */
-static void flame_frame(float tt)
-{
-    led_t *c = &L[0], *p = &L[1];
-    float depth, chance, glide;
-    float breathe = cd_breathe(tt, &depth, &chance, &glide);
-
-    /* shared gusts: a random dip the core glides to (as in candle_frame) */
-    if (frand(c) < chance) {
-        c->cd_target = -depth * frand(c) * frand(c);
-        fl_sway_to += (frand(c) - 0.5f) * 0.20f;          /* a gust nudges the lean */
-    }
-    c->cd_flick += (c->cd_target - c->cd_flick) * glide;
-
-    /* the tip sees the gust [lag] frames later */
-    uint8_t lag = cd_smooth ? FL_DELAY : 5;
-    float   tip_gust = fl_gust[(fl_pos + FL_DELAY - lag) % FL_DELAY];
-    fl_gust[fl_pos] = c->cd_flick;
-    fl_pos = (uint8_t)((fl_pos + 1) % FL_DELAY);
-
-    /* sway: now and then a new lean, glided to slowly (smooth: slower) */
-    if (frand(c) < (cd_smooth ? 0.006f : 0.02f)) fl_sway_to = (frand(c) - 0.5f) * 0.5f;
-    fl_sway_to = clampf(fl_sway_to, -0.25f, 0.25f);
-    fl_sway += (fl_sway_to - fl_sway) * (cd_smooth ? 0.015f : 0.04f);
-
-    /* tip's own fast flicker: mostly small dips, now and then a lift */
-    float tc = cd_smooth ? 0.05f : 0.25f, td = cd_smooth ? 0.08f : 0.18f;
-    float tg = cd_smooth ? 0.12f : 0.50f;
-    if (frand(p) < tc) p->cd_target = (frand(p) - 0.7f) * td;
-    p->cd_flick += (p->cd_target - p->cd_flick) * tg;
-
-    if (fl_mix < 1.0f) fl_mix += 0.01f;                 /* ~1 s ease-in */
-    float m = fl_mix > 1.0f ? 1.0f : fl_mix;
-    float s = fl_sway * m;
-    float tf = p->cd_flick * m;
-
-    float fc = (0.82f + 0.05f * m + breathe + c->cd_flick) * (1.0f + 0.6f * s);
-    float ft = (0.82f + breathe + tip_gust + tf) * (1.0f - 0.30f * m) * (1.0f - 0.6f * s);
-    fc = clampf(fc, 0.25f, 1.0f);
-    ft = clampf(ft, 0.20f, 1.0f);
-
-    c->shown.h = flame_hue((int)(FL_HUE_OFS * m) + (int)(c->cd_flick * 40.0f));
-    c->shown.s = (uint8_t)(CANDLE_SAT - 20.0f * m);
-    c->shown.v = (uint8_t)(cd_v * fc);
-    p->shown.h = flame_hue(-(int)(FL_HUE_OFS * m) + (int)((tip_gust + tf) * 40.0f));
-    p->shown.s = (uint8_t)(CANDLE_SAT + 12.0f * m);
-    p->shown.v = (uint8_t)(cd_v * ft);
-}
-
-/* One candle frame for LED [i]: own flicker and (LED2) own breathing phase. */
-static void candle_frame(uint8_t i, float tt)
-{
-    led_t *d = &L[i];
-
-    if (i) tt += 1.37f;
+    if (split) tt += (float)p * 0.37f;
     float depth, chance, glide;
     float breathe = cd_breathe(tt, &depth, &chance, &glide);
     /* flicker: every few frames pick a new random dip, glide towards it */
     if (frand(d) < chance) d->cd_target = -depth * frand(d) * frand(d);
     d->cd_flick += (d->cd_target - d->cd_flick) * glide;
-    float f = 0.82f + breathe + d->cd_flick;
-    if (f < 0.25f) f = 0.25f;
-    if (f > 1.0f)  f = 1.0f;
+    float f = clampf(0.82f + breathe + d->cd_flick, 0.25f, 1.0f);
     d->shown.h = hue_wrap(cd_hue + (int)(d->cd_flick * 40.0f));   /* dips go a bit redder */
     d->shown.s = CANDLE_SAT;
     d->shown.v = (uint8_t)(cd_v * f);
+}
+
+/* One spinner frame: the head sits at a point on the ring and each pixel
+ * behind it is lit, fading with distance, so a tail chases round. */
+static void spin_frame(uint32_t t)
+{
+    if (!spin) return;
+    spin_t   += (t - spin_last) / TICKS_PER_MS;
+    spin_last = t - (t - spin_last) % TICKS_PER_MS;
+
+    uint32_t ph   = spin_t % spin_period;
+    uint32_t span = RING_PIXELS * SPIN_FP;
+    uint32_t head = (uint32_t)((uint64_t)ph * span / spin_period);   /* head, in sub-pixels */
+    uint32_t tail = SPIN_TAIL * SPIN_FP;
+
+    for (uint8_t p = 0; p < RING_PIXELS; p++) {
+        uint32_t d = (head + span - (uint32_t)p * SPIN_FP) % span;   /* how far behind the head */
+        led_t *px = &L[p];
+        px->shown.h = spin_c.h;
+        px->shown.s = spin_c.s;
+        if (d < tail) {                        /* squared fall-off: bright head, soft tail */
+            uint32_t g = tail - d;
+            px->shown.v = (uint8_t)((uint32_t)spin_c.v * (g * g * 255u / (tail * tail)) / 255u);
+        } else {
+            px->shown.v = 0;
+        }
+    }
 }
 
 static void led_poll(void)
 {
     uint32_t t     = now();
     uint8_t  frame = (uint32_t)(t - last_frame) >= FRAME_MS * TICKS_PER_MS;
-    uint8_t  busy  = 0;                        /* a LED is still fading */
-    uint8_t  n     = split ? NUM_LEDS : 1;     /* LEDs the modes compute */
+    uint8_t  busy  = 0;                        /* a pixel is still fading */
 
     if (flashing) {
         if ((int32_t)(t - flash_end) < 0) return;
@@ -959,7 +863,7 @@ static void led_poll(void)
         dirty = 1;                  /* put the normal colour back */
     }
 
-    for (int i = 0; i < NUM_LEDS; i++) {
+    for (int i = 0; i < RING_PIXELS; i++) {
         led_t *d = &L[i];
         if (!d->fading) continue;
 
@@ -990,6 +894,7 @@ static void led_poll(void)
         rb_last   = t;
         uint32_t steps = rb_ticks / ticks_per_hue;
         rb_ticks -= steps * ticks_per_hue;
+        rb_hue = hue_wrap(rb_hue + (int)(steps % HUE_MAX));
 
         int k = 1024;                           /* ease S and V to the rainbow's */
         if (rb_ramp) {
@@ -1002,13 +907,12 @@ static void led_poll(void)
                 k = (int)((uint32_t)p * p * (3 * 1024 - 2 * p) / (1024 * 1024));
             }
         }
-        for (int i = 0; i < NUM_LEDS; i++) {
+        for (int i = 0; i < RING_PIXELS; i++) {
             led_t *d = &L[i];
-            int h = d->shown.h + (int)(steps % HUE_MAX);
-            if (i) {                            /* LED2 glides to its place on the wheel */
-                int dh = hue_diff(h, L[0].shown.h + (split ? LED2_RB_OFS : 0));
-                h += dh / 8 + (dh > 0) - (dh < 0);
-            }
+            /* each pixel glides to its place on the wheel */
+            int target = rb_hue + i * RING_STEP;
+            int dh = hue_diff(d->shown.h, hue_wrap(target));
+            int h  = d->shown.h + dh / 8 + (dh > 0) - (dh < 0);
             d->shown.h = hue_wrap(h);
             d->shown.s = (uint8_t)(d->rb_from.s + (rb_s - d->rb_from.s) * k / 1024);
             d->shown.v = (uint8_t)(d->rb_from.v + (rb_v - d->rb_from.v) * k / 1024);
@@ -1020,8 +924,7 @@ static void led_poll(void)
         fx_ms  += (t - fx_last) / TICKS_PER_MS;
         fx_last = t - (t - fx_last) % TICKS_PER_MS;
         float tt = fx_ms * 0.001f;
-        for (uint8_t i = 0; i < n; i++) fx_frame(i, tt);
-        if (!split) L[1].shown = L[0].shown;   /* Linked: LED2 mirrors LED1 */
+        for (uint8_t p = 0; p < RING_PIXELS; p++) L[p].shown = fx_eval(p, tt);
         dirty = 1;
     }
 
@@ -1029,9 +932,13 @@ static void led_poll(void)
         cd_ms  += (t - cd_last) / TICKS_PER_MS;
         cd_last = t - (t - cd_last) % TICKS_PER_MS;
         float tt = cd_ms * 0.001f;
-        if (split && !cd_style) flame_frame(tt);
-        else for (uint8_t i = 0; i < n; i++) candle_frame(i, tt);
-        if (!split) L[1].shown = L[0].shown;
+        for (uint8_t p = 0; p < RING_PIXELS; p++) candle_frame(p, tt);
+        if (!split) for (uint8_t p = 1; p < RING_PIXELS; p++) L[p].shown = L[0].shown;   /* Linked: one flame */
+        dirty = 1;
+    }
+
+    if (spin && !busy && frame) {
+        spin_frame(t);
         dirty = 1;
     }
 
@@ -1042,7 +949,7 @@ static void led_poll(void)
              * give the next colour its full brightness back. */
             sleeping = 0;
             led_colour(0, 0, 0);
-            for (int i = 0; i < NUM_LEDS; i++) { L[i].shown = L[i].fade_to; L[i].fading = 0; }
+            for (int i = 0; i < RING_PIXELS; i++) { L[i].shown = L[i].fade_to; L[i].fading = 0; }
             sleep_k = 256;
             dirty = 1;
         } else {
@@ -1052,9 +959,9 @@ static void led_poll(void)
     }
 
     if (dirty) {
-        uint8_t px[NUM_LEDS][3];
-        uint8_t anim = rainbow || candle || fx;
-        for (int i = 0; i < NUM_LEDS; i++) {
+        uint8_t px[RING_PIXELS][3];
+        uint8_t anim = rainbow || candle || fx || spin;
+        for (int i = 0; i < RING_PIXELS; i++) {
             if (L[i].fading || anim) hsv_to_rgb(L[i].shown, px[i]);
             else memcpy(px[i], L[i].target_rgb, 3);    /* settled: exact requested RGB */
         }
@@ -1342,37 +1249,32 @@ static void line_end(void)
         led_colour(0, 0, 0);
     }
     else if (strncmp(w, "candle=", 7) == 0 && parse_nums(w + 7, n, 4, 100) && n[2] <= 60 && n[3] <= 1) {
-        cd_hue   = (int16_t)(n[2] * HUE_MAX / 360);         /* V/M/H/S */
-        cd_style = (uint8_t)n[3];
+        cd_hue   = (int16_t)(n[2] * HUE_MAX / 360);         /* V/M/H/S: S is accepted, every flame is individual */
         led_candle(pct(n[0]), n[1] != 0);
     }
     else if (strncmp(w, "candle=", 7) == 0 && parse_nums(w + 7, n, 3, 100) && n[2] <= 60) {
         cd_hue   = (int16_t)(n[2] * HUE_MAX / 360);
-        cd_style = 0;
         led_candle(pct(n[0]), n[1] != 0);
     }
     else if (strncmp(w, "candle=", 7) == 0 && parse_nums(w + 7, n, 2, 100)) {
         cd_hue   = CANDLE_HUE;
-        cd_style = 0;
         led_candle(pct(n[0]), n[1] != 0);
     }
     else if (strncmp(w, "candle=", 7) == 0 && parse_nums(w + 7, n, 1, 100)) {
-        cd_style = 0;
         led_candle(pct(n[0]), 0);
     }
-    else if (strncmp(w, "breathe", 7) == 0 || strncmp(w, "ocean", 5) == 0 ||
-             strncmp(w, "party", 5) == 0 || strncmp(w, "aurora", 6) == 0 ||
-             strncmp(w, "chase", 5) == 0) {
-        uint8_t which = w[0] == 'b' ? FX_BREATHE : w[0] == 'o' ? FX_OCEAN :
-                        w[0] == 'p' ? FX_PARTY : w[0] == 'c' ? FX_CHASE : FX_AURORA;
+    else if (strncmp(w, "breathe", 7) == 0) {
         const char *eq = strchr(w, '=');
-        if (eq && parse_nums(eq + 1, n, 1, 100)) led_fx(which, pct(n[0]));
-        else if (!eq)                            led_fx(which, last_v);
+        if (eq && parse_nums(eq + 1, n, 1, 100)) led_fx(pct(n[0]));
+        else if (!eq)                            led_fx(last_v);
         else                                     led_flash(BRIGHT, BRIGHT, BRIGHT, 60);
     }
     else if (strcmp(w, "candle") == 0) {
-        cd_style = 0;
         led_candle(last_v, 0);
+    }
+    else if (strncmp(w, "spin=", 5) == 0 && parse_nums(w + 5, n, 4, 360) && n[1] <= 100 && n[2] <= 100 && n[3] >= 1 && n[3] <= 60) {
+        hsv_t c = { (int16_t)((n[0] % 360u) * HUE_MAX / 360u), pct(n[1]), pct(n[2]) };   /* H/S/V/T: T seconds a turn */
+        led_spin(c, n[3]);
     }
     else if (strncmp(w, "fade=", 5) == 0 && parse_nums(w + 5, n, 1, 5000)) {
         fade_ms = n[0];
@@ -1429,6 +1331,7 @@ int main(void)
     PWR_BackupAccessCmd(ENABLE);               /* backup registers: baud + OTA request */
 
     ws_hw_init();
+    leds_init();
     usart_init(saved_baud());
 
     led_colour(BRIGHT, 0, 0);                  /* boot: red, proves the LED works */
