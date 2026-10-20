@@ -52,13 +52,15 @@ export function Swap({ k, children, className = '', dir = 0 }: { k: string | num
   const last = useRef<{ k: string | number; node: ReactNode }>({ k, node: children })
   const [leaving, setLeaving] = useState<{ k: string | number; node: ReactNode; dir: number } | null>(null)
   const [prevK, setPrevK] = useState(k)
-  // started: the slide-in's animation, which (for directed swaps) only begins once the leave is over
-  const [started, setStarted] = useState(false)
+  // enter: 0 none, ±1 a directed enter, 2 a plain crossfade. It must survive the leaving panel's
+  // unmount (the direction class going away mid-enter would change the running animation's name
+  // and make the panel snap), and it stays until the next change: nothing re-renders after the settle.
+  const [enter, setEnter] = useState(0)
   const [hold, setHold] = useState(0)   // a directed swap is underway; bumped again on each fresh change
   if (k !== prevK) {
     setPrevK(k)
     setLeaving({ ...last.current, dir })
-    setStarted(dir === 0)
+    setEnter(dir === 0 ? 2 : dir)
     if (dir !== 0) setHold((h) => h + 1)
   }
   last.current = { k, node: children }
@@ -71,7 +73,7 @@ export function Swap({ k, children, className = '', dir = 0 }: { k: string | num
   // the old stack's 0.12 s are its own, like the screens: only then does the enter begin
   useEffect(() => {
     if (!hold) return
-    const t = window.setTimeout(() => { setHold(0); setStarted(true) }, 120)
+    const t = window.setTimeout(() => setHold(0), 120)
     return () => window.clearTimeout(t)
   }, [hold])
 
@@ -104,15 +106,11 @@ export function Swap({ k, children, className = '', dir = 0 }: { k: string | num
     if (!gliding.current && wrap.current) height.current = wrap.current.offsetHeight
   })
 
-  const slide = leaving ? (leaving.dir > 0 ? ' fwd' : leaving.dir < 0 ? ' back' : '') : ''
+  const slide = enter > 0 ? ' fwd' : enter < 0 ? ' back' : ''
   return (
     <div ref={wrap} className={'swap' + slide + (className ? ' ' + className : '')}>
       {leaving && <div key={'out' + leaving.k} className="swap-out" aria-hidden>{leaving.node}</div>}
-      <div
-        key={k}
-        onAnimationEnd={(e) => { if (e.target === e.currentTarget) setStarted(false) }}
-        className={'swap-in' + (started ? ' changed' : hold ? ' pending' : '')}
-      >{children}</div>
+      <div key={k} className={'swap-in' + (hold ? ' pending' : enter !== 0 ? ' changed' : '')}>{children}</div>
     </div>
   )
 }

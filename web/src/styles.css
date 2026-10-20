@@ -796,8 +796,8 @@ input.text-field:focus { border-color: var(--primary); background: var(--on-bg-8
 :root[data-design='material'] .gbar.m3e .gbar-dot { display: none; }
 :root[data-design='material'] .gbar.m3e:focus-visible { outline: 2px solid rgb(var(--mdui-color-secondary)); outline-offset: 4px; border-radius: 12px; }
 /* the brightness bar's own handle is smaller than the colour strips' (it rides a gauge) */
-:root[data-design='material'] .gbar.m3e.level .gbar-thumb { width: 20px; height: 20px; margin: -10px 0 0 -10px; border-radius: calc(var(--u) * 10px); }
-:root[data-design='material'] .gbar.m3e.level.dragging .gbar-thumb { width: 24px; height: 24px; margin: -12px 0 0 -12px; border-radius: calc(var(--u) * 10px); }
+:root[data-design='material'] .gbar.m3e.level .gbar-thumb { width: 16px; height: 16px; margin: -8px 0 0 -8px; border-radius: calc(var(--u) * 8px); }
+:root[data-design='material'] .gbar.m3e.level.dragging .gbar-thumb { width: 20px; height: 20px; margin: -10px 0 0 -10px; border-radius: calc(var(--u) * 8px); }
 
 /* the control deck's bottom switcher: icon buttons; the chosen one grows a little into a labelled
    pill (a soft Material You toolbar morph) — a gentle growth, so the other buttons barely move */
