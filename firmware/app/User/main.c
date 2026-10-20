@@ -6,6 +6,8 @@
  * 12 pixels, LED2 the last 12. Each pixel has its own colour and fade.
  *   send  split=0  ->  Linked (default at boot): every pixel shows the same
  *   send  split=1  ->  Separate: every pixel is individual (candles, breathe)
+ *   send  p=I/H/S/V -> one pixel I (0-23) to HSV (2.1.0)
+ *   send  pal=H/S/V,H/S/V,... -> pixel k = entry k, up to 24 entries (2.1.0)
  *   send  h1=H/S/V, h2=H/S/V, l1=R/G/B, l2=R/G/B -> colour of one half of the ring
  *                      (works in both modes); ends any effect
  *   send  hh=H1/S1/V1/H2/S2/V2 -> both halves in one command (for streaming)
@@ -82,7 +84,7 @@
 
 #define WS_USE_DMA   0               /* 1 = timer + DMA, 0 = polled SysTick */
 
-#define FW_VERSION   "2.0.0"     /* reported by "ver"; bump for each release */
+#define FW_VERSION   "2.1.0"     /* reported by "ver"; bump for each release */
 
 #define START_BAUD   115200          /* used until a baud rate has been detected */
 
@@ -1033,10 +1035,11 @@ static void alert_command(uint8_t kind, uint32_t every_s, uint32_t minutes)
 }
 
 #define CMD_IDLE_MS  50              /* a pause this long ends a message */
-#define LINE_MAX     64
+#define LINE_MAX     320             /* a full 24-pixel pal= list is ~300 characters */
 
 static char    line[LINE_MAX];
-static uint8_t line_len, line_overflow;
+static uint16_t line_len;
+static uint8_t line_overflow;
 static uint8_t line_binary;          /* message contains non-text bytes */
 
 /* The app's update request: confirm, leave the request for the bootloader
@@ -1054,7 +1057,7 @@ static void enter_bootloader(void)
  * spaces, so app extras like "off\0" or "\"off\"" still read as off. */
 static void clean_text(char *out)
 {
-    uint8_t i;
+    uint16_t i;
     for (i = 0; i < line_len; i++) {
         char c = line[i];
         if (c < ' ' || c > '~' || c == '"' || c == '\'') c = ' ';
@@ -1187,6 +1190,61 @@ static const char *trimmed(char *t)
     return t;
 }
 
+/* One pixel, from p=I/H/S/V (2.1.0): a colour command like h=, so it fades and ends effects. */
+static void led_pixel(uint8_t p, hsv_t c)
+{
+    uint8_t rgb[3];
+    hsv_to_rgb(c, rgb);
+    end_modes();
+    fade_led(p, c, rgb);
+}
+
+/* Several pixels, from pal=H/S/V,H/S/V,... (2.1.0): entry k is pixel k. Stops at the
+ * first bad entry; returns how many entries were read. */
+static int parse_palette(const char *s, hsv_t out[])
+{
+    int cnt = 0;
+    while (cnt < RING_PIXELS) {
+        uint16_t v[3];
+        for (int k = 0; k < 3; k++) {
+            uint32_t x = 0;
+            int digits = 0;
+            while (*s == ' ') s++;
+            while (*s >= '0' && *s <= '9') {
+                x = x * 10u + (uint32_t)(*s++ - '0');
+                if (++digits > 4) return cnt;
+            }
+            while (*s == ' ') s++;
+            if (!digits) return cnt;
+            v[k] = (uint16_t)x;
+            if (k < 2) {
+                if (*s != '/') return cnt;
+                s++;
+            }
+        }
+        if (v[0] > 360 || v[1] > 100 || v[2] > 100) return cnt;
+        out[cnt].h = (int16_t)((v[0] % 360u) * HUE_MAX / 360u);
+        out[cnt].s = pct(v[1]);
+        out[cnt].v = pct(v[2]);
+        cnt++;
+        while (*s == ' ') s++;
+        if (*s != ',') break;
+        s++;
+    }
+    return cnt;
+}
+
+/* The first [cnt] pixels from a palette, as one colour command (fades, ends effects). */
+static void led_palette(const hsv_t pal[], int cnt)
+{
+    end_modes();
+    for (int i = 0; i < cnt; i++) {
+        uint8_t rgb[3];
+        hsv_to_rgb(pal[i], rgb);
+        fade_led((uint8_t)i, pal[i], rgb);
+    }
+}
+
 /* End of a message: decode it and act on it. Only ver/ota reply. */
 static void line_end(void)
 {
@@ -1238,6 +1296,17 @@ static void line_end(void)
     else if (strncmp(w, "hh=", 3) == 0) {                  /* both LEDs: H1/S1/V1/H2/S2/V2 */
         if (parse_hsv(w + 3, hv, 2)) { led_hsv_one(0, hv[0]); led_hsv_one(1, hv[1]); }
         else                         led_flash(BRIGHT, BRIGHT, BRIGHT, 60);
+    }
+    else if (strncmp(w, "pal=", 4) == 0) {                  /* 2.1.0: the ring, entry k = pixel k */
+        hsv_t pal[RING_PIXELS];
+        int   cnt = parse_palette(w + 4, pal);
+        if (cnt) led_palette(pal, cnt);
+        else     led_flash(BRIGHT, BRIGHT, BRIGHT, 60);
+    }
+    else if (strncmp(w, "p=", 2) == 0 && parse_nums(w + 2, n, 4, 360) && n[0] < RING_PIXELS &&
+             n[2] <= 100 && n[3] <= 100) {                 /* 2.1.0: p=I/H/S/V, one pixel */
+        hsv_t c = { (int16_t)((n[1] % 360u) * HUE_MAX / 360u), pct(n[2]), pct(n[3]) };
+        led_pixel((uint8_t)n[0], c);
     }
     else if ((w[0] == 'h' || w[0] == 'l') && (w[1] == '1' || w[1] == '2') && w[2] == '=') {
         uint8_t i = (uint8_t)(w[1] - '1');                 /* h1= h2= l1= l2=: one LED */

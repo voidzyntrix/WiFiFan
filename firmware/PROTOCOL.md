@@ -1,4 +1,4 @@
-# WiFiFan LED board - serial protocol (firmware 2.0.0)
+# WiFiFan LED board - serial protocol (firmware 2.1.0)
 
 Transport: USART1 8N1 (via the Bluetooth module). Baud rate is auto-detected
 (9600 / 19200 / 38400 / 57600 / 115200); the LEDs flash blue when the board
@@ -18,7 +18,7 @@ Full ring behaviour and how the app should use it: see [RING-MODES.md](RING-MODE
 
 | Send    | Reply                        |
 |---------|------------------------------|
-| `ver\`  | `VER,2.0.0\`                 |
+| `ver\`  | `VER,2.1.0\`                 |
 | `leds\` | `LEDS,24,2\` (1.10.0+)       |
 
 Older firmware does not know the newer commands and answers them with a white
@@ -32,7 +32,8 @@ flash, so the app must check `VER` first:
 | `sleep=M` | 1.7.0 |
 | `alert=C/S/M` | 1.8.0 |
 | `leds\` | 1.10.0 |
-| Per-pixel candle, breathe wave, wheel rainbow, `spin=` | **2.0.0** |
+| Per-pixel candle, breathe wave, wheel rainbow, `spin=` | 2.0.0 |
+| `p=` and `pal=` (single pixels, whole palette) | **2.1.0** |
 
 ## Linked vs Separate (`split`)
 
@@ -58,12 +59,16 @@ goes the short way round the wheel).
 | `off` | ring off (any message containing `off`) | `off\` |
 | picker formats | `#rrggbb`, `#aarrggbb`, `R,G,B[,BR]`, `r255g0b128`, one Android colour integer (`-65536`), or 3-4 raw bytes R,G,B[,BR] | `#ff8000\` |
 
-Any colour command ends rainbow / candle / breathe / spin.
+Any colour command ends rainbow / candle / breathe / spin. `p=` and `pal=` are colour
+commands too: they fade over `fade=` and are not saved. `pal=` may be up to ~300
+characters: the board accepts messages up to 320 characters.
 
 ### Halves (the two LEDs)
 
 | Command | Meaning | Example |
 |---------|---------|---------|
+| `p=I/H/S/V` (2.1.0) | one pixel I (0-23) to HSV; the others keep their colour | `p=7/30/95/80\` |
+| `pal=H/S/V,H/S/V,...` (2.1.0) | pixel k = entry k, up to 24 entries; shorter lists leave the rest alone | `pal=270/100/100,0/0/0\` |
 | `h1=H/S/V` | LED1 (pixels 0-11) only, HSV | `h1=0/100/100\` |
 | `h2=H/S/V` | LED2 (pixels 12-23) only, HSV | `h2=240/100/60\` |
 | `l1=R/G/B` | LED1 only, RGB | `l1=255/0/0\` |
