@@ -14,7 +14,8 @@ switches rate, and the first command after a switch may be lost.
 
 | Send   | Reply           |
 |--------|-----------------|
-| `ver\` | `VER,1.9.0\`    |
+| `ver\` | `VER,1.10.0\`    |
+| `leds\` | `LEDS,24,2\` (1.10.0+) |
 
 Everything in "New in 1.6.0" below needs `VER` >= 1.6.0. Older firmware does
 not know those commands (it answers them with a white flash or a wrong colour),

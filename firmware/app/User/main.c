@@ -53,6 +53,8 @@
  *                      with no byte from the phone for 150 s the alert ends by
  *                      itself (Bluetooth dropped). alert=0 cancels.
  *   send  ver      ->  replies "VER,<FW_VERSION>"
+ *   send  leds     ->  replies "LEDS,<pixels>,<leds>" (1.10.0): the ring has <pixels>
+ *                      WS2812s, shown as <leds> LEDs (LED1 first half, LED2 second)
  *   send  ota      ->  replies "OTA", then restarts into the Bluetooth
  *                      bootloader for a firmware update (see the
  *                      CH32V203C8U_Bootloader project)
@@ -92,7 +94,7 @@
 
 #define WS_USE_DMA   0               /* 1 = timer + DMA, 0 = polled SysTick */
 
-#define FW_VERSION   "1.9.0"     /* reported by "ver"; bump for each release */
+#define FW_VERSION   "1.10.0"     /* reported by "ver"; bump for each release */
 
 #define START_BAUD   115200          /* used until a baud rate has been detected */
 
@@ -103,6 +105,8 @@
 #define BKP_REQ      BKP_DR1         /* OTA_MAGIC = "stay in the bootloader" */
 #define BKP_BAUD     BKP_DR2         /* UART baud / 100 */
 #define OTA_MAGIC    0xB007
+#define STR2(x)      #x
+#define STR(x)       STR2(x)
 #define NUM_LEDS     2               /* logical LEDs: LED1 and LED2 (the app's two) */
 #define RING_PIXELS  24              /* WS2812s on the ring, chained from PB3 */
 #define PX_PER_LED   (RING_PIXELS / NUM_LEDS)   /* LED1 = first half of the ring, LED2 = second */
@@ -1296,6 +1300,9 @@ static void line_end(void)
     }
     else if (strcmp(w, "ver") == 0) {
         reply("VER," FW_VERSION);
+    }
+    else if (strcmp(w, "leds") == 0) {
+        reply("LEDS," STR(RING_PIXELS) "," STR(NUM_LEDS));
     }
     else if (strcmp(w, "ota") == 0) {
         enter_bootloader();
