@@ -156,15 +156,14 @@ export function simulatedRing(c: LedController, t: number): DotColour[] {
       })
     }
     case MODE.SPIN: {
-      // A tail of 8 chasing round: brightest at the head, dying away behind, the rest dark.
+      // 2.1.1: a flat arc — 8 pixels at full brightness, the rest dark, chasing round the ring.
       if (!caps.spin) return dots
       const step = (2 * Math.PI) / n
       const head = ((t / prefs.spinSeconds) * 2 * Math.PI) % (2 * Math.PI)
-      const PROFILE = [1, 0.68, 0.47, 0.31, 0.2, 0.12, 0.06, 0.03]
       return dots.map((_, i) => {
         const behind = ((head - i * step) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI)
         const tailIdx = Math.round(behind / step)
-        const [gh, gs, gv] = gammaHsv(s.hue, s.sat, bri * (tailIdx < PROFILE.length ? PROFILE[tailIdx] : 0))
+        const [gh, gs, gv] = gammaHsv(s.hue, s.sat, bri * (tailIdx < 8 ? 1 : 0))
         return { hue: gh, sat: gs, val: gv }
       })
     }

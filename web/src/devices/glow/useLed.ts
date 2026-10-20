@@ -150,7 +150,11 @@ export function useLed() {
       case MODE.RAINBOW: return sendRainbow()
       case MODE.CANDLE: return sendCandle()
       case MODE.BREATHE: sendHsvColour(); return sendEffect(m)
-      case MODE.SPIN: return caps.spin ? sendSpinner() : sendSolid()      // an old board has no spinner: show the colour
+      case MODE.SPIN:
+        if (!caps.spin) return sendSolid()          // an old board has no spinner: show the colour
+        if (!caps.spinLive) return sendSpinner()    // pre-2.1.1: spin= is the only way to change it, and it restarts the turn
+        // 2.1.1 keeps the arc turning: h=/l= recolour and re-brighten it live (no restart from the top)
+        return send(LedCommands.colour(st.current.hue, st.current.sat, st.current.bri, caps.hsv))
       case MODE.SOLAR: return send(solarCommand({ on: true, bri: Math.round(st.current.bri * 100) }))   // the board does it itself
       case MODE.MUSIC:
       case MODE.VISUALIZER:
@@ -217,6 +221,7 @@ export function useLed() {
     const s = st.current
     if (s.mode === MODE.BREATHE) return
     if (s.mode === MODE.MUSIC) { settings.set({ musicKeepColour: true }); return }
+    if (s.mode === MODE.SPIN && caps.spinLive) return    // 2.1.1: a colour change keeps the arc turning, just recoloured
     if (led2Only) { s.mode = MODE.SOLID; return }
     if (s.mode === MODE.CANDLE) { s.candleHue = normHue(Math.round(s.hue)) % 360; return }
     s.mode = MODE.SOLID
@@ -502,13 +507,25 @@ export function useLed() {
     if (caps.options && connected && sync.active === 'NONE') send(`fade=${prefs.fadeMs}`)
   }, [caps.options, connected, prefs.fadeMs])
 
-  // Changing candle/rainbow/spinner options while that mode runs applies them right away.
+  // Changing candle/rainbow options while that mode runs applies them right away. The spinner's
+  // seconds are separate: they need spin= (below), while colour and brightness go through sendCurrent's live path.
   const firstOpts = useRef(true)
   useEffect(() => {
     if (firstOpts.current) { firstOpts.current = false; return }
     if (!caps.options || !connected) return
-    if ([MODE.CANDLE, MODE.RAINBOW, MODE.SPIN].map(Number).includes(st.current.mode)) sendCurrent()
-  }, [prefs.smoothCandle, prefs.rainbowSeconds, prefs.candleHue, prefs.twoCandles, prefs.spinSeconds])
+    if ([MODE.CANDLE, MODE.RAINBOW].map(Number).includes(st.current.mode)) sendCurrent()
+  }, [prefs.smoothCandle, prefs.rainbowSeconds, prefs.candleHue, prefs.twoCandles])
+
+  // A new turn length always goes out as spin=H/S/V/T: pre-2.1.1 it is the only way in (restarts the
+  // turn, like every change); from 2.1.1 the arc only re-learns its speed this way, colour goes through h=.
+  const spinSecondsAt = useRef(prefs.spinSeconds)
+  useEffect(() => {
+    const before = spinSecondsAt.current
+    spinSecondsAt.current = prefs.spinSeconds
+    if (before === prefs.spinSeconds || !connected) return
+    if (st.current.mode !== MODE.SPIN || !caps.spin) return
+    sendSpinner()
+  }, [prefs.spinSeconds])
   // A new Settings candle colour drops the colour picked while Candle ran.
   useEffect(() => { st.current.candleHue = null }, [prefs.candleHue])
 
@@ -522,7 +539,8 @@ export function useLed() {
     send(LedCommands.split(sep))
     splitSent.current = sep
     if (sep && isRing) initRingPalette()
-    if (sep || changed) sendCurrent()
+    if (st.current.mode === MODE.SPIN && caps.spinLive) sendSpinner()   // a fresh session (re)starts the arc; later colour goes through h=
+    else if (sep || changed) sendCurrent()
   }, [caps.split, connected, st.current.separate, isRing])
 
   // Settings > Linked / Separate.

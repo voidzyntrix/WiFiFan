@@ -1,6 +1,6 @@
 # App changes
 
-Changes the app needs for firmware 2.1.1 (spinner). Not done yet; the app code is untouched.
+Changes the app needs for firmware 2.1.1 (spinner). Done in app 2.13.59.
 
 ## 1. Spinner: colour and brightness must not restart it
 

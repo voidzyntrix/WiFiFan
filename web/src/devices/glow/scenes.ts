@@ -129,7 +129,7 @@ export function capsOf(version: string | null): BoardCaps {
   return {
     hsv: atLeast(version, '1.1.0'), candle: atLeast(version, '1.2.0'), options: atLeast(version, '1.3.0'),
     effects: atLeast(version, '1.4.0'), split: atLeast(version, '1.6.0'), candleStyle: atLeast(version, '1.6.1'),
-    sleep: atLeast(version, '1.7.0'), spin: atLeast(version, '2.0.0'), perPixel: atLeast(version, '2.1.0'),
+    sleep: atLeast(version, '1.7.0'), spin: atLeast(version, '2.0.0'), spinLive: atLeast(version, '2.1.1'), perPixel: atLeast(version, '2.1.0'),
     importLevels: atLeast(version, '2.2.0'),
   }
 }
@@ -158,9 +158,9 @@ export function resolveScene(scene: Scene, current: LedState, caps: BoardCaps): 
   return { next, supported }
 }
 
-export interface LedOptions { smoothCandle: boolean; candleHue: number; twoCandles: boolean; rainbowSeconds: number }
+export interface LedOptions { smoothCandle: boolean; candleHue: number; twoCandles: boolean; rainbowSeconds: number; spinSeconds: number }
 export const ledOptionsOf = (s: Settings): LedOptions =>
-  ({ smoothCandle: s.smoothCandle, candleHue: s.candleHue, twoCandles: s.twoCandles, rainbowSeconds: s.rainbowSeconds })
+  ({ smoothCandle: s.smoothCandle, candleHue: s.candleHue, twoCandles: s.twoCandles, rainbowSeconds: s.rainbowSeconds, spinSeconds: s.spinSeconds })
 
 /** The commands that show [state]: the layout first when it changes, then the mode. */
 export function stateCommands(state: LedState, caps: BoardCaps, opts: LedOptions, layoutChanged: boolean): string[] {
@@ -175,6 +175,10 @@ export function stateCommands(state: LedState, caps: BoardCaps, opts: LedOptions
       mode = [LedCommands.candle(state.bri, caps.options, opts.smoothCandle, state.candleHue ?? opts.candleHue, caps.candleStyle, opts.twoCandles)]
       break
     case MODE.BREATHE: mode = [colour(), LedCommands.effect(state.mode, state.bri)]; break
+    case MODE.SPIN:
+      // spin= is the only command that starts the arc; a 2.1.1 board keeps turning while h= recolours
+      mode = caps.spin ? [colour(), LedCommands.spinner(state.hue, state.sat, state.bri, opts.spinSeconds)] : [colour()]
+      break
     case MODE.MUSIC:
     case MODE.VISUALIZER:
     case MODE.SCREEN: mode = []; break
