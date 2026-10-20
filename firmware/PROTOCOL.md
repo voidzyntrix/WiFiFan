@@ -1,4 +1,4 @@
-# WiFiFan LED board - serial protocol (firmware 2.1.0)
+# WiFiFan LED board - serial protocol (firmware 2.1.1)
 
 Transport: USART1 8N1 (via the Bluetooth module). Baud rate is auto-detected
 (9600 / 19200 / 38400 / 57600 / 115200); the LEDs flash blue when the board
@@ -18,7 +18,7 @@ Full ring behaviour and how the app should use it: see [RING-MODES.md](RING-MODE
 
 | Send    | Reply                        |
 |---------|------------------------------|
-| `ver\`  | `VER,2.1.0\`                 |
+| `ver\`  | `VER,2.1.1\`                 |
 | `leds\` | `LEDS,24,2\` (1.10.0+)       |
 
 Older firmware does not know the newer commands and answers them with a white
@@ -59,7 +59,7 @@ goes the short way round the wheel).
 | `off` | ring off (any message containing `off`) | `off\` |
 | picker formats | `#rrggbb`, `#aarrggbb`, `R,G,B[,BR]`, `r255g0b128`, one Android colour integer (`-65536`), or 3-4 raw bytes R,G,B[,BR] | `#ff8000\` |
 
-Any colour command ends rainbow / candle / breathe / spin. `p=` and `pal=` are colour
+Any colour command ends rainbow / candle / breathe; while spinning, `h=` and `l=` only recolour it. `p=` and `pal=` are colour
 commands too: they fade over `fade=` and are not saved. `pal=` may be up to ~300
 characters: the board accepts messages up to 320 characters.
 
@@ -97,7 +97,10 @@ Streaming (music / visualizer / screen sync): send `hh=...` per frame, with
 | `breathe[=V]` | the last colour slowly fades up and down (4 s) | `breathe=80\` |
 | `spin=H/S/V/T` | **spinner**: a bright tail chasing round the ring in this colour, one turn every T seconds (1-60) | `spin=200/100/100/2\` |
 
-`spin=` always draws its tail round the ring. Turn it off with any colour command.
+`spin=` draws a flat arc of 8 pixels in one colour, chasing round the ring. While it
+turns, `h=` and `l=` (colour and brightness) change its colour at once and it keeps
+turning (2.1.1). Any other command (candle, breathe, rain, `p=`, `pal=`, halves) ends it.
+`off` darkens the arc; it keeps turning until the next colour.
 
 ### Settings and system
 

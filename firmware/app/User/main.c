@@ -25,8 +25,9 @@
  *   send  candle=V/M -> M=1: smooth candle (slow, gentle), M=0: lively flicker
  *   send  candle=V/M/H -> ... with flame hue H in degrees (0-60, default 19)
  *   send  candle=V/M/H/S -> S is accepted and ignored (every flame is individual)
- *   send  spin=H/S/V/T -> spinner: a loading ring, a bright tail chasing round the
- *                      ring in this colour, one turn every T seconds (1-60)
+ *   send  spin=H/S/V/T -> spinner: a flat arc of 8 pixels in this colour chasing round
+ *                      the ring, one turn every T seconds (1-60); h= and l= recolour it
+ *                      while it turns (2.1.1)
  *   send  breathe=V -> the last colour fades up and down over 4 s (Separate: as a wave round the ring)
  *   send  fade=MS  ->  colour change duration 0-5000 ms (default 1500)
  *   Rainbow, candle, breathe and spin replace each other; a colour command ends them.
@@ -84,7 +85,7 @@
 
 #define WS_USE_DMA   0               /* 1 = timer + DMA, 0 = polled SysTick */
 
-#define FW_VERSION   "2.1.0"     /* reported by "ver"; bump for each release */
+#define FW_VERSION   "2.1.1"     /* reported by "ver"; bump for each release */
 
 #define START_BAUD   115200          /* used until a baud rate has been detected */
 
@@ -537,7 +538,7 @@ static uint8_t  candle, cd_smooth, cd_v = 255;
 static int16_t  cd_hue = CANDLE_HUE;         /* flame hue, 0..1535 units */
 static uint32_t cd_ms, cd_last;              /* candle clock in ms, last tick */
 
-/* Spinner: a loading ring, a bright tail chasing round the ring in one colour. */
+/* Spinner: a flat arc of one colour chasing round the ring. */
 #define SPIN_TAIL    8                       /* tail length, pixels */
 #define SPIN_FP      256u                    /* sub-pixel steps per pixel */
 static uint8_t  spin;
@@ -650,19 +651,23 @@ static void led_colour_one(uint8_t half, const uint8_t rgb[3])
     for (uint8_t p = half * PX_PER_LED; p < (half + 1) * PX_PER_LED; p++) fade_led(p, c, rgb);
 }
 
-/* The whole ring, from an RGB command (l=, picker, off). */
+/* The whole ring, from an RGB command (l=, picker, off). A running spinner keeps
+ * turning and takes the new colour (2.1.1). */
 static void led_colour(uint8_t r, uint8_t g, uint8_t b)
 {
     const uint8_t rgb[3] = { r, g, b };
+    if (spin) { spin_c = rgb_to_hsv(r, g, b); dirty = 1; return; }
     end_modes();
     hsv_t c = rgb_to_hsv(r, g, b);
     for (uint8_t p = 0; p < RING_PIXELS; p++) fade_led(p, c, rgb);
 }
 
-/* The whole ring, from an HSV command (h=). */
+/* The whole ring, from an HSV command (h=). A running spinner keeps turning and
+ * takes the new colour and brightness (2.1.1). */
 static void led_hsv(hsv_t c)
 {
     uint8_t rgb[3];
+    if (spin) { spin_c = c; dirty = 1; return; }
     hsv_to_rgb(c, rgb);
     end_modes();
     for (uint8_t p = 0; p < RING_PIXELS; p++) fade_led(p, c, rgb);
@@ -826,8 +831,7 @@ static void candle_frame(uint8_t p, float tt)
     d->shown.v = (uint8_t)(cd_v * f);
 }
 
-/* One spinner frame: the head sits at a point on the ring and each pixel
- * behind it is lit, fading with distance, so a tail chases round. */
+/* One spinner frame: a flat arc of SPIN_TAIL pixels, one colour, chasing round the ring. */
 static void spin_frame(uint32_t t)
 {
     if (!spin) return;
@@ -844,12 +848,7 @@ static void spin_frame(uint32_t t)
         led_t *px = &L[p];
         px->shown.h = spin_c.h;
         px->shown.s = spin_c.s;
-        if (d < tail) {                        /* squared fall-off: bright head, soft tail */
-            uint32_t g = tail - d;
-            px->shown.v = (uint8_t)((uint32_t)spin_c.v * (g * g * 255u / (tail * tail)) / 255u);
-        } else {
-            px->shown.v = 0;
-        }
+        px->shown.v = d < tail ? spin_c.v : 0;     /* a flat arc of one colour, the rest dark */
     }
 }
 
