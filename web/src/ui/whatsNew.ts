@@ -2,6 +2,15 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.59',
+    notes: [
+      'Spinner colour and brightness changes no longer restart the arc on firmware 2.1.1: dragging a colour recolours it live while it keeps turning (older firmware keeps the old behaviour).',
+      'The spinner preview now shows the flat 8-pixel arc the board draws, instead of a tapering tail.',
+      'A scene saved in Spinner mode starts the spinner on the board when you apply it.',
+    ],
+  },
+
+  {
     version: '2.13.58',
     notes: [
       'The ring preview is bigger: it fills the panel now, with a visible gap between the pixels instead of overlapping dots.',
