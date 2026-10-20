@@ -41,7 +41,7 @@ const ANIMATED = [MODE.RAINBOW, MODE.CANDLE, MODE.BREATHE]
 type Tab = 'colour' | 'modes' | 'scenes' | 'tune'
 type Dialog =
   | { kind: 'sleep' } | { kind: 'addScene' } | { kind: 'sceneMenu'; scene: Scene } | { kind: 'renameScene'; scene: Scene }
-  | { kind: 'firmware' } | null
+  | { kind: 'firmware' } | { kind: 'device' } | null
 
 /** A ~30 fps clock in seconds while `on` (the LED preview and rainbow sliders animate with it). */
 function useClock(on: boolean) {
@@ -66,13 +66,14 @@ export function ControlScreen(props: ControlScreenProps) {
   const [dialog, setDialog] = useState<Dialog>(null)
   const ota = useOta()
 
-  // New board firmware: looked for on connect (quietly); a dot on Firmware says there is one.
+  // New board firmware: looked for on connect (quietly); a dot on Firmware — in the device menu
+  // under the device name — says there is one.
   // Said once per version: a board running older firmware may not do everything (colours, for one).
   const told = useRef('')
   useEffect(() => {
     if (ota.kind !== 'available' || told.current === ota.release.version) return
     told.current = ota.release.version
-    toast(`Board firmware v${ota.release.version} is available. Open Firmware under the LED to update.`)
+    toast(`Board firmware v${ota.release.version} is available. Firmware sits in the device menu — tap the device's name.`)
   }, [ota])
 
   const fw = firmwareVersionOf(useBoard())
@@ -140,17 +141,21 @@ export function ControlScreen(props: ControlScreenProps) {
   if (tabIdx >= 0) prevIdx.current = tabIdx
   const briTop = c.s.kelvinMode ? kelvinScreenColor(s.kelvin) : hsvCss(s.hue, s.sat)
 
+  // the device menu's rows (the title tap = rename). Firmware carries the update dot; Reset only
+  // when the session can, neither on the demo board. When both drop out the menu is title-only.
+  const deviceActions: [string, () => void, ReactNode?][] = []
+  if (!c.isDemo) deviceActions.push(['Firmware', () => setDialog({ kind: 'firmware' }), <Presence show={ota.kind === 'available'} className="inline"><span className="update-dot" /></Presence>])
+  if (!c.isDemo && props.onReset) deviceActions.push(['Reset device', () => { setDialog(null); props.onReset!() }])
+
   return (
     <div className="screen control">
       <header className="header entrance" style={{ ['--i' as string]: 0 }}>
         <CircleIconButton label="All devices" onClick={props.onBack}><BackIcon /></CircleIconButton>
         <div className="header-title">
           <h1>Glow</h1>
-          <button className="board-pill" onClick={props.onRename} title="Rename">
+          <button className="board-pill" onClick={() => { sound.tap(); setDialog({ kind: 'device' }) }} title="Device menu">
             <span className="board-dot" />
             <span className="board-name"><Txt>{displayName(props.device)}</Txt></span>
-            {c.fwVersion && <span className="board-ver">v{c.fwVersion}</span>}
-            <EditIcon />
           </button>
         </div>
         <CircleIconButton label="Settings" title="Settings (,)" onClick={props.onSettings}><SettingsIcon /></CircleIconButton>
@@ -168,10 +173,7 @@ export function ControlScreen(props: ControlScreenProps) {
       <div className="control-body">
         <Preview
           c={c}
-          firmwareDot={ota.kind === 'available'}
           onDisconnect={props.onDisconnect}
-          onFirmware={() => setDialog({ kind: 'firmware' })}
-          onReset={props.onReset}
         />
 
         <div className="control-deck entrance" style={{ ['--i' as string]: 2 }}>
@@ -266,6 +268,19 @@ export function ControlScreen(props: ControlScreenProps) {
         />
       )}
       {dialog?.kind === 'firmware' && <FirmwareDialog onDismiss={() => setDialog(null)} />}
+      {dialog?.kind === 'device' && (
+        <ActionsDialog
+          title={displayName(props.device)}
+          subtitle="Device"
+          titleExtra={<>
+            <EditIcon />
+            {c.fwVersion && <span className="board-ver">v{c.fwVersion}</span>}
+          </>}
+          onTitle={() => { setDialog(null); props.onRename() }}
+          actions={deviceActions}
+          onDismiss={() => setDialog(null)}
+        />
+      )}
       {dialog?.kind === 'addScene' && (
         <NameDialog
           title="Save scene"
@@ -303,8 +318,8 @@ export function ControlScreen(props: ControlScreenProps) {
 }
 
 /** The LED preview, its name, and the background colour that follows it: this is what animates. */
-function Preview({ c, firmwareDot, onDisconnect, onFirmware, onReset }: {
-  c: LedController; firmwareDot: boolean; onDisconnect: () => void; onFirmware?: () => void; onReset?: () => void
+function Preview({ c, onDisconnect }: {
+  c: LedController; onDisconnect: () => void
 }) {
   const { s } = c
   const t = useClock(c.connected && c.ledOn && (ANIMATED.includes(s.mode as 1) || c.sync.active !== 'NONE'))
@@ -336,15 +351,6 @@ function Preview({ c, firmwareDot, onDisconnect, onFirmware, onReset }: {
       <div className="mode-name">{modeName}</div>
       <div className="preview-links">
         <button className="quiet-link small" onClick={() => { sound.tap(); onDisconnect() }}>Disconnect</button>
-        {!c.isDemo && onReset && (
-          <button className="quiet-link small" onClick={() => { sound.tap(); onReset() }}>Reset device</button>
-        )}
-        {!c.isDemo && onFirmware && (
-          <button className="quiet-link small" onClick={() => { sound.tap(); onFirmware() }}>
-            Firmware
-            <Presence show={firmwareDot} className="inline badge"><span className="update-dot" /></Presence>
-          </button>
-        )}
       </div>
     </div>
   )

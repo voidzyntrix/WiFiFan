@@ -520,6 +520,12 @@ code { font-family: 'JetBrains Mono', monospace; font-size: 0.9em; }
 /* ── Dialog parts (both designs) ──────────────────────────── */
 
 .dialog-title { font-size: 22px; font-weight: 500; }
+/* a menu whose title row is itself an affordance (the device menu: tap the title = rename it):
+   the pencil and the version signs sit after the name, the hover tint works on either design */
+button.dialog-title { display: flex; align-items: center; gap: 6px; width: auto; text-align: left; font-family: inherit; color: inherit; padding: 8px 10px; margin: -8px -10px 14px -10px; border: none; background: none; border-radius: calc(min(var(--u), 1) * 16px); cursor: pointer; transition: background 0.15s; }
+button.dialog-title:hover { background: color-mix(in srgb, currentColor 9%, transparent); }
+button.dialog-title:active { transform: scale(0.98); }
+button.dialog-title .board-ver { font-weight: 400; }
 .dialog-sub { font-size: 13px; color: var(--on-bg-55); }
 .dialog-buttons { display: flex; gap: 10px; margin-top: 8px; }
 :is(.dialog-buttons, .button-row) > * { flex: 1 1 0; min-width: 0; }

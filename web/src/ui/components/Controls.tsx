@@ -450,23 +450,41 @@ function GlassDialog({ onDismiss, children, wide }: { onDismiss: () => void; chi
   )
 }
 
-/** A short list of actions (long-press / right-click menus). */
-export function ActionsDialog(props: { title: string; subtitle?: string; actions: [string, () => void][]; onDismiss: () => void }) {
+/** A short list of actions (long-press / right-click menus). The title row can itself be a button
+ *  whose tap opens the subject's edit (the title is the device name, pencil beside it), and an
+ *  action can carry a small trailing extra (the firmware's update dot). */
+export function ActionsDialog(props: {
+  title: string; subtitle?: string
+  titleExtra?: ReactNode
+  onTitle?: () => void
+  actions: [string, () => void, ReactNode?][]
+  onDismiss: () => void
+}) {
   const design = useDesign()
   return (
     <Dialog onDismiss={props.onDismiss}>
-      <h2 className="dialog-title">{props.title}</h2>
+      {props.onTitle ? (
+        <button className="dialog-title pressable" onClick={() => { sound.tap(); props.onTitle!() }} title="Rename">
+          <span className="dialog-title-name">{props.title}</span>
+          {props.titleExtra}
+        </button>
+      ) : <h2 className="dialog-title">{props.title}</h2>}
       {props.subtitle && <div className="dialog-sub">{props.subtitle}</div>}
       {design === 'MATERIAL' ? (
         <mdui-list class="dialog-actions">
-          {props.actions.map(([label, fn]) => (
-            <mdui-list-item key={label} rounded headline={label} onClick={() => { sound.tap(); fn() }} />
+          {props.actions.map(([label, fn, extra]) => (
+            <mdui-list-item key={label} rounded headline={label} onClick={() => { sound.tap(); fn() }}>
+              {extra && <span slot="end-icon" className="list-badge">{extra}</span>}
+            </mdui-list-item>
           ))}
         </mdui-list>
       ) : (
         <div className="dialog-actions">
-          {props.actions.map(([label, fn]) => (
-            <button key={label} className="action-row" onClick={() => { sound.tap(); fn() }}>{label}</button>
+          {props.actions.map(([label, fn, extra]) => (
+            <button key={label} className="action-row" onClick={() => { sound.tap(); fn() }}>
+              <span>{label}</span>
+              {extra}
+            </button>
           ))}
         </div>
       )}
