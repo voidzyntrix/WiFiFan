@@ -63,7 +63,7 @@
  * A command ends with '\' (the app's delimiter), Enter (\r or \n) or a short
  * pause, so app buttons that send no line ending work too.
  *
- * Since 1.5.0 every R,G,B byte goes through a gamma 2.2 table (gamma8)
+ * Since 1.5.0 every R,G,B byte went through a gamma 2.2 table (gamma8); removed in 2.1.6
  * just before it is sent to the WS2812, so fades and dim levels look even
  * to the eye. Nonzero levels never drop below 1 (0 stays off).
  *
@@ -85,7 +85,7 @@
 
 #define WS_USE_DMA   0               /* 1 = timer + DMA, 0 = polled SysTick */
 
-#define FW_VERSION   "2.1.5"     /* reported by "ver"; bump for each release */
+#define FW_VERSION   "2.1.6"     /* reported by "ver"; bump for each release */
 
 #define START_BAUD   115200          /* used until a baud rate has been detected */
 
@@ -262,38 +262,17 @@ static void ws_write(const uint8_t px[RING_PIXELS][3])
 }
 #endif
 
-/* Gamma correction (gamma 2.2) for the WS2812, which is linear in PWM duty
- * while the eye is not. Generated with Python:
- *   [0] + [max(1, round(255 * (i / 255) ** 2.2)) for i in range(1, 256)]
- * i.e. nonzero inputs map to at least 1 so very dim levels stay visible. */
-static const uint8_t gamma8[256] = {
-      0,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   1,
-      1,   1,   1,   1,   1,   1,   1,   1,   1,   2,   2,   2,   2,   2,   2,   2,
-      3,   3,   3,   3,   3,   4,   4,   4,   4,   5,   5,   5,   5,   6,   6,   6,
-      6,   7,   7,   7,   8,   8,   8,   9,   9,   9,  10,  10,  11,  11,  11,  12,
-     12,  13,  13,  13,  14,  14,  15,  15,  16,  16,  17,  17,  18,  18,  19,  19,
-     20,  20,  21,  22,  22,  23,  23,  24,  25,  25,  26,  26,  27,  28,  28,  29,
-     30,  30,  31,  32,  33,  33,  34,  35,  35,  36,  37,  38,  39,  39,  40,  41,
-     42,  43,  43,  44,  45,  46,  47,  48,  49,  49,  50,  51,  52,  53,  54,  55,
-     56,  57,  58,  59,  60,  61,  62,  63,  64,  65,  66,  67,  68,  69,  70,  71,
-     73,  74,  75,  76,  77,  78,  79,  81,  82,  83,  84,  85,  87,  88,  89,  90,
-     91,  93,  94,  95,  97,  98,  99, 100, 102, 103, 105, 106, 107, 109, 110, 111,
-    113, 114, 116, 117, 119, 120, 121, 123, 124, 126, 127, 129, 130, 132, 133, 135,
-    137, 138, 140, 141, 143, 145, 146, 148, 149, 151, 153, 154, 156, 158, 159, 161,
-    163, 165, 166, 168, 170, 172, 173, 175, 177, 179, 181, 182, 184, 186, 188, 190,
-    192, 194, 196, 197, 199, 201, 203, 205, 207, 209, 211, 213, 215, 217, 219, 221,
-    223, 225, 227, 229, 231, 234, 236, 238, 240, 242, 244, 246, 248, 251, 253, 255
-};
+/* No gamma correction (2.1.6): colours go to the LEDs as they are, so every mode keeps its hue at any brightness. */
 
-/* The one place colours reach the LEDs: gamma-corrects each channel. */
-/* Sleep timer: every colour is scaled by this (0..256) before the gamma table. */
+/* The one place colours reach the LEDs: applies the sleep timer, nothing else. */
+/* Sleep timer: every colour is scaled by this (0..256). */
 static uint16_t sleep_k = 256;
 
 static void ws_set(const uint8_t px[RING_PIXELS][3])
 {
     uint8_t g[RING_PIXELS][3];
     for (int i = 0; i < RING_PIXELS; i++)
-        for (int c = 0; c < 3; c++) g[i][c] = gamma8[(uint8_t)((px[i][c] * sleep_k) >> 8)];
+        for (int c = 0; c < 3; c++) g[i][c] = (uint8_t)((px[i][c] * sleep_k) >> 8);
     ws_write((const uint8_t (*)[3])g);
 }
 
@@ -861,9 +840,7 @@ static void spin_frame(uint32_t t)
 }
 
 /* Candle output (2.1.3): the flame colour is worked out at full brightness and then
- * scaled as a whole by the gamma-corrected level. Gamma on each channel of a dim
- * flame rounds the channels apart (pink, and a flicker as they step), so the hue
- * is kept by scaling the colour instead. */
+ * scaled as a whole by its level, so the hue holds as it dims. */
 static void candle_out(uint8_t px[RING_PIXELS][3])
 {
     for (int i = 0; i < RING_PIXELS; i++) {
@@ -871,7 +848,7 @@ static void candle_out(uint8_t px[RING_PIXELS][3])
         uint8_t rgb[3];
         full.v = 255;
         hsv_to_rgb(full, rgb);
-        uint32_t level = ((uint32_t)gamma8[L[i].shown.v] * sleep_k) >> 8;
+        uint32_t level = ((uint32_t)L[i].shown.v * sleep_k) >> 8;
         for (int c = 0; c < 3; c++) px[i][c] = (uint8_t)((rgb[c] * level + 127u) / 255u);
     }
 }

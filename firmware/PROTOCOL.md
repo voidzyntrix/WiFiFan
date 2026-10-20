@@ -1,4 +1,4 @@
-# WiFiFan LED board - serial protocol (firmware 2.1.5)
+# WiFiFan LED board - serial protocol (firmware 2.1.6)
 
 Transport: USART1 8N1 (via the Bluetooth module). Baud rate is auto-detected
 (9600 / 19200 / 38400 / 57600 / 115200); the LEDs flash blue when the board
