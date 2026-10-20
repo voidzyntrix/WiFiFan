@@ -2,6 +2,16 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.58',
+    notes: [
+      'The ring preview is bigger: it fills the panel now, with a visible gap between the pixels instead of overlapping dots.',
+      'Per-pixel colours no longer reset to the two halves when you leave the controls and come back (Settings, the device list).',
+      'The ring has its own preview component - the two-LED disc previews are untouched.',
+      'The demo board always reports the newest released firmware (live from versions.json, like the update checks).',
+    ],
+  },
+
+  {
     version: '2.13.57',
     notes: [
       'Individual now edits just the dot you tapped: the preview always keeps the ring\'s per-pixel picture (2.0.0 boards still follow per half until the per-pixel firmware).',
