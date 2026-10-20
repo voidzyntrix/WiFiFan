@@ -74,6 +74,10 @@ export async function checkFirmware(boardVersion: string | null, quiet = false, 
     }
     if (!latest) { if (!quiet) set({ kind: 'error', message: 'No firmware found in the GitHub releases' }); return }
     if (otaBusy(state)) return
+    // a quiet check announces findings; it never takes an update away or invents one:
+    // with the board's version still unknown it stays out, and a known release stands until a strictly newer one turns up.
+    if (quiet && boardVersion == null) return
+    if (quiet && state.kind === 'available' && compareVersions(latest.version, state.release.version) <= 0) return
     if (boardVersion != null && compareVersions(latest.version, boardVersion) <= 0) set({ kind: 'upToDate', latest: latest.version })
     else set({ kind: 'available', release: latest })
   } catch (e) {

@@ -48,6 +48,14 @@ function previewFrom(a: Out, b: Out): Preview {
   return { hue, sat, val, hue2, sat2, val2 }
 }
 
+/** One ring pixel's colour, through the same gamma and colour maths the cards show. */
+export interface DotColour { hue: number; sat: number; val: number }
+
+function gammaHsv(h: number, sat: number, v: number): [number, number, number] {
+  const [r, g, b] = gamma(hsvLin(h, sat, v))
+  return rgbToHsv(r, g, b)
+}
+
 /** What the two LEDs show now, as the board would send them. */
 export function simulatedPreview(c: LedController, t: number): Preview {
   const { s, prefs, caps } = c
@@ -84,6 +92,91 @@ export function simulatedPreview(c: LedController, t: number): Preview {
       // sound, screen and Solar modes: the estimate, passed through the same colour maths
       const p = previewOf(c, t)
       return previewFrom(gamma(hsvLin(p.hue, p.sat, p.val)), gamma(hsvLin(p.hue2, p.sat2, p.val2)))
+    }
+  }
+}
+
+/** What the ring's pixels show now (Individual), as the board would drive them. */
+export function simulatedRing(c: LedController, t: number): DotColour[] {
+  const { s, prefs, caps, ringPixels, ringInd } = c
+  const n = ringPixels ?? 0
+  if (n < 3) return []
+  const half = Math.floor(n / 2)
+  const [h1, sat1] = s.kelvinMode ? kelvinToHueSat(s.kelvin) : [s.hue, s.sat]
+  const [h2, sat2] = caps.split && s.kelvinMode2 ? kelvinToHueSat(s.kelvin2) : [s.hue2, s.sat2]
+  const bri = s.bri
+  const hueSatOf = (i: number): [number, number] => (i < half ? [h1, sat1] : [h2, sat2])
+  const dots = Array.from({ length: n }, (_, i) => {
+    const [h, sat] = hueSatOf(i)
+    const [gh, gs, gv] = gammaHsv(h, sat, bri)
+    return { hue: gh, sat: gs, val: gv }
+  })
+  switch (s.mode) {
+    case MODE.SOLID:
+      if (!ringInd) return dots          // Linked: the whole ring one colour
+      return Array.from({ length: n }, (_, i) => {
+        const px = s.ringPal[i]
+        if (!px) return dots[i]
+        const [h, sat] = px.kelvinMode ? kelvinToHueSat(px.kelvin) : [px.hue, px.sat]
+        const [gh, gs, gv] = gammaHsv(h, sat, bri)
+        return { hue: gh, sat: gs, val: gv }
+      })
+    case MODE.RAINBOW: {
+      if (!caps.spin) {                  // pre-2.0 rainbow: all the pixels share one turning hue
+        const hue = (t / prefs.rainbowSeconds) * 360
+        return dots.map(() => { const [gh, gs, gv] = gammaHsv(hue, s.sat, bri); return { hue: gh, sat: gs, val: gv } })
+      }
+      // The wheel: the hues spread round the ring (24 pixels, 15 degrees apart) and turn once per T.
+      return dots.map((_, i) => {
+        const [gh, gs, gv] = gammaHsv(((t / prefs.rainbowSeconds) * 360 + i * (360 / n)) % 360, s.sat, bri)
+        return { hue: gh, sat: gs, val: gv }
+      })
+    }
+    case MODE.BREATHE: {
+      // 2.0.0: a wave runs round the ring (LED2 = pixel 12 sat 0.6 rad behind, so 0.5 % further each pixel);
+      // the old board breathes its two sums together, except Separate's second half, a beat behind.
+      const k = (ph: number) => 0.5 - 0.5 * Math.cos((t * 2 * Math.PI) / 4 + ph * 0.6)
+      return dots.map((_, i) => {
+        const ph = caps.spin ? (s.separate ? i / 12 : 0) : s.separate ? (i < half ? 0 : 1) : 0
+        const [h, sat] = hueSatOf(i)
+        const [gh, gs, gv] = gammaHsv(h, sat, bri * k(ph))
+        return { hue: gh, sat: gs, val: gv }
+      })
+    }
+    case MODE.CANDLE: {
+      // 2.0.0: Separate gives every pixel its own flame; Linked shares one flicker; the old board keeps its one/two seeds.
+      const f = prefs.smoothCandle ? 0.3 : 1
+      const hueBase = s.candleHue ?? prefs.candleHue
+      return dots.map((_, i) => {
+        const idx = caps.spin ? (s.separate ? i : 0) : s.separate && prefs.twoCandles ? (i < half ? 0 : half) : 0
+        const target = 0.55 + 0.45 * noise(t * 9 * f, idx * 31 + 1) * (0.6 + 0.4 * noise(t * 2 * f, idx + 7))
+        const hue = hueBase + 8 * noise(t * 3 * f, idx * 17 + 3)
+        const [gh, gs, gv] = gammaHsv(hue, 0.95, bri * target)
+        return { hue: gh, sat: gs, val: gv }
+      })
+    }
+    case MODE.SPIN: {
+      // A tail of 8 chasing round: brightest at the head, dying away behind, the rest dark.
+      if (!caps.spin) return dots
+      const step = (2 * Math.PI) / n
+      const head = ((t / prefs.spinSeconds) * 2 * Math.PI) % (2 * Math.PI)
+      const PROFILE = [1, 0.68, 0.47, 0.31, 0.2, 0.12, 0.06, 0.03]
+      return dots.map((_, i) => {
+        const behind = ((head - i * step) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI)
+        const tailIdx = Math.round(behind / step)
+        const [gh, gs, gv] = gammaHsv(s.hue, s.sat, bri * (tailIdx < PROFILE.length ? PROFILE[tailIdx] : 0))
+        return { hue: gh, sat: gs, val: gv }
+      })
+    }
+    default: {
+      // sound, screen and Solar modes: the estimate, passed through the same colour maths
+      const p = previewOf(c, t)
+      const two = s.separate && caps.split
+      return dots.map((_, i) => {
+        const [h, sat, v] = i < half ? [p.hue, p.sat, p.val] : two ? [p.hue2, p.sat2, p.val2] : [p.hue, p.sat, p.val]
+        const [gh, gs, gv] = gammaHsv(h, sat, v)
+        return { hue: gh, sat: gs, val: gv }
+      })
     }
   }
 }

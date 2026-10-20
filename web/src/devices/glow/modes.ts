@@ -15,11 +15,14 @@ export const MODE = {
   VISUALIZER: 9,
   /** Solar (ESP32 board, firmware 1.6.0+): the board follows a FoxESS inverter by itself. */
   SOLAR: 11,
+  /** Spinner (ring board, firmware 2.0.0+): a bright tail chasing round the ring. */
+  SPIN: 12,
 } as const
 
-/** Board effects (firmware 1.4.0+): mode, button label, command. */
+/** Board effects: mode, button label, command stem (Spinner needs spin=H/S/V/T, built in useLed). */
 export const LED_EFFECTS: [number, string, string][] = [
   [MODE.BREATHE, 'Breathe', 'breathe'],
+  [MODE.SPIN, 'Spinner', 'spin'],
 ]
 
 /** Modes that were removed (Ocean, Party, Aurora, Chase): a saved scene that used one becomes Solid. */
@@ -37,7 +40,7 @@ export const KELVIN_PRESETS = [1900, 2700, 3500, 4500, 5600, 6500]
 export const modeLabel = (mode: number): string =>
   ({
     [MODE.SOLID]: 'Solid', [MODE.RAINBOW]: 'Rainbow', [MODE.CANDLE]: 'Candle', [MODE.MUSIC]: 'Music',
-    [MODE.VISUALIZER]: 'Visualizer', [MODE.SCREEN]: 'Screen', [MODE.SOLAR]: 'Solar',
+    [MODE.VISUALIZER]: 'Visualizer', [MODE.SCREEN]: 'Screen', [MODE.SOLAR]: 'Solar', [MODE.SPIN]: 'Spinner',
   } as Record<number, string>)[mode] ?? LED_EFFECTS.find((e) => e[0] === mode)?.[1] ?? 'Solid'
 
 /** Text commands for the board's colours. */
@@ -70,6 +73,18 @@ export const LedCommands = {
   effect(mode: number, bri: number) {
     return `${LED_EFFECTS.find((e) => e[0] === mode)![2]}=${Math.round(bri * 100)}`
   },
+  /** Spinner (2.0.0+): a tail chasing round the ring, one turn every 1-60 s. */
+  spinner(h: number, s: number, v: number, seconds: number) {
+    return `spin=${LedCommands.hsv(h, s, v)}/${Math.round(clamp(seconds, 1, 60))}`
+  },
+  /** One pixel of the ring (firmware 2.1.0+, "Firmware Changes.md"; index 0-based from the leds reply). */
+  pixel(index: number, h: number, s: number, v: number) {
+    return `p=${Math.max(0, Math.round(index))}/${LedCommands.hsv(h, s, v)}`
+  },
+  /** The whole ring in one go (2.1.0+): one H/S/V entry per pixel, comma-separated. */
+  ringPalette(entries: string[]) {
+    return 'pal=' + entries.join(',')
+  },
 }
 
 /** What the connected board's firmware understands. */
@@ -81,5 +96,15 @@ export interface BoardCaps {
   split: boolean        // 1.6.0: two LEDs
   candleStyle: boolean  // 1.6.1: one flame / two candles
   sleep: boolean        // 1.7.0: sleep timer
+  spin: boolean         // 2.0.0: spinner, per-pixel candle and breathe, the rainbow's T
+  perPixel: boolean     // 2.1.0: p=/pal=, one colour per ring pixel ("Firmware Changes.md")
   importLevels: boolean // 2.2.0: LED 1 steps by import (imp=)
+}
+
+/** One ring pixel's own colour (its value is the shared brightness: like the two LEDs share one). */
+export interface PixelColour {
+  hue: number
+  sat: number
+  kelvinMode: boolean
+  kelvin: number
 }

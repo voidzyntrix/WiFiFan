@@ -28,15 +28,15 @@ import type { ControlScreenProps } from '../types'
 import { displayName } from '../connection'
 import { useBoard } from './board'
 import { FirmwareDialog } from './Firmware'
-import { LedPreview, LedPreviewPair } from './LedPreview'
+import { LedPreview, LedPreviewPair, LedPreviewRing } from './LedPreview'
 import { KELVIN_PRESETS, LED_EFFECTS, LED_PRESETS, MODE, modeLabel } from './modes'
-import { simulatedPreview } from './simulate'
+import { simulatedPreview, simulatedRing } from './simulate'
 import { sceneSwatch, type Scene } from './scenes'
 import { hasTune, TuneTab, tuneLabel } from './Tune'
 import { checkFirmware, firmwareVersionOf, useOta } from './ota'
 import { type LedController, useLed } from './useLed'
 
-const ANIMATED = [MODE.RAINBOW, MODE.CANDLE, MODE.BREATHE]
+const ANIMATED = [MODE.RAINBOW, MODE.CANDLE, MODE.BREATHE, MODE.SPIN]
 
 type Tab = 'colour' | 'modes' | 'scenes' | 'tune'
 type Dialog =
@@ -76,7 +76,8 @@ export function ControlScreen(props: ControlScreenProps) {
     toast(`Board firmware v${ota.release.version} is available. Firmware sits in the device menu — tap the device's name.`)
   }, [ota])
 
-  const fw = firmwareVersionOf(useBoard())
+  const conn = useBoard()
+  const fw = firmwareVersionOf(conn) ?? (conn.deviceId ? prefs.boardVersions[conn.deviceId] ?? null : null)
   useEffect(() => {
     if (!c.connected || !fw || c.isDemo) return
     void checkFirmware(fw, true)
@@ -96,7 +97,7 @@ export function ControlScreen(props: ControlScreenProps) {
   const isWifiBoard = useBoard().kind === 'wifi'
   const modeGroups: [string, [number, string, boolean][]][] = [
     ['Light', [[MODE.SOLID, 'Solid', true], [MODE.SOLAR, 'Solar', isWifiBoard], [MODE.RAINBOW, 'Rainbow', true], [MODE.CANDLE, 'Candle', c.caps.candle]]],
-    ['Board effects', LED_EFFECTS.map(([m, l]) => [m, l, c.caps.effects] as [number, string, boolean])],
+    ['Board effects', LED_EFFECTS.map(([m, l]) => [m, l, m === MODE.SPIN ? c.caps.spin : c.caps.effects] as [number, string, boolean])],
     ['Reactive', [
       [MODE.MUSIC, 'Music', platform.capture.microphone],
       [MODE.VISUALIZER, 'Visualizer', platform.capture.systemAudio],
@@ -324,20 +325,32 @@ function Preview({ c, onDisconnect }: {
   const { s } = c
   const t = useClock(c.connected && c.ledOn && (ANIMATED.includes(s.mode as 1) || c.sync.active !== 'NONE'))
   const preview = simulatedPreview(c, t)
+  const dots = c.ringInd ? simulatedRing(c, t) : null
+  const pixel = dots ? Math.min(s.editLed, Math.max(0, dots.length - 1)) : 0
+  const shown = dots ? dots[pixel] : preview
 
-  // The background follows the light.
-  useEffect(() => { setAmbient({ active: c.connected && c.ledOn, hue: preview.hue, sat: Math.min(1, Math.max(0, preview.sat)) }) })
+  // The background follows the light (Individual: the pixel being edited).
+  useEffect(() => { setAmbient({ active: c.connected && c.ledOn, hue: shown.hue, sat: Math.min(1, Math.max(0, shown.sat)) }) })
   useEffect(() => () => setAmbient(null), [])
 
   const label = (kel: boolean, k: number, h: number, sat: number) => kel ? `${Math.round(k / 50) * 50} K` : hexOf(h, sat)
+  const dot = c.ringInd ? s.ringPal[pixel] : null
   const modeName = !c.ledOn ? 'Off'
-    : s.mode === MODE.SOLID ? label(s.kelvinMode, s.kelvin, s.hue, s.sat) + (c.twoLeds ? '  ·  ' + label(s.kelvinMode2, s.kelvin2, s.hue2, s.sat2) : '')
+    : s.mode === MODE.SOLID
+      ? dot ? label(dot.kelvinMode, dot.kelvin, dot.hue, dot.sat)
+        : label(s.kelvinMode, s.kelvin, s.hue, s.sat) + (c.twoLeds ? '  ·  ' + label(s.kelvinMode2, s.kelvin2, s.hue2, s.sat2) : '')
       : s.mode === MODE.SCREEN ? 'Screen sync' : modeLabel(s.mode)
 
   return (
     <div className="control-preview entrance" style={{ ['--i' as string]: 1 }}>
-      <Swap k={c.twoLeds ? 'pair' : 'one'} className="fill">
-        {c.twoLeds ? (
+      <Swap k={dots ? 'ring' : c.twoLeds ? 'pair' : 'one'} className="fill">
+        {dots ? (
+          <LedPreviewRing
+            dots={dots}
+            editing={pixel}
+            onTap={(i) => { sound.tap(); c.setEditLed(i) }}
+          />
+        ) : c.twoLeds ? (
           <LedPreviewPair
             hue1={preview.hue} sat1={preview.sat} value1={preview.val}
             hue2={preview.hue2} sat2={preview.sat2} value2={preview.val2}
@@ -362,16 +375,29 @@ function ColourTab({ c }: { c: LedController }) {
   const cycling = s.mode === MODE.RAINBOW && prefs.rainbowSync
   const t = useClock(cycling && c.connected && c.ledOn)
   const rainbowHue = ((t / 4) % 1) * 360
-  const shownHue = cycling ? rainbowHue : s.hue
-  const eKelvinMode = c.editsLed2 ? s.kelvinMode2 : s.kelvinMode
-  const eKelvin = c.editsLed2 ? s.kelvin2 : s.kelvin
-  const eSat = c.editsLed2 ? s.sat2 : s.sat
-  const eHue = !c.editsLed2 ? shownHue : cycling ? (rainbowHue + 180) % 360 : s.hue2
+  // The ring edits its chosen pixel; the pair its LED1/LED2; the single disc the one colour.
+  const dot = c.ringInd ? s.ringPal[Math.min(s.editLed, Math.max(0, s.ringPal.length - 1))] ?? null : null
+  const shownHue = cycling ? rainbowHue : dot ? dot.hue : s.hue
+  const eKelvinMode = dot ? dot.kelvinMode : c.editsLed2 ? s.kelvinMode2 : s.kelvinMode
+  const eKelvin = dot ? dot.kelvin : c.editsLed2 ? s.kelvin2 : s.kelvin
+  const eSat = dot ? dot.sat : c.editsLed2 ? s.sat2 : s.sat
+  const eHue = dot ? shownHue
+    : !c.editsLed2 ? shownHue
+      : cycling ? (rainbowHue + 180) % 360 : s.hue2
   const ledChoice = !s.separate || !c.caps.split ? 0 : 1 + Math.min(1, s.editLed)
 
   return (
     <div className="deck colour">
-      {c.caps.split && (
+      {c.ring && c.caps.split ? (
+        <>
+          <SegmentedPill
+            options={['Linked', 'Individual']}
+            selected={s.separate ? 1 : 0}
+            onSelect={(i) => c.setRingLayout(i === 1)}
+          />
+          {c.ringInd && dot && <div className="led-number">LED {Math.min(s.editLed, Math.max(0, s.ringPal.length - 1)) + 1}</div>}
+        </>
+      ) : c.caps.split && (
         <SegmentedPill
           options={['Linked', 'LED 1', 'LED 2']}
           selected={ledChoice}

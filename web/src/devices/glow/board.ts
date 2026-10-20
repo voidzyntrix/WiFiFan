@@ -202,7 +202,7 @@ export function useBoard(): BoardSnapshot {
   return useSyncExternalStore(board.subscribe, () => board.snapshot)
 }
 
-/** A pretend board for the demo: takes every command, answers the version check. */
+/** A pretend board for the demo: takes every command, answers the version check and the ring's size. */
 export function demoLink(): BleLink {
   const dataFns = new Set<(d: Uint8Array) => void>()
   const closeFns = new Set<() => void>()
@@ -211,7 +211,8 @@ export function demoLink(): BleLink {
     async write(data) {
       const text = new TextDecoder().decode(data)
       console.debug('[demo] ->', text)
-      if (text.includes('ver\\')) setTimeout(() => dataFns.forEach((f) => f(new TextEncoder().encode('VER,1.7.0\\'))), 30)
+      if (text.includes('ver\\')) setTimeout(() => dataFns.forEach((f) => f(new TextEncoder().encode('VER,2.0.0\\'))), 30)
+      if (text.includes('leds\\')) setTimeout(() => dataFns.forEach((f) => f(new TextEncoder().encode('LEDS,24,2\\'))), 30)
     },
     onData(fn) { dataFns.add(fn); return () => { dataFns.delete(fn) } },
     onClose(fn) { closeFns.add(fn); return () => { closeFns.delete(fn) } },

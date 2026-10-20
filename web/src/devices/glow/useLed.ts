@@ -5,8 +5,8 @@
 
 import { useEffect, useReducer, useRef, useState } from 'react'
 import { board, useBoard } from './board'
-import { kelvinToHueSat, hexToHsv, normHue } from '../../lib/color'
-import { LED_EFFECTS, LedCommands, MIN_VISIBLE, MODE, SYNC_MODES } from './modes'
+import { kelvinToHueSat, hexToHsv, normHue, atLeast } from '../../lib/color'
+import { LED_EFFECTS, LedCommands, MIN_VISIBLE, MODE, SYNC_MODES, type PixelColour } from './modes'
 import { solarCommand, solarFlags } from './solar'
 import {
   capsOf, canSaveScene, ledOptionsOf, loadScenes, resolveScene, saveScenes, sceneMatches, stateCommands, stateToScene,
@@ -17,6 +17,10 @@ import { setSyncEndedHandler, startMusic, startScreen, startVisualizer, stopSync
 import { toast } from '../../ui/toast'
 import { sound } from '../../ui/sound'
 
+/** A pixel's own colour as H/S: a kelvin-mode pixel reads out as its converted hue/sat. */
+const pixelHs = (px: PixelColour): [number, number] =>
+  px.kelvinMode ? kelvinToHueSat(px.kelvin) : [px.hue, px.sat]
+
 interface UiState extends LedState {
   lastOnBri: number
   lastOnMode: number
@@ -25,6 +29,8 @@ interface UiState extends LedState {
   /** Sleep timer end (Date.now() ms), 0 when none runs. */
   sleepEndsAt: number
   scenes: Scene[]
+  /** The ring in Individual: each pixel's own colour (its value is the shared brightness). */
+  ringPal: PixelColour[]
 }
 
 function initialState(): UiState {
@@ -51,6 +57,7 @@ function initialState(): UiState {
     editLed: 0,
     sleepEndsAt: 0,
     scenes: loadScenes(),
+    ringPal: [],
   }
 }
 
@@ -66,7 +73,15 @@ export function useLed() {
   /** The firmware the board reported, or what it reported last time (known before it answers). */
   const fwVersion = conn.firmwareVersion ?? (conn.deviceId ? prefs.boardVersions[conn.deviceId] ?? null : null)
   const caps = capsOf(fwVersion)
-  const twoLeds = () => st.current.separate && caps.split
+  // The ring's size: the board's `leds` reply, remembered per device; boards that never report one —
+  // or report 1-2 pixels — keep the app exactly as it was.
+  const boardLeds = conn.deviceId ? prefs.boardLeds[conn.deviceId] ?? null : null
+  const ringPixels = boardLeds?.pixels ?? null
+  const ledsCount = boardLeds?.leds ?? null
+  const isRing = ringPixels != null && ringPixels >= 3
+  const ringInd = () => isRing && st.current.separate
+  // "Two LEDs" means the paired-colour editing: halved boards, and never the ring's own layout.
+  const twoLeds = () => !isRing && st.current.separate && caps.split && (ledsCount == null || ledsCount >= 2)
 
   const update = (patch: Partial<UiState>) => {
     Object.assign(st.current, patch)
@@ -89,18 +104,37 @@ export function useLed() {
 
   const candleCommand = (bri: number) =>
     LedCommands.candle(bri, caps.options, prefs.smoothCandle, st.current.candleHue ?? prefs.candleHue, caps.candleStyle, prefs.twoCandles)
+  // The rainbow's T (seconds per turn) is a 2.0.0 parameter: older boards keep taking plain rain=.
   const rainbowCommand = (sat: number, bri: number) =>
-    LedCommands.rainbow(sat, bri, caps.options ? prefs.rainbowSeconds : null)
+    LedCommands.rainbow(sat, bri, caps.spin ? prefs.rainbowSeconds : null)
 
   function sendHsvColour() {
     const s = st.current
-    // Separate: both colours in one command; brightness applies to both.
+    if (ringInd()) {
+      if (caps.perPixel) {
+        const focus = pixelFocus.current
+        pixelFocus.current = null
+        if (focus != null && s.ringPal[focus]) return sendPixel(focus)      // a drag moves just that pixel
+        return sendRingPalette()                                            // commits set the whole ring
+      }
+      // Firmware without per-pixel commands (2.0.0): the chosen pixel drives the half it sits in.
+      const half = Math.max(1, Math.floor(s.ringPal.length / 2))
+      const [h1, s1] = pixelHs(s.ringPal[0] ?? { hue: s.hue, sat: s.sat, kelvinMode: s.kelvinMode, kelvin: s.kelvin })
+      const [h2, s2] = pixelHs(s.ringPal[half] ?? s.ringPal[0] ?? { hue: s.hue2, sat: s.sat2, kelvinMode: s.kelvinMode2, kelvin: s.kelvin2 })
+      return send(LedCommands.pair(h1, s1, s.bri, h2, s2, s.bri))
+    }
+    // Separate (a ring-less board): both colours in one command; brightness applies to both.
     if (twoLeds()) send(LedCommands.pair(s.hue, s.sat, s.bri, s.hue2, s.sat2, s.bri))
     else send(LedCommands.colour(s.hue, s.sat, s.bri, caps.hsv))
   }
   function sendSolid() { sendHsvColour(); update({ mode: MODE.SOLID }) }
   function sendRainbow() { send(rainbowCommand(st.current.sat, st.current.bri)); update({ mode: MODE.RAINBOW }) }
   function sendCandle() { send(candleCommand(st.current.bri)); update({ mode: MODE.CANDLE }) }
+  function sendSpinner() {
+    const s = st.current
+    send(LedCommands.spinner(s.hue, s.sat, s.bri, prefs.spinSeconds))
+    update({ mode: MODE.SPIN })
+  }
   function sendEffect(mode: number) { send(LedCommands.effect(mode, st.current.bri)); update({ mode }) }
 
   function sendCurrent() {
@@ -109,6 +143,7 @@ export function useLed() {
       case MODE.RAINBOW: return sendRainbow()
       case MODE.CANDLE: return sendCandle()
       case MODE.BREATHE: sendHsvColour(); return sendEffect(m)
+      case MODE.SPIN: return caps.spin ? sendSpinner() : sendSolid()      // an old board has no spinner: show the colour
       case MODE.SOLAR: return send(solarCommand({ on: true, bri: Math.round(st.current.bri * 100) }))   // the board does it itself
       case MODE.MUSIC:
       case MODE.VISUALIZER:
@@ -122,6 +157,39 @@ export function useLed() {
   function sendThrottled() {
     const now = performance.now()
     if (now - lastSent.current >= 80) { lastSent.current = now; sendCurrent() }
+  }
+
+  // -------------------------------------------------------------------------
+  // The ring (a board whose `leds` reply reports 3+ pixels)
+  // -------------------------------------------------------------------------
+
+  /** While a colour drag runs: the pixel it edits; null = the whole ring (brightness and commits). */
+  const pixelFocus = useRef<number | null>(null)
+  const ringSel = () => Math.min(st.current.editLed, Math.max(0, st.current.ringPal.length - 1))
+
+  /** The app's model of each pixel: starts as the two halves the board already shows. */
+  function initRingPalette() {
+    const s = st.current
+    if (ringPixels == null || ringPixels < 3) return
+    const half = ledsCount != null && ledsCount < 2 ? ringPixels : Math.floor(ringPixels / 2)
+    const at = (i: number): PixelColour => i < half
+      ? { hue: s.hue, sat: s.sat, kelvinMode: s.kelvinMode, kelvin: s.kelvin }
+      : { hue: s.hue2, sat: s.sat2, kelvinMode: s.kelvinMode2, kelvin: s.kelvin2 }
+    s.ringPal = Array.from({ length: ringPixels }, (_, i) => at(i))
+  }
+
+  function sendPixel(i: number) {
+    const s = st.current
+    const px = s.ringPal[i]
+    if (!px) return
+    const [h, sat] = pixelHs(px)
+    send(LedCommands.pixel(i, h, sat, s.bri))
+  }
+
+  function sendRingPalette() {
+    const s = st.current
+    if (!s.ringPal.length) return
+    send(LedCommands.ringPalette(s.ringPal.map((px) => LedCommands.hsv(...pixelHs(px), s.bri))))
   }
 
   // -------------------------------------------------------------------------
@@ -145,23 +213,27 @@ export function useLed() {
   }
   function editHue(h: number) {
     const s = st.current
+    if (ringInd()) { editRing({ hue: h }); return }
     if (editsLed2()) { s.hue2 = h; colourPicked(true) } else { s.hue = h; colourPicked(); if (editsBoth()) copyLed1ToLed2() }
     update({})
   }
   function editSat(v: number) {
     const s = st.current
+    if (ringInd()) { editRing({ sat: v }); return }
     if (editsLed2()) s.sat2 = v
     else { s.sat = v; if (editsBoth()) copyLed1ToLed2() }
     update({})
   }
   function editColour(h: number, sv: number) {
     const s = st.current
+    if (ringInd()) { editRing({ hue: h, sat: sv }); return }
     if (editsLed2()) { s.hue2 = h; s.sat2 = sv; colourPicked(true) } else { s.hue = h; s.sat = sv; colourPicked(); if (editsBoth()) copyLed1ToLed2() }
     update({})
   }
   function editKelvin(k: number) {
     const s = st.current
     const [h, sv] = kelvinToHueSat(k)
+    if (ringInd()) { editRing({ kelvin: k, hue: h, sat: sv }); return }
     if (editsLed2()) { Object.assign(s, { kelvin2: k, hue2: h, sat2: sv }); colourPicked(true) } else {
       Object.assign(s, { kelvin: k, hue: h, sat: sv })
       colourPicked()
@@ -171,8 +243,30 @@ export function useLed() {
   }
   function editKelvinMode(on: boolean) {
     const s = st.current
+    if (ringInd()) { const px = s.ringPal[ringSel()]; if (px) px.kelvinMode = on; update({}); return }
     if (editsLed2()) s.kelvinMode2 = on
     else { s.kelvinMode = on; if (editsBoth()) s.kelvinMode2 = on }
+    update({})
+  }
+
+  /**
+   * A colour change for the ring's chosen pixel. It becomes Solid (like picking on a separate pair),
+   * keeps the app's palette, and on firmware without per-pixel commands the whole half moves with it.
+   */
+  function editRing(patch: Partial<PixelColour>) {
+    const s = st.current
+    const i = ringSel()
+    const px = s.ringPal[i]
+    if (!px) return
+    Object.assign(px, patch)
+    if (!caps.perPixel) {           // LED1/LED2 are the only colours that firmware knows
+      const half = Math.max(1, Math.floor(s.ringPal.length / 2))
+      const first = i < half ? 0 : half
+      const last = i < half ? half : s.ringPal.length
+      for (let j = first; j < last; j++) Object.assign(s.ringPal[j], patch)
+    }
+    pixelFocus.current = i
+    colourPicked(true)
     update({})
   }
   function ensureOn() { if (st.current.bri < MIN_VISIBLE) st.current.bri = st.current.lastOnBri }
@@ -186,6 +280,7 @@ export function useLed() {
   function setBrightness(b: number) {
     st.current.bri = b
     if (b >= MIN_VISIBLE) st.current.lastOnBri = b
+    pixelFocus.current = null       // brightness is shared: the whole ring (or the pair) receives it
     update({})
     sendThrottled()
   }
@@ -215,6 +310,10 @@ export function useLed() {
         if (s.sat < 0.05) s.sat = 1
         return sendRainbow()
       case MODE.CANDLE: return sendCandle()
+      case MODE.SPIN:
+        if (!caps.spin) return sendSolid()      // no spinner yet (the chip is hidden anyway): show the colour
+        if (s.kelvinMode) s.kelvinMode = false
+        return sendSpinner()
       case MODE.MUSIC:
         return startSync(startMusic, { mode: MODE.MUSIC })
       case MODE.VISUALIZER:
@@ -271,7 +370,7 @@ export function useLed() {
   // -------------------------------------------------------------------------
 
   const ledState = (): LedState => {
-    const { lastOnBri: _a, lastOnMode: _b, editLed: _c, sleepEndsAt: _d, scenes: _e, ...rest } = st.current
+    const { lastOnBri: _a, lastOnMode: _b, editLed: _c, sleepEndsAt: _d, scenes: _e, ringPal: _f, ...rest } = st.current
     return rest
   }
   const currentScene = (id: number, name: string) => stateToScene(ledState(), id, name, caps.split)
@@ -282,6 +381,7 @@ export function useLed() {
     if (next.bri >= MIN_VISIBLE) s.lastOnBri = next.bri
     if (next.separate !== s.separate && splitSent.current != null) splitSent.current = next.separate
     update({ ...next })
+    initRingPalette()     // the board shows this state's two halves: the ring re-reads them
   }
 
   function applyScene(sc: Scene, quiet = false) {
@@ -318,6 +418,28 @@ export function useLed() {
     }
   }, [connected, conn.deviceId, conn.firmwareVersion])
 
+  // The ring's size: 1.10.0+ answers `leds` and it never changes — remember it per device like the
+  // firmware version. Older boards just never reply (nothing happens: two LEDs, no pixel count).
+  useEffect(() => {
+    const id = conn.deviceId
+    if (!connected || !id || !conn.firmwareVersion || !atLeast(conn.firmwareVersion, '1.10.0')) return
+    const known = settings.get().boardLeds[id]
+    if (known != null && known.pixels != null && known.leds != null) return
+    const wait = board.waitFor('LEDS,', 2000).catch(() => null)
+    board.sendData('leds')
+    let gone = false
+    void wait.then((line) => {
+      if (gone || !line) return
+      const [, a, b] = line.split(',')
+      const pixels = Number(a), leds = Number(b)
+      if (!Number.isFinite(pixels) || !Number.isFinite(leds) || leds < 1) return
+      const cur = settings.get().boardLeds
+      if (cur[id]?.pixels === pixels && cur[id]?.leds === leds) return
+      settings.set({ boardLeds: { ...cur, [id]: { pixels, leds } } })
+    })
+    return () => { gone = true }
+  }, [connected, conn.deviceId, conn.firmwareVersion])
+
   // The Wi-Fi board can be changed by someone else (another phone, the internet): read what it shows
   // every few seconds (colours, mode, brightness) and take it over unless this app just changed it.
   useEffect(() => {
@@ -352,7 +474,7 @@ export function useLed() {
     // a colour that is off keeps the one it had; one with no saturation has no hue to show
     if (c1[2] > 0 && (Math.abs(c1[1] / 100 - s.sat) > 0.04 || (c1[1] > 4 && hueFar(c1[0], s.hue)))) { patch.hue = c1[0]; patch.sat = c1[1] / 100; patch.kelvinMode = false }
     if (c2[2] > 0 && (Math.abs(c2[1] / 100 - s.sat2) > 0.04 || (c2[1] > 4 && hueFar(c2[0], s.hue2)))) { patch.hue2 = c2[0]; patch.sat2 = c2[1] / 100; patch.kelvinMode2 = false }
-    if (Object.keys(patch).length) update(patch)
+    if (Object.keys(patch).length) { update(patch); initRingPalette() }
   }
 
   // Fade time: sent when the board connects and whenever it's changed.
@@ -360,13 +482,13 @@ export function useLed() {
     if (caps.options && connected && sync.active === 'NONE') send(`fade=${prefs.fadeMs}`)
   }, [caps.options, connected, prefs.fadeMs])
 
-  // Changing candle/rainbow options while that mode runs applies them right away.
+  // Changing candle/rainbow/spinner options while that mode runs applies them right away.
   const firstOpts = useRef(true)
   useEffect(() => {
     if (firstOpts.current) { firstOpts.current = false; return }
     if (!caps.options || !connected) return
-    if (st.current.mode === MODE.CANDLE || st.current.mode === MODE.RAINBOW) sendCurrent()
-  }, [prefs.smoothCandle, prefs.rainbowSeconds, prefs.candleHue, prefs.twoCandles])
+    if ([MODE.CANDLE, MODE.RAINBOW, MODE.SPIN].map(Number).includes(st.current.mode)) sendCurrent()
+  }, [prefs.smoothCandle, prefs.rainbowSeconds, prefs.candleHue, prefs.twoCandles, prefs.spinSeconds])
   // A new Settings candle colour drops the colour picked while Candle ran.
   useEffect(() => { st.current.candleHue = null }, [prefs.candleHue])
 
@@ -379,13 +501,23 @@ export function useLed() {
     const changed = splitSent.current != null && splitSent.current !== sep
     send(LedCommands.split(sep))
     splitSent.current = sep
+    if (sep && isRing) initRingPalette()
     if (sep || changed) sendCurrent()
-  }, [caps.split, connected, st.current.separate])
+  }, [caps.split, connected, st.current.separate, isRing])
 
   // Settings > Linked / Separate.
   useEffect(() => {
-    if (prefs.separateLeds !== st.current.separate) update({ separate: prefs.separateLeds })
+    if (prefs.separateLeds !== st.current.separate) {
+      update({ separate: prefs.separateLeds })
+      if (prefs.separateLeds && isRing) initRingPalette()
+    }
   }, [prefs.separateLeds])
+
+  // The ring's size can also land after the layout did (first-ever connect, the leds reply arrives
+  // later): whenever the palette is missing or stale, it re-reads the two halves.
+  useEffect(() => {
+    if (isRing && st.current.separate && st.current.ringPal.length !== ringPixels) initRingPalette()
+  }, [isRing, ringPixels, st.current.separate])
 
   // What the sync engines read live.
   Object.assign(syncParams, {
@@ -430,8 +562,21 @@ export function useLed() {
       : s.mode === MODE.RAINBOW ? 'Rainbow' : s.mode === MODE.CANDLE ? 'Candle'
         : LED_EFFECTS.find((e) => e[0] === s.mode)?.[1] ?? `Scene ${s.scenes.length + 1}`
 
+  // The ring's Linked | Individual change (the Linked / LED 1 / LED 2 pill stays for other boards).
+  function setRingLayout(individual: boolean) {
+    const s = st.current
+    if (individual) {
+      initRingPalette()
+      update({ separate: true, editLed: Math.min(s.editLed, Math.max(0, s.ringPal.length - 1)) })
+    } else {
+      pixelFocus.current = null
+      update({ separate: false, editLed: 0 })
+    }
+  }
+
   return {
     s, caps, fwVersion, connected, isDemo: board.isDemo, ledOn, twoLeds: twoLeds(), sync, prefs,
+    ring: isRing, ringPixels, ledsCount, ringInd: ringInd(), setRingLayout,
     editsLed2: editsLed2(), selectedSceneId, sceneSuggestion, canSaveScene: canSaveScene(s.mode),
     setEditLed: (i: number) => update({ editLed: i }),
     setLedLayout: (separate: boolean, edit: number) => update({ separate, editLed: edit }),

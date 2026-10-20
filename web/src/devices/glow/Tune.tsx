@@ -15,10 +15,10 @@ import type { LedController } from './useLed'
 
 /** Does this mode have options to show? */
 export const hasTune = (mode: number) =>
-  mode === MODE.SOLID || mode === MODE.RAINBOW || mode === MODE.CANDLE || mode === MODE.MUSIC || mode === MODE.VISUALIZER || mode === MODE.SCREEN || mode === MODE.SOLAR
+  mode === MODE.SOLID || mode === MODE.RAINBOW || mode === MODE.CANDLE || mode === MODE.SPIN || mode === MODE.MUSIC || mode === MODE.VISUALIZER || mode === MODE.SCREEN || mode === MODE.SOLAR
 
 export const tuneLabel = (mode: number) =>
-  mode === MODE.SOLID ? 'Fade' : mode === MODE.RAINBOW ? 'Rainbow' : mode === MODE.CANDLE ? 'Candle'
+  mode === MODE.SOLID ? 'Fade' : mode === MODE.RAINBOW ? 'Rainbow' : mode === MODE.CANDLE ? 'Candle' : mode === MODE.SPIN ? 'Spinner'
     : mode === MODE.MUSIC ? 'Music' : mode === MODE.VISUALIZER ? 'Visualizer' : mode === MODE.SOLAR ? 'Solar' : 'Screen'
 
 export function TuneTab({ c }: { c: LedController }) {
@@ -43,10 +43,29 @@ export function TuneTab({ c }: { c: LedController }) {
     return (
       <div className="deck tune">
         <SettingHeading title="Speed" subtitle="One trip round the colour wheel" />
-        {caps.options
-          ? <SegmentedPill options={['Slow 30 s', 'Normal 15 s', 'Fast 6 s']} selected={[30, 15, 6].indexOf(prefs.rainbowSeconds)} onSelect={(i) => set({ rainbowSeconds: [30, 15, 6][i] })} />
-          : needs('1.3.0')}
+        {caps.options ? (
+          <>
+            <SliderLabel text="Seconds per turn" value={`${prefs.rainbowSeconds} s`} />
+            <LevelBar label="Seconds per turn" fraction={(prefs.rainbowSeconds - 2) / 118}
+              onFraction={(f) => set({ rainbowSeconds: 2 + Math.round(f * 118) })} onFinished={() => {}} />
+          </>
+        ) : needs('1.3.0')}
         <SettingSwitch title="Animate the colour sliders" subtitle="Hue and saturation follow the rainbow while it runs" checked={prefs.rainbowSync} onChange={(v) => set({ rainbowSync: v })} />
+      </div>
+    )
+  }
+
+  if (s.mode === MODE.SPIN) {
+    return (
+      <div className="deck tune">
+        <SettingHeading title="Speed" subtitle="One turn round the ring" />
+        {caps.spin ? (
+          <>
+            <SliderLabel text="Seconds per turn" value={`${prefs.spinSeconds} s`} />
+            <LevelBar label="Seconds per turn" fraction={(prefs.spinSeconds - 1) / 59}
+              onFraction={(f) => set({ spinSeconds: 1 + Math.round(f * 59) })} onFinished={() => {}} />
+          </>
+        ) : needs('2.0.0')}
       </div>
     )
   }
@@ -59,12 +78,16 @@ export function TuneTab({ c }: { c: LedController }) {
             <SettingSwitch title="Smooth flicker" subtitle="Slow and gentle, easier on the eyes at night" checked={prefs.smoothCandle} onChange={(v) => set({ smoothCandle: v })} />
             <SettingHeading title="Flame colour" />
             <SegmentedPill options={['Ember', 'Warm', 'Amber']} selected={[10, 19, 30].indexOf(prefs.candleHue)} onSelect={(i) => set({ candleHue: [10, 19, 30][i] })} />
-            <SettingHeading title="Style" subtitle={prefs.twoCandles ? 'Each LED is a candle of its own' : 'One flame: LED 1 the bright core, LED 2 the flickering tip'} />
-            <Swap k={!caps.candleStyle ? 'fw' : !c.twoLeds ? 'sep' : 'pill'}>
-              {!caps.candleStyle ? needs('1.6.1')
-                : !c.twoLeds ? <Hint>Set the LEDs to Separate (Colour tab) to choose</Hint>
-                  : <SegmentedPill options={['One flame', 'Two candles']} selected={prefs.twoCandles ? 1 : 0} onSelect={(i) => set({ twoCandles: i === 1 })} />}
-            </Swap>
+            {!caps.spin && (                                     // 2.0.0: every flame is its own — the style choice does nothing
+              <>
+                <SettingHeading title="Style" subtitle={prefs.twoCandles ? 'Each LED is a candle of its own' : 'One flame: LED 1 the bright core, LED 2 the flickering tip'} />
+                <Swap k={!caps.candleStyle ? 'fw' : !c.twoLeds ? 'sep' : 'pill'}>
+                  {!caps.candleStyle ? needs('1.6.1')
+                    : !c.twoLeds ? <Hint>Set the LEDs to Separate (Colour tab) to choose</Hint>
+                      : <SegmentedPill options={['One flame', 'Two candles']} selected={prefs.twoCandles ? 1 : 0} onSelect={(i) => set({ twoCandles: i === 1 })} />}
+                </Swap>
+              </>
+            )}
           </>
         ) : needs('1.3.0')}
       </div>

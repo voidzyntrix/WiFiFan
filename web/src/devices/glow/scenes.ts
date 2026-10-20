@@ -129,7 +129,8 @@ export function capsOf(version: string | null): BoardCaps {
   return {
     hsv: atLeast(version, '1.1.0'), candle: atLeast(version, '1.2.0'), options: atLeast(version, '1.3.0'),
     effects: atLeast(version, '1.4.0'), split: atLeast(version, '1.6.0'), candleStyle: atLeast(version, '1.6.1'),
-    sleep: atLeast(version, '1.7.0'), importLevels: atLeast(version, '2.2.0'),
+    sleep: atLeast(version, '1.7.0'), spin: atLeast(version, '2.0.0'), perPixel: atLeast(version, '2.1.0'),
+    importLevels: atLeast(version, '2.2.0'),
   }
 }
 
@@ -169,7 +170,7 @@ export function stateCommands(state: LedState, caps: BoardCaps, opts: LedOptions
     : LedCommands.colour(state.hue, state.sat, state.bri, caps.hsv)
   let mode: string[]
   switch (state.mode) {
-    case MODE.RAINBOW: mode = [LedCommands.rainbow(state.sat, state.bri, caps.options ? opts.rainbowSeconds : null)]; break
+    case MODE.RAINBOW: mode = [LedCommands.rainbow(state.sat, state.bri, caps.spin ? opts.rainbowSeconds : null)]; break
     case MODE.CANDLE:
       mode = [LedCommands.candle(state.bri, caps.options, opts.smoothCandle, state.candleHue ?? opts.candleHue, caps.candleStyle, opts.twoCandles)]
       break

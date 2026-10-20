@@ -85,6 +85,8 @@ export interface Settings {
   smoothCandle: boolean
   twoCandles: boolean
   rainbowSeconds: number
+  /** Spinner: seconds per turn (1-60, firmware 2.0.0's spin=T). */
+  spinSeconds: number
   fadeMs: number
   candleHue: number
   roundLedPreview: boolean
@@ -92,6 +94,8 @@ export interface Settings {
   musicKeepColour: boolean
   beatFlash: boolean
   boardVersions: Record<string, string>
+  /** The ring layout per board, from the `leds` reply (1.10.0+): how many pixels and logical LEDs. */
+  boardLeds: Record<string, { pixels: number; leds: number }>
   scenesJson: string | null
   captureDisplay: number
 }
@@ -139,6 +143,7 @@ const DEFAULTS: Settings = {
   smoothCandle: false,
   twoCandles: false,
   rainbowSeconds: 15,
+  spinSeconds: 2,
   fadeMs: 1500,
   candleHue: 19,
   roundLedPreview: true,
@@ -146,6 +151,7 @@ const DEFAULTS: Settings = {
   musicKeepColour: false,
   beatFlash: true,
   boardVersions: {},
+  boardLeds: {},
   scenesJson: null,
   captureDisplay: 0,
 }

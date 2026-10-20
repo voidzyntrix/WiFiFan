@@ -376,6 +376,16 @@ code { font-family: 'JetBrains Mono', monospace; font-size: 0.9em; }
 .led-disc.clickable { cursor: pointer; }
 .led-disc.clickable:hover { transform: scale(1.03); }
 .led-preview.pair .led-disc:not(.selected) { opacity: 0.75; }
+/* The ring board's Individual layout: a dot per pixel on a circle, the chosen one full-bright. */
+.led-preview.ring { position: relative; display: block; height: 100%; aspect-ratio: 1; max-width: 100%; margin-inline: auto; }
+.led-preview.ring .led-disc {
+  position: absolute; height: min(11%, 9.5cqw); min-height: 11px;
+  transform: translate(-50%, -50%);
+  transition: background 0.25s, box-shadow 0.25s, border-color 0.25s, opacity 0.3s, transform 0.15s;
+}
+.led-preview.ring .led-disc.clickable:hover { transform: translate(-50%, -50%) scale(1.22); }
+.led-preview.ring .led-disc:not(.selected) { opacity: 0.8; }
+.led-number { text-align: center; font-size: 12px; font-weight: 600; color: var(--on-bg-55); margin: -2px 0 -4px; }
 .mode-name { text-align: center; font-size: 16px; font-weight: 500; color: var(--on-bg-85); min-height: 22px; flex: none; }
 
 /* ── Sliders ──────────────────────────────────────────────── */
@@ -726,6 +736,7 @@ input.text-field:focus { border-color: var(--primary); background: var(--on-bg-8
 :root[data-design='material'] .quiet-link:hover { background: rgb(var(--mdui-color-primary) / 0.08); }
 :root[data-design='material'] .toast { background: rgb(var(--mdui-color-inverse-surface)); color: rgb(var(--mdui-color-inverse-on-surface)); border-radius: var(--r-xs); }
 :root[data-design='material'] .slider-label { font-size: 14px; font-weight: 500; color: rgb(var(--mdui-color-on-surface-variant)); }
+:root[data-design='material'] .led-number { font-size: 14px; font-weight: 500; color: rgb(var(--mdui-color-on-surface-variant)); }
 :root[data-design='material'] .dialog-title { font-size: 24px; font-weight: 400; }
 :root[data-design='material'] .hint, :root[data-design='material'] .dialog-sub { font-size: 14px; line-height: 1.45; }
 :root[data-design='material'] .setting-section { font-size: 12px; letter-spacing: 0.08em; color: rgb(var(--mdui-color-primary)); }
