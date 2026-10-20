@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.51',
+    notes: [
+      'The switched pill grows just a little now instead of taking the whole middle — the other segments only shift by a few pixels when it opens.',
+    ],
+  },
+
+  {
     version: '2.13.50',
     notes: [
       'The deck switcher now keeps every segment in place — the active one only lights up with its label.',
