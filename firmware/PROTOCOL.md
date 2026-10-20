@@ -8,13 +8,13 @@ switches rate, and the first command after a switch may be lost.
   50 ms pause). Max 63 characters. Case-insensitive; spaces around numbers are allowed.
 - Only `ver` and `ota` reply. Replies end with `\`.
 - A command that is not understood gives a short white flash on both LEDs.
-- The board has two chained WS2812s: LED1 (first on the data line) and LED2.
+- The board drives a ring of 24 chained WS2812s (1.9.0+; earlier boards had two). The ring is shown as two LEDs: LED1 is the first 12 pixels and LED2 the last 12. Linked lights the whole ring one colour.
 
 ## Version gating
 
 | Send   | Reply           |
 |--------|-----------------|
-| `ver\` | `VER,1.8.0\`    |
+| `ver\` | `VER,1.9.0\`    |
 
 Everything in "New in 1.6.0" below needs `VER` >= 1.6.0. Older firmware does
 not know those commands (it answers them with a white flash or a wrong colour),

@@ -92,7 +92,7 @@
 
 #define WS_USE_DMA   0               /* 1 = timer + DMA, 0 = polled SysTick */
 
-#define FW_VERSION   "1.8.0"     /* reported by "ver"; bump for each release */
+#define FW_VERSION   "1.9.0"     /* reported by "ver"; bump for each release */
 
 #define START_BAUD   115200          /* used until a baud rate has been detected */
 
@@ -103,7 +103,9 @@
 #define BKP_REQ      BKP_DR1         /* OTA_MAGIC = "stay in the bootloader" */
 #define BKP_BAUD     BKP_DR2         /* UART baud / 100 */
 #define OTA_MAGIC    0xB007
-#define NUM_LEDS     2               /* chained: LED1 first, then LED2 */
+#define NUM_LEDS     2               /* logical LEDs: LED1 and LED2 (the app's two) */
+#define RING_PIXELS  24              /* WS2812s on the ring, chained from PB3 */
+#define PX_PER_LED   (RING_PIXELS / NUM_LEDS)   /* LED1 = first half of the ring, LED2 = second */
 #define BRIGHT       0x30            /* 0-255, WS2812s are very bright */
 
 #define TICKS_PER_US 72u             /* SysTick runs at the 72 MHz core clock */
@@ -125,7 +127,7 @@ static inline uint32_t now(void)
 #if WS_USE_DMA
 /* ---------------------------------------------------------------- DMA --- */
 #define RESET_SLOTS  64              /* low slots after the data (~80 us) */
-#define DATA_BITS    (24 * NUM_LEDS)
+#define DATA_BITS    (24 * RING_PIXELS)
 #define BUF_LEN      (1 + DATA_BITS + RESET_SLOTS)   /* [0] = dummy low slot */
 
 static uint16_t ws_buf[BUF_LEN];
@@ -161,13 +163,14 @@ static void ws_hw_init(void)
     TIM_OC2PreloadConfig(TIM2, TIM_OCPreload_Disable);   /* new value applies at once */
 }
 
-/* One frame: px[i] = R,G,B of LED i (LED1 first). */
+/* One frame: px[i] = R,G,B of LED i (LED1 first). Each LED fills its share of the ring. */
 static void ws_write(const uint8_t px[NUM_LEDS][3])
 {
     int n = 0;
 
     ws_buf[n++] = 0;                              /* dummy slot: first update fires after one period */
-    for (int led = 0; led < NUM_LEDS; led++) {
+    for (int pix = 0; pix < RING_PIXELS; pix++) {
+        int led = pix / PX_PER_LED;
         uint32_t grb = ((uint32_t)px[led][1] << 16) | ((uint32_t)px[led][0] << 8) | px[led][2];
         for (int bit = 23; bit >= 0; bit--)
             ws_buf[n++] = (grb & (1u << bit)) ? T_1H : T_0H;
@@ -253,10 +256,11 @@ static uint32_t ws_end;
 static void ws_write(const uint8_t px[NUM_LEDS][3])
 {
     while (ws_sent && (uint32_t)(now() - ws_end) < WS_LATCH_US * TICKS_PER_US);
-    for (int i = 0; i < NUM_LEDS; i++) {
-        ws_send_byte(px[i][1]);          /* WS2812 order is GRB */
-        ws_send_byte(px[i][0]);
-        ws_send_byte(px[i][2]);
+    for (int pix = 0; pix < RING_PIXELS; pix++) {
+        int led = pix / PX_PER_LED;
+        ws_send_byte(px[led][1]);        /* WS2812 order is GRB */
+        ws_send_byte(px[led][0]);
+        ws_send_byte(px[led][2]);
     }
     WS_LOW();
     ws_end  = now();
