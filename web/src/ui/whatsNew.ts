@@ -2,6 +2,15 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.52',
+    notes: [
+      'Deck tabs now switch exactly like the screens: the old card leaves on its own (0.12 s), then the new one slides in',
+      'The brightness handle is smaller than the colour strips\'',
+      'FoxESS errors clear themselves as soon as the board reports everything fine',
+    ],
+  },
+
+  {
     version: '2.13.51',
     notes: [
       'The switched pill grows just a little now instead of taking the whole middle — the other segments only shift by a few pixels when it opens.',
