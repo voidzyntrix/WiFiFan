@@ -26,8 +26,8 @@
  *   send  candle=V/M/H -> ... with flame hue H in degrees (0-60, default 19)
  *   send  candle=V/M/H/S -> S is accepted and ignored (every flame is individual)
  *   send  spin=H/S/V/T -> spinner: a flat arc of 8 pixels in this colour chasing round
- *                      the ring, one turn every T seconds (1-60); h= and l= recolour it
- *                      while it turns (2.1.1)
+ *                      the ring, one turn every T seconds (1-60); a brightness-only h=
+ *                      keeps it turning (2.1.2)
  *   send  breathe=V -> the last colour fades up and down over 4 s (Separate: as a wave round the ring)
  *   send  fade=MS  ->  colour change duration 0-5000 ms (default 1500)
  *   Rainbow, candle, breathe and spin replace each other; a colour command ends them.
@@ -85,7 +85,7 @@
 
 #define WS_USE_DMA   0               /* 1 = timer + DMA, 0 = polled SysTick */
 
-#define FW_VERSION   "2.1.1"     /* reported by "ver"; bump for each release */
+#define FW_VERSION   "2.1.2"     /* reported by "ver"; bump for each release */
 
 #define START_BAUD   115200          /* used until a baud rate has been detected */
 
@@ -651,23 +651,31 @@ static void led_colour_one(uint8_t half, const uint8_t rgb[3])
     for (uint8_t p = half * PX_PER_LED; p < (half + 1) * PX_PER_LED; p++) fade_led(p, c, rgb);
 }
 
-/* The whole ring, from an RGB command (l=, picker, off). A running spinner keeps
- * turning and takes the new colour (2.1.1). */
+/* A running spinner turns on through a brightness change only (2.1.2): same hue
+ * and saturation, new value. Any other colour ends it, as before. */
+static uint8_t spin_brightness_only(hsv_t c)
+{
+    if (c.h != spin_c.h || c.s != spin_c.s) return 0;
+    spin_c.v = c.v;
+    dirty = 1;
+    return 1;
+}
+
+/* The whole ring, from an RGB command (l=, picker, off). */
 static void led_colour(uint8_t r, uint8_t g, uint8_t b)
 {
     const uint8_t rgb[3] = { r, g, b };
-    if (spin) { spin_c = rgb_to_hsv(r, g, b); dirty = 1; return; }
-    end_modes();
     hsv_t c = rgb_to_hsv(r, g, b);
+    if (spin && spin_brightness_only(c)) return;
+    end_modes();
     for (uint8_t p = 0; p < RING_PIXELS; p++) fade_led(p, c, rgb);
 }
 
-/* The whole ring, from an HSV command (h=). A running spinner keeps turning and
- * takes the new colour and brightness (2.1.1). */
+/* The whole ring, from an HSV command (h=). */
 static void led_hsv(hsv_t c)
 {
     uint8_t rgb[3];
-    if (spin) { spin_c = c; dirty = 1; return; }
+    if (spin && spin_brightness_only(c)) return;
     hsv_to_rgb(c, rgb);
     end_modes();
     for (uint8_t p = 0; p < RING_PIXELS; p++) fade_led(p, c, rgb);
