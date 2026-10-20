@@ -2,6 +2,14 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.55',
+    notes: [
+      'The device name now opens a menu with Firmware and Reset (the pencil lives in the menu\'s title)',
+      'Rename moved into that menu: tap the title - the name with the pencil and firmware version beside it',
+    ],
+  },
+
+  {
     version: '2.13.54',
     notes: [
       'Scene buttons no longer replay their fade-in after the deck settles',
