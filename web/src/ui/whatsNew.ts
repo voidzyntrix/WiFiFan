@@ -2,6 +2,14 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.57',
+    notes: [
+      'Individual now edits just the dot you tapped: the preview always keeps the ring\'s per-pixel picture (2.0.0 boards still follow per half until the per-pixel firmware).',
+      'The ring draws as a circle again - it no longer stretched into an ellipse in tall preview areas.',
+    ],
+  },
+
+  {
     version: '2.13.56',
     notes: [
       'The ring is here: Colour gets a Linked / Individual switcher and the preview draws the 24-dot ring, one clickable dot per pixel.',
