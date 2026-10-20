@@ -129,14 +129,21 @@ export async function newest(pattern: RegExp, kind: string, assetName: (v: strin
       if (fromApi) return fromApi
     } catch { /* fall back to the manifest, then the feed */ }
   }
-  try {
-    const fromManifest = await newestFromManifest(kind, assetName, force)
-    if (fromManifest) return fromManifest
-  } catch { /* fall back to the feed, then the API */ }
-  try {
-    const fromFeed = await newestFromFeed(kind, assetName, force)
-    if (fromFeed) return fromFeed
-  } catch { /* fall through to the API */ }
+  // The manifest and the feed can each be the stale one - the manifest only changes when the
+  // version is rewritten in versions.json (firmware releases don't touch it), and the feed only
+  // lists the last ten releases. Ask both; the newer answer wins, and only if neither says
+  // anything does the rate-limited API get asked.
+  const [manifest, feed] = await Promise.allSettled([
+    newestFromManifest(kind, assetName, force),
+    newestFromFeed(kind, assetName, force),
+  ])
+  const from = (r: PromiseSettledResult<ReleaseAsset | null>) => (r.status === 'fulfilled' ? r.value : null)
+  const fromManifest = from(manifest)
+  const fromFeed = from(feed)
+  const best = !fromManifest ? fromFeed
+    : !fromFeed ? fromManifest
+    : compareVersions(fromManifest.version, fromFeed.version) >= 0 ? fromManifest : fromFeed
+  if (best) return best
   try {
     return await newestFromApi(pattern, force)
   } catch (e) {

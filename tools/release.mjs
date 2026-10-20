@@ -77,22 +77,25 @@ const entryLines = [
   '  },',
 ]
 
-const applied = []
+const applied = new Map()
 /** Replaces the first `"key": "…"` with `"key": "value"` in a JSON file. */
 const setValue = (file, key, value) => {
-  const before = readFileSync(path.join(root, file), 'utf8')
+  // Composes on `applied`: two setValue calls on one file must both land. The old array pushed a
+  // second write for versions.json and the loop wrote the file twice - last write won, so the "app"
+  // key never updated again (it stayed 2.13.17 and APK update offers silently died).
+  const before = applied.get(file) ?? readFileSync(path.join(root, file), 'utf8')
   const re = new RegExp(`"${key}"\\s*:\\s*"[^"]+"`)
   if (!re.test(before)) fail(file, `no "${key}" key`)
-  applied.push([file, before.replace(re, `"${key}": "${value}"`)])
+  applied.set(file, before.replace(re, `"${key}": "${value}"`))
 }
 /** Inserts the entry after the opening bracket of the WHATS_NEW list (in the file's own line endings). */
 const addWhatsNew = () => {
   const file = 'web/src/ui/whatsNew.ts'
-  const before = readFileSync(path.join(root, file), 'utf8')
+  const before = applied.get(file) ?? readFileSync(path.join(root, file), 'utf8')
   const eol = before.includes('\r\n') ? '\r\n' : '\n'
   const anchor = 'notes: string[] }[] = ['   // the opening bracket of the list
   if (before.split(anchor).length !== 2) fail(file, 'What\'s-new list anchor not found')
-  applied.push([file, before.replace(anchor, `${anchor}${eol}${entryLines.join(eol)}${eol}`)])
+  applied.set(file, before.replace(anchor, `${anchor}${eol}${entryLines.join(eol)}${eol}`))
 }
 function fail(file, why) { console.error(`✗ ${file}: ${why}`); process.exit(1) }
 
@@ -103,7 +106,7 @@ setValue('versions.json', 'desktop', version)
 addWhatsNew()
 
 if (dry) {
-  console.log('dry run — would edit ' + applied.map(([f]) => f).join(', '))
+  console.log('dry run — would edit ' + [...applied.keys()].join(', '))
   process.exit(0)
 }
 for (const [file, text] of applied) writeFileSync(path.join(root, file), text)

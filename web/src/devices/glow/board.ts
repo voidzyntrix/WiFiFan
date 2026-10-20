@@ -10,6 +10,7 @@
 import { useSyncExternalStore } from 'react'
 import type { BleLink } from '../../platform'
 import { newest } from '../../lib/github'
+import { compareVersions } from '../../lib/color'
 
 const MAX_PENDING_BYTES = 1024
 
@@ -215,7 +216,7 @@ let demoFwAt = 0
 function demoFwVersionChecked(): Promise<string> {
   if (Date.now() - demoFwAt > 60_000 && !demoFwAsk) {
     demoFwAsk = newest(/wififan-fw-(\d+\.\d+\.\d+)\.bin/, 'fw', (v) => `wififan-fw-${v}.bin`)
-      .then((latest) => { if (latest) demoFwVersion = latest.version })
+      .then((latest) => { if (latest && compareVersions(latest.version, demoFwVersion) > 0) demoFwVersion = latest.version })
       .catch(() => { /* offline: the last known (or the floor) stands */ })
       .finally(() => { demoFwAt = Date.now(); demoFwAsk = null })
   }
