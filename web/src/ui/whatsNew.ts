@@ -2,6 +2,14 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.54',
+    notes: [
+      'Scene buttons no longer replay their fade-in after the deck settles',
+      'The brightness handle grows to 24px on hover (base stays 16px, press goes further)',
+    ],
+  },
+
+  {
     version: '2.13.53',
     notes: [
       'The deck\'s settle flicker after a tab switch is gone',
