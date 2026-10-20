@@ -97,7 +97,8 @@ export interface BoardCaps {
   candleStyle: boolean  // 1.6.1: one flame / two candles
   sleep: boolean        // 1.7.0: sleep timer
   spin: boolean         // 2.0.0: spinner, per-pixel candle and breathe, the rainbow's T
-  spinLive: boolean     // 2.1.1: h=/l= recolour and re-brighten the arc without restarting it
+  spinLive: boolean     // 2.1.1: h=/l= recolour the arc live without restarting it (2.1.2 took back colour)
+  spinBri: boolean      // 2.1.2: a brightness-only h=/l= keeps the arc turning; a colour ends it again
   perPixel: boolean     // 2.1.0: p=/pal=, one colour per ring pixel ("Firmware Changes.md")
   importLevels: boolean // 2.2.0: LED 1 steps by import (imp=)
 }

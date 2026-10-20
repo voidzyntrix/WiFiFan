@@ -29,3 +29,13 @@ arc: 8 pixels at full brightness, the rest dark.
 - The app's use of `p=` and `pal=` (firmware 2.1.0) is unchanged.
 - Firmware 2.1.1 keeps the same command names and version gates (`spin` 2.0.0,
   per-pixel 2.1.0).
+
+## Firmware 2.1.2 changed this again
+
+`spin` keeps turning only for brightness changes: a brightness-only `h=`/`l=`
+(same hue and saturation, new value) keeps the arc turning; a colour change
+ends the spinner like any other colour command. In the app, `spinLive` is
+firmware 2.1.1 only, and 2.1.2+ adds `spinBri`; colour picks drop the Spinner
+mode on every firmware except 2.1.1, and a send while in Spinner mode is a
+brightness change, so `h=` keeps the arc turning. (App 2.13.59 shipped the
+2.1.1 contract; app 2.13.61 is against 2.1.2–2.1.4.)

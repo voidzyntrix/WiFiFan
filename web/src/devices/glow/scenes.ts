@@ -129,7 +129,9 @@ export function capsOf(version: string | null): BoardCaps {
   return {
     hsv: atLeast(version, '1.1.0'), candle: atLeast(version, '1.2.0'), options: atLeast(version, '1.3.0'),
     effects: atLeast(version, '1.4.0'), split: atLeast(version, '1.6.0'), candleStyle: atLeast(version, '1.6.1'),
-    sleep: atLeast(version, '1.7.0'), spin: atLeast(version, '2.0.0'), spinLive: atLeast(version, '2.1.1'), perPixel: atLeast(version, '2.1.0'),
+    sleep: atLeast(version, '1.7.0'), spin: atLeast(version, '2.0.0'),
+    spinLive: atLeast(version, '2.1.1') && !atLeast(version, '2.1.2'), spinBri: atLeast(version, '2.1.2'),
+    perPixel: atLeast(version, '2.1.0'),
     importLevels: atLeast(version, '2.2.0'),
   }
 }

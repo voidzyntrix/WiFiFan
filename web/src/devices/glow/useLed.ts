@@ -152,8 +152,9 @@ export function useLed() {
       case MODE.BREATHE: sendHsvColour(); return sendEffect(m)
       case MODE.SPIN:
         if (!caps.spin) return sendSolid()          // an old board has no spinner: show the colour
-        if (!caps.spinLive) return sendSpinner()    // pre-2.1.1: spin= is the only way to change it, and it restarts the turn
-        // 2.1.1 keeps the arc turning: h=/l= recolour and re-brighten it live (no restart from the top)
+        if (!(caps.spinLive || caps.spinBri)) return sendSpinner()    // 2.1.0 and older: spin= on every change, restarting the turn
+        // From 2.1.1 this h= keeps the arc turning; 2.1.2+ narrows it to brightness (colour changes
+        // drop the Spinner mode first, in colourPicked): a send here is brightness-only, so it keeps turning.
         return send(LedCommands.colour(st.current.hue, st.current.sat, st.current.bri, caps.hsv))
       case MODE.SOLAR: return send(solarCommand({ on: true, bri: Math.round(st.current.bri * 100) }))   // the board does it itself
       case MODE.MUSIC:
@@ -176,12 +177,15 @@ export function useLed() {
 
   /** While a colour drag runs: the pixel it edits; null = the whole ring (brightness and commits). */
   const pixelFocus = useRef<number | null>(null)
+  /** One colour to lay the whole ring out with, waiting for the board's `leds` reply (entering
+   * Individual before the reply: keep the ring the one colour it was showing, not the two halves). */
+  const uniformWanted = useRef<PixelColour | null>(null)
   const ringSel = () => Math.min(st.current.editLed, Math.max(0, st.current.ringPal.length - 1))
 
   // The per-pixel colours live longer than the control screen: leaving it for Settings (or the
   // device list) unmounts everything, and coming back must not repaint the ring as the two halves.
   // The palettes are remembered per device for this session; sees edits in place (same array).
-  function initRingPalette(fresh = false) {
+  function initRingPalette(fresh = false, uniform?: PixelColour) {
     const s = st.current
     if (ringPixels == null || ringPixels < 3) return
     if (!fresh && conn.deviceId) {
@@ -189,9 +193,11 @@ export function useLed() {
       if (kept && kept.length === ringPixels) { s.ringPal = kept; return }
     }
     const half = ledsCount != null && ledsCount < 2 ? ringPixels : Math.floor(ringPixels / 2)
-    const at = (i: number): PixelColour => i < half
-      ? { hue: s.hue, sat: s.sat, kelvinMode: s.kelvinMode, kelvin: s.kelvin }
-      : { hue: s.hue2, sat: s.sat2, kelvinMode: s.kelvinMode2, kelvin: s.kelvin2 }
+    const at = (i: number): PixelColour => uniform
+      ? { ...uniform }                                     // one object per pixel: they must not alias
+      : i < half
+        ? { hue: s.hue, sat: s.sat, kelvinMode: s.kelvinMode, kelvin: s.kelvin }
+        : { hue: s.hue2, sat: s.sat2, kelvinMode: s.kelvinMode2, kelvin: s.kelvin2 }
     s.ringPal = Array.from({ length: ringPixels }, (_, i) => at(i))
     if (conn.deviceId) ringPalettes.set(conn.deviceId, s.ringPal)
   }
@@ -221,7 +227,7 @@ export function useLed() {
     const s = st.current
     if (s.mode === MODE.BREATHE) return
     if (s.mode === MODE.MUSIC) { settings.set({ musicKeepColour: true }); return }
-    if (s.mode === MODE.SPIN && caps.spinLive) return    // 2.1.1: a colour change keeps the arc turning, just recoloured
+    if (s.mode === MODE.SPIN && caps.spinLive) return    // only 2.1.1 keeps turning for a colour; 2.1.2+ ends it again like older firmware
     if (led2Only) { s.mode = MODE.SOLID; return }
     if (s.mode === MODE.CANDLE) { s.candleHue = normHue(Math.round(s.hue)) % 360; return }
     s.mode = MODE.SOLID
@@ -539,7 +545,7 @@ export function useLed() {
     send(LedCommands.split(sep))
     splitSent.current = sep
     if (sep && isRing) initRingPalette()
-    if (st.current.mode === MODE.SPIN && caps.spinLive) sendSpinner()   // a fresh session (re)starts the arc; later colour goes through h=
+    if (st.current.mode === MODE.SPIN && caps.spin) sendSpinner()   // a fresh session (re)starts the arc (only spin= starts it); later brightness keeps it turning through h=
     else if (sep || changed) sendCurrent()
   }, [caps.split, connected, st.current.separate, isRing])
 
@@ -552,9 +558,13 @@ export function useLed() {
   }, [prefs.separateLeds])
 
   // The ring's size can also land after the layout did (first-ever connect, the leds reply arrives
-  // later): whenever the palette is missing or stale, it re-reads the two halves.
+  // later): whenever the palette is missing or stale, it re-reads the two halves — or the one colour
+  // Individual was entered from, if the reply wasn't there when the layout changed yet.
   useEffect(() => {
-    if (isRing && st.current.separate && st.current.ringPal.length !== ringPixels) initRingPalette()
+    if (isRing && st.current.separate && st.current.ringPal.length !== ringPixels) {
+      initRingPalette(!uniformWanted.current, uniformWanted.current ?? undefined)
+      uniformWanted.current = null
+    }
   }, [isRing, ringPixels, st.current.separate])
 
   // What the sync engines read live.
@@ -604,10 +614,16 @@ export function useLed() {
   function setRingLayout(individual: boolean) {
     const s = st.current
     if (individual) {
-      initRingPalette(true)   // freshly entered: the board's halves are what it shows now
+      // Linked → Individual keeps the ring the one colour it is showing — no two-halves reset.
+      if (!s.separate) {
+        const un: PixelColour = { hue: s.hue, sat: s.sat, kelvinMode: s.kelvinMode, kelvin: s.kelvin }
+        uniformWanted.current = un
+        initRingPalette(true, un)
+      } else uniformWanted.current = null
       update({ separate: true, editLed: Math.min(s.editLed, Math.max(0, s.ringPal.length - 1)) })
     } else {
       pixelFocus.current = null
+      uniformWanted.current = null
       update({ separate: false, editLed: 0 })
     }
   }
