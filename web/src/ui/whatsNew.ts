@@ -2,6 +2,14 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.53',
+    notes: [
+      'The deck\'s settle flicker after a tab switch is gone',
+      'The brightness handle now rests smaller, at 16px',
+    ],
+  },
+
+  {
     version: '2.13.52',
     notes: [
       'Deck tabs now switch exactly like the screens: the old card leaves on its own (0.12 s), then the new one slides in',
