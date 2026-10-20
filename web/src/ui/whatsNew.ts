@@ -2,6 +2,15 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.61',
+    notes: [
+      'Going from Linked to Individual keeps the ring the one colour it was showing - it no longer splits into two colours when switching the layout.',
+      'Spinner updated for firmware 2.1.2 and newer: brightness changes keep the arc turning, colour changes end it like a normal colour change; on a 2.1.1 board live recolouring still works.',
+      'The firmware check finds the real newest release (2.1.4) even when versions.json is behind.',
+    ],
+  },
+
+  {
     version: '2.13.60',
     notes: [
       'Firmware update offers work again: the app checks the real newest firmware release now, so boards on older firmware get offered the 2.1.1 flash.',
