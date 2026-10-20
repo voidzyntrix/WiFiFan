@@ -795,15 +795,15 @@ input.text-field:focus { border-color: var(--primary); background: var(--on-bg-8
 :root[data-design='material'] .gbar.m3e .gbar-dot { display: none; }
 :root[data-design='material'] .gbar.m3e:focus-visible { outline: 2px solid rgb(var(--mdui-color-secondary)); outline-offset: 4px; border-radius: 12px; }
 
-/* the control deck's bottom switcher: round icon buttons; the chosen one grows into a labelled pill
-   (a Material You toolbar morph). One DOM for both designs; the colours and corners differ below */
+/* the control deck's bottom switcher: icon buttons; the chosen one grows a little into a labelled
+   pill (a soft Material You toolbar morph) — a gentle growth, so the other buttons barely move */
 .decknav { display: flex; gap: 6px; height: 44px; flex: none; }
 .decknav .opt {
   flex: 1 1 0; min-width: 0; height: 100%;
   display: inline-flex; align-items: center; justify-content: center; gap: 0; padding: 0;
   border-radius: calc(var(--u) * 22px);
   background: var(--on-bg-6); color: var(--on-bg-70);
-  transition: var(--t), transform 0.15s var(--emph), border-radius 0.25s var(--spring), gap 0.3s;
+  transition: var(--t), transform 0.15s var(--emph), border-radius 0.25s var(--spring), flex-grow 0.4s var(--emph-decel), gap 0.3s;
 }
 .decknav .opt svg { flex: none; }
 .decknav .lab {
@@ -813,7 +813,7 @@ input.text-field:focus { border-color: var(--primary); background: var(--on-bg-8
 }
 .decknav .opt:hover:not(.on) { background: var(--on-bg-12); }
 .decknav .opt:active:not(.on) { transform: scale(0.96); }
-.decknav .opt.on { gap: 8px; background: var(--active); color: var(--on-active); }
+.decknav .opt.on { flex-grow: 1.55; gap: 8px; background: var(--active); color: var(--on-active); }
 .decknav .opt.on .lab { max-width: 150px; opacity: 1; }
 
 /* connected button group */
