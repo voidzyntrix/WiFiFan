@@ -21,6 +21,15 @@ import { sound } from '../../ui/sound'
 const pixelHs = (px: PixelColour): [number, number] =>
   px.kelvinMode ? kelvinToHueSat(px.kelvin) : [px.hue, px.sat]
 
+/**
+ * The ring palettes seen this session, per device. The control screen unmounts on any navigation
+ * (Settings, the device list) and `useLed`'s state rebuilds from the saved two-LED preferences —
+ * without this, returning repainted the ring as its two halves ("two tone") instead of the
+ * user's per-pixel colours. Fresh layouts (scenes, polls, entering Individual) rebuild from the
+ * two halves; re-entry restores. Session-scoped on purpose: a fresh app start re-reads the board.
+ */
+const ringPalettes = new Map<string, PixelColour[]>()
+
 interface UiState extends LedState {
   lastOnBri: number
   lastOnMode: number
@@ -165,16 +174,25 @@ export function useLed() {
   const pixelFocus = useRef<number | null>(null)
   const ringSel = () => Math.min(st.current.editLed, Math.max(0, st.current.ringPal.length - 1))
 
-  /** The app's model of each pixel: starts as the two halves the board already shows. */
-  function initRingPalette() {
+  // The per-pixel colours live longer than the control screen: leaving it for Settings (or the
+  // device list) unmounts everything, and coming back must not repaint the ring as the two halves.
+  // The palettes are remembered per device for this session; sees edits in place (same array).
+  function initRingPalette(fresh = false) {
     const s = st.current
     if (ringPixels == null || ringPixels < 3) return
+    if (!fresh && conn.deviceId) {
+      const kept = ringPalettes.get(conn.deviceId)
+      if (kept && kept.length === ringPixels) { s.ringPal = kept; return }
+    }
     const half = ledsCount != null && ledsCount < 2 ? ringPixels : Math.floor(ringPixels / 2)
     const at = (i: number): PixelColour => i < half
       ? { hue: s.hue, sat: s.sat, kelvinMode: s.kelvinMode, kelvin: s.kelvin }
       : { hue: s.hue2, sat: s.sat2, kelvinMode: s.kelvinMode2, kelvin: s.kelvin2 }
     s.ringPal = Array.from({ length: ringPixels }, (_, i) => at(i))
+    if (conn.deviceId) ringPalettes.set(conn.deviceId, s.ringPal)
   }
+  // On first paint after returning, before any effect: the session's colours are already there.
+  if (st.current.ringPal.length === 0 && isRing && st.current.separate) initRingPalette()
 
   function sendPixel(i: number) {
     const s = st.current
@@ -383,7 +401,7 @@ export function useLed() {
     if (next.bri >= MIN_VISIBLE) s.lastOnBri = next.bri
     if (next.separate !== s.separate && splitSent.current != null) splitSent.current = next.separate
     update({ ...next })
-    initRingPalette()     // the board shows this state's two halves: the ring re-reads them
+    initRingPalette(true)     // the board shows this state's two halves: the ring re-reads them
   }
 
   function applyScene(sc: Scene, quiet = false) {
@@ -476,7 +494,7 @@ export function useLed() {
     // a colour that is off keeps the one it had; one with no saturation has no hue to show
     if (c1[2] > 0 && (Math.abs(c1[1] / 100 - s.sat) > 0.04 || (c1[1] > 4 && hueFar(c1[0], s.hue)))) { patch.hue = c1[0]; patch.sat = c1[1] / 100; patch.kelvinMode = false }
     if (c2[2] > 0 && (Math.abs(c2[1] / 100 - s.sat2) > 0.04 || (c2[1] > 4 && hueFar(c2[0], s.hue2)))) { patch.hue2 = c2[0]; patch.sat2 = c2[1] / 100; patch.kelvinMode2 = false }
-    if (Object.keys(patch).length) { update(patch); initRingPalette() }
+    if (Object.keys(patch).length) { update(patch); initRingPalette(true) }
   }
 
   // Fade time: sent when the board connects and whenever it's changed.
@@ -568,7 +586,7 @@ export function useLed() {
   function setRingLayout(individual: boolean) {
     const s = st.current
     if (individual) {
-      initRingPalette()
+      initRingPalette(true)   // freshly entered: the board's halves are what it shows now
       update({ separate: true, editLed: Math.min(s.editLed, Math.max(0, s.ringPal.length - 1)) })
     } else {
       pixelFocus.current = null

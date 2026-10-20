@@ -376,18 +376,19 @@ code { font-family: 'JetBrains Mono', monospace; font-size: 0.9em; }
 .led-disc.clickable { cursor: pointer; }
 .led-disc.clickable:hover { transform: scale(1.03); }
 .led-preview.pair .led-disc:not(.selected) { opacity: 0.75; }
-/* The ring board's Individual layout: a dot per pixel on a circle, the chosen one full-bright.
-   The circle must be square by construction — one width value drives both side sizes (the height
-   follows through aspect-ratio), because a stretched flex parent + height:100% turned the
-   %-positioned dots into an ellipse. cqh keeps it inside a short preview area too. */
-.led-preview.ring { position: relative; display: block; flex: none; aspect-ratio: 1; width: min(100%, 100cqh, clamp(150px, 26vh, 230px)); height: auto; margin: auto; }
-.led-preview.ring .led-disc {
-  position: absolute; height: min(11%, 9.5cqw); min-height: 11px;
+/* The ring board's preview — its own kind of preview (RingPreview.tsx), kept separate from the disc
+   previews above. The circle must be square by construction: one width value drives both side
+   sizes (the height follows through aspect-ratio), because a stretched flex parent + height:100%
+   turned the %-positioned dots into an ellipse. cqh sizes it to the real preview area (no 26vh
+   budget, same 340px cap as the discs); radius 42 % and dots at 10.2 % keep a visible gap each. */
+.ring-preview { position: relative; display: block; flex: none; aspect-ratio: 1; width: min(100%, 76cqh, 340px); height: auto; margin: auto; }
+.ring-preview .led-disc {
+  position: absolute; height: min(10.2%, 9cqw); min-height: 11px;
   transform: translate(-50%, -50%);
   transition: background 0.25s, box-shadow 0.25s, border-color 0.25s, opacity 0.3s, transform 0.15s;
 }
-.led-preview.ring .led-disc.clickable:hover { transform: translate(-50%, -50%) scale(1.22); }
-.led-preview.ring .led-disc:not(.selected) { opacity: 0.8; }
+.ring-preview .led-disc.clickable:hover { transform: translate(-50%, -50%) scale(1.22); }
+.ring-preview .led-disc:not(.selected) { opacity: 0.8; }
 .led-number { text-align: center; font-size: 12px; font-weight: 600; color: var(--on-bg-55); margin: -2px 0 -4px; }
 .mode-name { text-align: center; font-size: 16px; font-weight: 500; color: var(--on-bg-85); min-height: 22px; flex: none; }
 

@@ -9,6 +9,7 @@
 
 import { useSyncExternalStore } from 'react'
 import type { BleLink } from '../../platform'
+import { newest } from '../../lib/github'
 
 const MAX_PENDING_BYTES = 1024
 
@@ -202,6 +203,25 @@ export function useBoard(): BoardSnapshot {
   return useSyncExternalStore(board.subscribe, () => board.snapshot)
 }
 
+/** The demo board's firmware: always the newest released one. `versions.json` (what the update
+ * checks themselves read) says which that is; asked at most once a minute, and the answer is kept
+ * for the session. Offline (or before GitHub answers) the last one heard of stands — on first
+ * boot, today's current release. */
+const DEMO_FW_FLOOR = '2.1.0'
+let demoFwVersion = DEMO_FW_FLOOR
+let demoFwAsk: Promise<unknown> | null = null
+let demoFwAt = 0
+
+function demoFwVersionChecked(): Promise<string> {
+  if (Date.now() - demoFwAt > 60_000 && !demoFwAsk) {
+    demoFwAsk = newest(/wififan-fw-(\d+\.\d+\.\d+)\.bin/, 'fw', (v) => `wififan-fw-${v}.bin`)
+      .then((latest) => { if (latest) demoFwVersion = latest.version })
+      .catch(() => { /* offline: the last known (or the floor) stands */ })
+      .finally(() => { demoFwAt = Date.now(); demoFwAsk = null })
+  }
+  return Promise.resolve(demoFwAsk).then(() => demoFwVersion)
+}
+
 /** A pretend board for the demo: takes every command, answers the version check and the ring's size. */
 export function demoLink(): BleLink {
   const dataFns = new Set<(d: Uint8Array) => void>()
@@ -211,7 +231,10 @@ export function demoLink(): BleLink {
     async write(data) {
       const text = new TextDecoder().decode(data)
       console.debug('[demo] ->', text)
-      if (text.includes('ver\\')) setTimeout(() => dataFns.forEach((f) => f(new TextEncoder().encode('VER,2.0.0\\'))), 30)
+      if (text.includes('ver\\')) {
+        // answers as soon as the newest-version check settles (at once when it is already known)
+        void demoFwVersionChecked().then((v) => dataFns.forEach((f) => f(new TextEncoder().encode(`VER,${v}\\`))))
+      }
       if (text.includes('leds\\')) setTimeout(() => dataFns.forEach((f) => f(new TextEncoder().encode('LEDS,24,2\\'))), 30)
     },
     onData(fn) { dataFns.add(fn); return () => { dataFns.delete(fn) } },

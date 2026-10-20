@@ -28,7 +28,8 @@ import type { ControlScreenProps } from '../types'
 import { displayName } from '../connection'
 import { useBoard } from './board'
 import { FirmwareDialog } from './Firmware'
-import { LedPreview, LedPreviewPair, LedPreviewRing } from './LedPreview'
+import { LedPreview, LedPreviewPair } from './LedPreview'
+import { RingPreview } from './RingPreview'
 import { KELVIN_PRESETS, LED_EFFECTS, LED_PRESETS, MODE, modeLabel } from './modes'
 import { simulatedPreview, simulatedRing } from './simulate'
 import { sceneSwatch, type Scene } from './scenes'
@@ -345,7 +346,7 @@ function Preview({ c, onDisconnect }: {
     <div className="control-preview entrance" style={{ ['--i' as string]: 1 }}>
       <Swap k={dots ? 'ring' : c.twoLeds ? 'pair' : 'one'} className="fill">
         {dots ? (
-          <LedPreviewRing
+          <RingPreview
             dots={dots}
             editing={pixel}
             onTap={(i) => { sound.tap(); c.setEditLed(i) }}
