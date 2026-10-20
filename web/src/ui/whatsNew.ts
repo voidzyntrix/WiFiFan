@@ -2,6 +2,15 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.60',
+    notes: [
+      'Firmware update offers work again: the app checks the real newest firmware release now, so boards on older firmware get offered the 2.1.1 flash.',
+      'App update offers work again for Android: the app version the updater compares against had been frozen, so no new version was ever offered.',
+      'The demo board always reports the newest released firmware and never falls back below what it already knows.',
+    ],
+  },
+
+  {
     version: '2.13.59',
     notes: [
       'Spinner colour and brightness changes no longer restart the arc on firmware 2.1.1: dragging a colour recolours it live while it keeps turning (older firmware keeps the old behaviour).',
