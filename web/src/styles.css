@@ -167,7 +167,8 @@ code { font-family: 'JetBrains Mono', monospace; font-size: 0.9em; }
 @keyframes sa-out-fwd { to { opacity: 0; transform: translateX(-24px); } }
 @keyframes sa-out-back { to { opacity: 0; transform: translateX(24px); } }
 .screen {
-  max-width: 1080px; margin: 0 auto;
+  /* No width cap: the app fills the whole window (desktop asked for this; on a phone it never
+     mattered, since the window was smaller than any sensible cap). */
   padding: calc(14px + var(--inset-top, 0px)) var(--pad) calc(14px + var(--inset-bottom, 0px));
   height: 100%;
   display: flex; flex-direction: column; min-height: 0;
