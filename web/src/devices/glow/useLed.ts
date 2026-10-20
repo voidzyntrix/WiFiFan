@@ -117,11 +117,9 @@ export function useLed() {
         if (focus != null && s.ringPal[focus]) return sendPixel(focus)      // a drag moves just that pixel
         return sendRingPalette()                                            // commits set the whole ring
       }
-      // Firmware without per-pixel commands (2.0.0): the chosen pixel drives the half it sits in.
-      const half = Math.max(1, Math.floor(s.ringPal.length / 2))
-      const [h1, s1] = pixelHs(s.ringPal[0] ?? { hue: s.hue, sat: s.sat, kelvinMode: s.kelvinMode, kelvin: s.kelvin })
-      const [h2, s2] = pixelHs(s.ringPal[half] ?? s.ringPal[0] ?? { hue: s.hue2, sat: s.sat2, kelvinMode: s.kelvinMode2, kelvin: s.kelvin2 })
-      return send(LedCommands.pair(h1, s1, s.bri, h2, s2, s.bri))
+      // Firmware without per-pixel commands (2.0.0): it drives the ring as its two halves, and the
+      // chosen pixel's edits were mirrored into them — the preview still shows the per-pixel model.
+      return send(LedCommands.pair(s.hue, s.sat, s.bri, s.hue2, s.sat2, s.bri))
     }
     // Separate (a ring-less board): both colours in one command; brightness applies to both.
     if (twoLeds()) send(LedCommands.pair(s.hue, s.sat, s.bri, s.hue2, s.sat2, s.bri))
@@ -250,8 +248,10 @@ export function useLed() {
   }
 
   /**
-   * A colour change for the ring's chosen pixel. It becomes Solid (like picking on a separate pair),
-   * keeps the app's palette, and on firmware without per-pixel commands the whole half moves with it.
+   * A colour change for the ring's chosen pixel — only that one, always: the app keeps a per-pixel
+   * model (that's what the preview and, from firmware 2.1.0, `p=` commands show). Firmware without
+   * per-pixel commands (2.0.0) can only drive the ring as its two halves, so the edit is mirrored
+   * into the half it sits in (LED1 or LED2) to keep the board following; the preview stays per pixel.
    */
   function editRing(patch: Partial<PixelColour>) {
     const s = st.current
@@ -261,9 +261,11 @@ export function useLed() {
     Object.assign(px, patch)
     if (!caps.perPixel) {           // LED1/LED2 are the only colours that firmware knows
       const half = Math.max(1, Math.floor(s.ringPal.length / 2))
-      const first = i < half ? 0 : half
-      const last = i < half ? half : s.ringPal.length
-      for (let j = first; j < last; j++) Object.assign(s.ringPal[j], patch)
+      const first = i < half
+      if ('hue' in patch) { if (first) s.hue = patch.hue!; else s.hue2 = patch.hue! }
+      if ('sat' in patch) { if (first) s.sat = patch.sat!; else s.sat2 = patch.sat! }
+      if ('kelvinMode' in patch) { if (first) s.kelvinMode = patch.kelvinMode!; else s.kelvinMode2 = patch.kelvinMode! }
+      if ('kelvin' in patch) { if (first) s.kelvin = patch.kelvin!; else s.kelvin2 = patch.kelvin! }
     }
     pixelFocus.current = i
     colourPicked(true)

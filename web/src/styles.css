@@ -376,8 +376,11 @@ code { font-family: 'JetBrains Mono', monospace; font-size: 0.9em; }
 .led-disc.clickable { cursor: pointer; }
 .led-disc.clickable:hover { transform: scale(1.03); }
 .led-preview.pair .led-disc:not(.selected) { opacity: 0.75; }
-/* The ring board's Individual layout: a dot per pixel on a circle, the chosen one full-bright. */
-.led-preview.ring { position: relative; display: block; height: 100%; aspect-ratio: 1; max-width: 100%; margin-inline: auto; }
+/* The ring board's Individual layout: a dot per pixel on a circle, the chosen one full-bright.
+   The circle must be square by construction — one width value drives both side sizes (the height
+   follows through aspect-ratio), because a stretched flex parent + height:100% turned the
+   %-positioned dots into an ellipse. cqh keeps it inside a short preview area too. */
+.led-preview.ring { position: relative; display: block; flex: none; aspect-ratio: 1; width: min(100%, 100cqh, clamp(150px, 26vh, 230px)); height: auto; margin: auto; }
 .led-preview.ring .led-disc {
   position: absolute; height: min(11%, 9.5cqw); min-height: 11px;
   transform: translate(-50%, -50%);

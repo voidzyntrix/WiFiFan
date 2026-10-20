@@ -29,9 +29,13 @@ keep theirs (`p=`), and brightness / layout changes repaint the whole ring in on
 
 ## What the app does meanwhile (2.0.0 boards)
 
-- The ring still draws per pixel, but a tapped dot maps onto the half it sits in
-  (pixels 0–11 → LED1 = `h1=`, pixels 12–23 → LED2 = `h2=`, both through `hh=`), so the
-  whole half takes the colour. No new command gets sent to a board that can't understand it.
+- The preview and the colour tab always work per pixel: the app keeps a 24-entry palette and a
+  tapped dot is the only one its edit touches.
+- The board itself can't hold 24 colours until 2.1.0, so the app mirrors each edit into the half
+  the chosen pixel sits in (pixels 0–11 → LED1 = `h1=`-style, pixels 12–23 → LED2) and keeps
+  sending the ordinary two-LED commands (`hh=` and friends). The ring therefore renders the
+  chosen pixel's colour across its half until the per-pixel firmware is flashed — the app never
+  sends a command a board can't understand.
 - Scenes, syncs and the rest of the two-LED command set work unchanged — `hh=` covers them
   (the halves are enough there; see `firmware/RING-MODES.md`).
 
