@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.65',
+    notes: [
+      'Unknown commands while the music and visualizer streams ran are gone: long Bluetooth writes went out in pieces that arrived apart, and the board white-flashed at each not-understood half. Every command travels as one write now, with the old pieces kept only for devices that need them.',
+    ],
+  },
+
+  {
     version: '2.13.64',
     notes: [
       'The LED preview matches firmware 2.1.6: the board\'s colours are truer at every brightness now and the preview does the same, keeping the earlier look on older firmware.',
