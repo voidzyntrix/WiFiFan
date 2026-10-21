@@ -162,14 +162,17 @@ export function simulatedRing(c: LedController, t: number): DotColour[] {
       })
     }
     case MODE.SPIN: {
-      // The board's spinner: a flat arc of 8 full pixels; spinFalloff percent of the arc
-      // (firmware 2.1.11) fades out behind it like a light leak, and with
-      // spinFalloffFront (2.1.12) the same leak mirrors into the LEDs ahead of the head.
-      // The head's sub-pixel position keeps both ends moving smoothly between pixels.
+      // The board's spinner: a flat arc (spinLength pixels, firmware 2.1.13's L, default
+      // 8); spinFalloff percent of the arc (firmware 2.1.11) fades out behind it like a
+      // light leak, and with spinFalloffFront (2.1.12) the same leak mirrors into the
+      // LEDs ahead of the head. Like the firmware, the leak is clamped when the arc is
+      // long so the two never meet. The head's sub-pixel position keeps both ends moving
+      // smoothly between pixels.
       if (!caps.spin) return dots
-      const arc = 8                                       // the flat arc's length (firmware SPIN_TAIL)
+      const arc = Math.min(prefs.spinLength, n)           // the flat arc's length (firmware L)
+      const cap = Math.max(0, (n - arc) / 2)              // like the firmware: keep the leaks apart
+      const fall = Math.min((prefs.spinFalloff / 100) * arc, cap)   // the falloff's length, in pixels
       const head = ((t / prefs.spinSeconds) % 1) * n      // the head's position, in pixels
-      const fall = (prefs.spinFalloff / 100) * arc        // the falloff's length, in pixels
       return dots.map((_, i) => {
         const behind = (((head - i) % n) + n) % n         // how far behind the head, in pixels
         let v = 0

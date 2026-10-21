@@ -87,6 +87,8 @@ export interface Settings {
   rainbowSeconds: number
   /** Spinner: seconds per turn (1-60, firmware 2.0.0's spin=T). */
   spinSeconds: number
+  /** Spinner: the arc's length in pixels, not counting the falloff (1-12, firmware 2.1.13's spin=L). */
+  spinLength: number
   /** Spinner: the falloff behind the arc, % of the arc's length (0-100, firmware 2.1.11's spin=F). */
   spinFalloff: number
   /** Spinner: the falloff also leaks into the LEDs ahead of the head (firmware 2.1.12's spin=W). */
@@ -148,6 +150,7 @@ const DEFAULTS: Settings = {
   twoCandles: false,
   rainbowSeconds: 15,
   spinSeconds: 2,
+  spinLength: 8,
   spinFalloff: 25,
   spinFalloffFront: true,
   fadeMs: 1500,
