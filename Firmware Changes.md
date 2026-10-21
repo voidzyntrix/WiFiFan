@@ -51,3 +51,21 @@ keep theirs (`p=`), and brightness / layout changes repaint the whole ring in on
 Everything else the app now uses is already live in firmware 2.0.0 / 1.10.0: the spinner,
 the wheel rainbow's `T`, per-pixel candle and breathe wave, the `candle=` style parameter being
 ignored, and the `leds` reply that tells the app how many pixels and LEDs it drives.
+
+
+## 2.1.7 - serial bytes are queued by an interrupt (the "not understood" white flash while animating)
+
+What 2.1.6 (and older) did: the main loop polled USART1 for one byte per pass, and writing one
+LED frame kept that loop silent for about 700 us on every 10 ms tick whenever an animation or a
+fade was rendering (breathe, candle, spinner, rainbow - and every colour command fades in over
+1.5 s first, so even plain mode changes render frames). Bytes arriving in those windows were
+silently lost: the overrun flag was cleared by the read and never counted. A line arrived with
+holes, so the board white-flashed "not understood" (seen most leaving candle for solid), or
+worse, parsed a mangled cousin of the command and ended in a different mode than the one asked.
+
+What 2.1.7 changes: `USART1_IRQHandler` copies every received byte into a 128-byte ring buffer
+and the main loop drains it - same line assembler, same commands, same parser. The framing
+flags (FE/NE/ORE) are counted in the IRQ, so the auto-baud detection still sees them and works
+unchanged. `FW_VERSION` bumps to 2.1.7; the app needs no change and keeps its `spinLive` /
+`spinBri` / per-pixel caps as they are.
+

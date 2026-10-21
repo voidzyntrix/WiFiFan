@@ -85,7 +85,7 @@
 
 #define WS_USE_DMA   0               /* 1 = timer + DMA, 0 = polled SysTick */
 
-#define FW_VERSION   "2.1.6"     /* reported by "ver"; bump for each release */
+#define FW_VERSION   "2.1.7"     /* reported by "ver"; bump for each release */
 
 #define START_BAUD   115200          /* used until a baud rate has been detected */
 
@@ -305,6 +305,16 @@ static void usart_init(uint32_t baud)
     USART_Init(USART1, &u);
     USART_Cmd(USART1, ENABLE);
 
+    /* The receive side is interrupt-driven: bytes queue up even while the main
+     * loop is inside a frame write. */
+    USART_ITConfig(USART1, USART_IT_RXNE, ENABLE);
+    NVIC_InitTypeDef nv = {0};
+    nv.NVIC_IRQChannel = USART1_IRQn;
+    nv.NVIC_IRQChannelPreemptionPriority = 0;
+    nv.NVIC_IRQChannelSubPriority        = 3;
+    nv.NVIC_IRQChannelCmd                = ENABLE;
+    NVIC_Init(&nv);
+
     cur_baud = baud;
     BKP_WriteBackupRegister(BKP_BAUD, (uint16_t)(baud / 100));
 }
@@ -403,6 +413,37 @@ static uint32_t ab_poll(void)
         return nb;
     }
     return 0;
+}
+
+/* ------------------------------------------------------- receive queue --- */
+/* Bytes land in this ring from the USART1 IRQ: a WS2812 frame keeps the main
+ * loop silent for about 700 us on every 10 ms tick while an animation renders,
+ * which is exactly when the polled reader used to lose whatever arrived - the
+ * line came in with holes, and the board either flashed "not understood" or
+ * parsed some mangled cousin of the command. Nothing gets dropped any more.
+ * Frame errors now count here too, so the baud detector still sees them (ORE,
+ * bytes lost to overrun, counts the same as a framing error). */
+#define RXQ_SIZE 128                     /* a power of two: ~11 ms of 115200 baud */
+static volatile uint8_t  rxq[RXQ_SIZE];
+static volatile uint16_t rxq_head = 0, rxq_tail = 0;    /* IRQ fills, loop drains */
+static volatile uint32_t rx_last;                       /* newest byte's arrival tick */
+
+static volatile uint8_t rx_flag;        /* a byte arrived; the alert idle detection reads this */
+
+void USART1_IRQHandler(void) __attribute__((interrupt("WCH-Interrupt-fast")));
+void USART1_IRQHandler(void)
+{
+    uint16_t sr = USART1->STATR;
+    uint8_t  b  = (uint8_t)USART1->DATAR;    /* this read clears RXNE, FE, NE and ORE */
+    if (sr & (USART_FLAG_ORE | USART_FLAG_FE | USART_FLAG_NE)) ab.errors++;
+    else                                                       ab.good++;
+    uint16_t next = (uint16_t)((rxq_head + 1) % RXQ_SIZE);
+    if (next != rxq_tail) {                  /* on overflow only the new byte is dropped */
+        rxq[rxq_head]      = b;
+        rxq_head           = next;
+    }
+    rx_last = now();
+    rx_flag = 1;
 }
 
 /* ---------------------------------------------------------------- LED --- */
@@ -983,7 +1024,6 @@ static void led_poll(void)
 static uint8_t           alert_kind;                 /* 0 none, 1 red, 2 green */
 static uint8_t           alert_step;                 /* 0 wait, 1 blink 1 shown, 2 gap, 3 blink 2 shown */
 static uint32_t          alert_every_ms, alert_left_ms, alert_wait_ms, alert_quiet_ms, alert_last;
-static volatile uint8_t  rx_flag;                    /* set by the main loop for every received byte */
 
 static void alert_poll(void)
 {
@@ -1429,18 +1469,12 @@ int main(void)
             (uint32_t)(now() - last_rx) > CMD_IDLE_MS * TICKS_PER_MS)
             line_end();
 
-        uint16_t sr = USART1->STATR;
-        if (!(sr & USART_FLAG_RXNE))
+        if (rxq_head == rxq_tail)          /* the IRQ queues bytes; this loop only drains */
             continue;
 
-        uint8_t b = (uint8_t)USART1->DATAR;    /* STATR then DATAR read also clears FE/NE/ORE */
-        if (sr & (USART_FLAG_FE | USART_FLAG_NE)) {
-            ab.errors++;                       /* garbled byte: ignore it */
-            continue;
-        }
-        ab.good++;
-        last_rx = now();
-        rx_flag = 1;
+        uint8_t b = rxq[rxq_tail];
+        rxq_tail = (uint16_t)((rxq_tail + 1) % RXQ_SIZE);
+        last_rx  = rx_last;
 
         /* '\', CR and LF end a text message; inside a raw-byte message they are data */
         if ((b == '\\' || b == '\r' || b == '\n') && !line_binary) {
