@@ -29,7 +29,9 @@
  *                      the ring, one turn every T seconds (1-60); a brightness-only h=
  *                      keeps it turning (2.1.2). spin=H/S/V/T/F (2.1.11) adds a falloff
  *                      of F% of the arc's length fading out behind the arc, so its light
- *                      seems to bloom into the LEDs behind it (F 0 = off, the default)
+ *                      seems to bloom into the LEDs behind it (F 0 = off, the default);
+ *                      spin=H/S/V/T/F/W (2.1.12) with W 1 fades it into the LEDs ahead
+ *                      of the head too
  *   send  breathe=V -> the last colour fades up and down over 4 s (Separate: as a wave round the ring)
  *   send  fade=MS  ->  colour change duration 0-5000 ms (default 1500)
  *   Rainbow, candle, breathe and spin replace each other; a colour command ends them.
@@ -96,7 +98,7 @@
 
 #define WS_USE_DMA   1               /* 1 = timer + DMA, 0 = polled SysTick */
 
-#define FW_VERSION   "2.1.11"    /* reported by "ver"; bump for each release */
+#define FW_VERSION   "2.1.12"    /* reported by "ver"; bump for each release */
 
 #define START_BAUD   115200          /* used until a baud rate has been detected */
 
@@ -583,6 +585,7 @@ static uint8_t  spin;
 static hsv_t    spin_c;
 static uint32_t spin_period, spin_t, spin_last;   /* one turn in ms, clock, last tick */
 static uint32_t spin_falloff;                     /* fade-out length behind the arc, in sub-pixels (0 = none) */
+static uint8_t  spin_falloff_front;               /* the falloff also fades into the LEDs ahead of the head */
 
 /* sin(2*pi*x): parabolic approximation (error < 0.1 %), so no libm is needed */
 static float sin_turns(float x)
@@ -829,8 +832,9 @@ static void led_flash(uint8_t r, uint8_t g, uint8_t b, uint32_t ms)
 }
 
 /* Spinner: colour [c], one turn of the ring every [secs] seconds, with a falloff of
- * [falloff_pct]% of the arc's length fading out behind it (0 = the plain flat arc). */
-static void led_spin(hsv_t c, uint32_t secs, uint16_t falloff_pct)
+ * [falloff_pct]% of the arc's length fading out behind it (0 = the plain flat arc);
+ * [falloff_front] also fades it into the LEDs ahead of the head. */
+static void led_spin(hsv_t c, uint32_t secs, uint16_t falloff_pct, uint8_t falloff_front)
 {
     end_modes();
     for (int i = 0; i < RING_PIXELS; i++) L[i].fading = 0;
@@ -838,7 +842,8 @@ static void led_spin(hsv_t c, uint32_t secs, uint16_t falloff_pct)
     spin_period = secs * 1000u;
     spin_t      = 0;
     spin_last   = now();
-    spin_falloff = (uint32_t)falloff_pct * (SPIN_TAIL * SPIN_FP) / 100;
+    spin_falloff       = (uint32_t)falloff_pct * (SPIN_TAIL * SPIN_FP) / 100;
+    spin_falloff_front = falloff_front ? 1 : 0;
     spin        = 1;
     flashing    = 0;
     dirty       = 1;
@@ -882,9 +887,11 @@ static void candle_frame(uint8_t p, float tt)
 
 /* One spinner frame: a flat arc of SPIN_TAIL pixels at full brightness, chasing round
  * the ring (the arc itself is unchanged: the head is crisp, every pixel inside is on).
- * What follows it is a falloff (2.1.11): the next spin_falloff sub-pixels of LEDs fade
- * smoothly from the colour to black, so the arc looks like its light blooms and leaks
- * into the pixels behind it instead of cutting off. Falloff 0 is the plain flat arc. */
+ * What follows it behind is a falloff (2.1.11): the next spin_falloff sub-pixels of
+ * LEDs fade smoothly from the colour to black, so the arc looks like its light blooms
+ * and leaks into the pixels behind it instead of cutting off. With spin_falloff_front
+ * (2.1.12) the same leak mirrors across the head, into the sub-pixels of LEDs ahead of
+ * it. Falloff 0 is the plain flat arc. */
 static void spin_frame(uint32_t t)
 {
     if (!spin) return;
@@ -905,8 +912,17 @@ static void spin_frame(uint32_t t)
         if (d < arc) {
             px->shown.v = spin_c.v;                    /* the arc, full brightness */
         } else if (fall && d < arc + fall) {
-            /* The falloff: full colour at the arc's end, easing to black like a light leak. */
+            /* The falloff behind: full colour at the arc's end, easing to black like a light leak. */
             uint32_t x  = ((d - arc) << 10) / fall;    /* 0..1023 into the falloff */
+            uint32_t k  = (1024 - x) * (1024 - x) / 1024;
+            px->shown.v = (uint8_t)((uint32_t)spin_c.v * k / 1024);
+        } else if (spin_falloff_front && fall && d >= span - fall) {
+            /* The falloff ahead of the head: the mirror of the one behind, full colour at
+             * the head easing to black over the same length. The zones never overlap:
+             * arc + fall <= 4096 and this zone starts at span - fall >= 4096, so at the
+             * worst setting they just meet. */
+            uint32_t a  = span - d;                    /* how far ahead of the head */
+            uint32_t x  = (a << 10) / fall;            /* 0..1023 out of the falloff */
             uint32_t k  = (1024 - x) * (1024 - x) / 1024;
             px->shown.v = (uint8_t)((uint32_t)spin_c.v * k / 1024);
         } else {
@@ -1322,12 +1338,20 @@ static void led_palette(const hsv_t pal[], int cnt)
 }
 
 /* `spin=H/S/V/T`, plus an optional 5th number F (2.1.11): the falloff, F% of the arc's
- * length fading out behind it. The plain 4-number form still works (no falloff); a
- * 5-number command on 2.1.10 and older is accepted by them with F ignored, exactly like
- * the app's other extended forms. 1 on success. */
-static int spin_parse(const char *s, uint16_t n[], uint16_t *falloff)
+ * length fading out behind it, and a 6th W (2.1.12): 1 also fades the falloff into the
+ * LEDs ahead of the head. Older forms still work: the 4-number command has no falloff,
+ * the 5-number one fades only behind, and older hardware accepts and ignores the
+ * numbers it does not know. 1 on success. */
+static int spin_parse(const char *s, uint16_t n[], uint16_t *falloff, uint8_t *front)
 {
     *falloff = 0;
+    *front   = 0;
+    if (parse_nums(s, n, 6, 360)) {
+        if (n[1] > 100 || n[2] > 100 || n[3] < 1 || n[3] > 60 || n[4] > 100 || n[5] > 1) return 0;
+        *falloff = n[4];
+        *front   = (uint8_t)n[5];
+        return 1;
+    }
     if (parse_nums(s, n, 5, 360)) {
         if (n[1] > 100 || n[2] > 100 || n[3] < 1 || n[3] > 60 || n[4] > 100) return 0;
         *falloff = n[4];
@@ -1342,8 +1366,9 @@ static void line_end(void)
     char        t[LINE_MAX];
     const char *p, *w;
     uint8_t     rgb[3];
-    uint16_t    n[5];
+    uint16_t    n[6];
     uint16_t    falloff;
+    uint8_t     front;
     hsv_t       hv[2];
     int         br;
 
@@ -1433,9 +1458,9 @@ static void line_end(void)
     else if (strcmp(w, "candle") == 0) {
         led_candle(last_v, 0);
     }
-    else if (strncmp(w, "spin=", 5) == 0 && spin_parse(w + 5, n, &falloff)) {
-        hsv_t c = { (int16_t)((n[0] % 360u) * HUE_MAX / 360u), pct(n[1]), pct(n[2]) };   /* H/S/V/T[/F] */
-        led_spin(c, n[3], falloff);
+    else if (strncmp(w, "spin=", 5) == 0 && spin_parse(w + 5, n, &falloff, &front)) {
+        hsv_t c = { (int16_t)((n[0] % 360u) * HUE_MAX / 360u), pct(n[1]), pct(n[2]) };   /* H/S/V/T[/F[/W]] */
+        led_spin(c, n[3], falloff, front);
     }
     else if (strncmp(w, "fade=", 5) == 0 && parse_nums(w + 5, n, 1, 5000)) {
         fade_ms = n[0];

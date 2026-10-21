@@ -159,6 +159,26 @@ The app drives it: the Spinner tab gains a Falloff slider (0-100%, default 25), 
 preview and scenes carry it too). `FW_VERSION` bumps to 2.1.11; no version gate moves
 (2.2.0 stays reserved for `imp=`).
 
+## 2.1.12 - the falloff can bloom ahead of the head too (spin=H/S/V/T/F/W)
+
+Follow-up on 2.1.11: the falloff was behind the arc only - the head's leading edge still cut
+off hard. Now the same leak can mirror across the head: `spin_frame` grows a third zone for
+the `spin_falloff_front` case, where the LEDs just ahead of the head are the mirror of the
+ones behind it (a = span - d sub-pixels ahead, the same quadratic easing from full colour at
+the head to black over spin_falloff). The zones cannot overlap - with falloff at its 100%-of-
+arc maximum the three regions together span exactly half the ring (arc 8 px + 8 px behind +
+8 px ahead on the 24-pixel ring), so at worst they meet.
+
+The command grows a 6th, optional number: `spin=H/S/V/T/F/W`, W 0/1, 0 = behind only (the
+2.1.11 default). `spin_parse` now tries 6, 5 and then 4 numbers; older hardware accepts the
+numbers it does not know and ignores them (2.1.11 ignores W, 2.1.10 and older ignore F and
+W), so the app can always send the full 6-number form.
+
+The app gets the matching control: a Front + back switch on the Spinner tab (default on,
+per the ask - the falloff should light both edges), sent as W on every `spin=`, re-sent live
+while the spinner runs, carried by scenes, and the ring preview renders the mirrored leak.
+`FW_VERSION` bumps to 2.1.12; no version gate moves (2.2.0 stays reserved for `imp=`).
+
 
 
 
