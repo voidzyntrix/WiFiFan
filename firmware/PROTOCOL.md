@@ -98,11 +98,15 @@ Streaming (music / visualizer / screen sync): send `hh=...` per frame, with
 | `spin=H/S/V/T` | **spinner**: a flat arc of 8 pixels chasing round the ring in this colour, one turn every T seconds (1-60) | `spin=200/100/100/2\` |
 | `spin=H/S/V/T/F` (2.1.11) | ... with a falloff: F% of the arc's length fades out behind the arc, so its light looks like it blooms into the LEDs behind it (0-100, 0 = off; 2.1.10 and older ignore F) | `spin=200/100/100/2/25\` |
 | `spin=H/S/V/T/F/W` (2.1.12) | ... with W 1 the falloff also fades into the LEDs ahead of the head (W 0/1, default 0 = behind only; 2.1.11 and older ignore W) | `spin=200/100/100/2/25/1\` |
+| `spin=H/S/V/T/F/W/L` (2.1.13) | ... with L the arc's length in pixels (1-12, default 8); a `spin=` sent while it turns keeps the head where it was and only re-learns the settings | `spin=200/100/100/2/25/1/8\` |
 
-`spin=` draws a flat arc of 8 pixels in one colour, chasing round the ring; the arc's head
+`spin=` draws a flat arc in one colour, chasing round the ring; the arc's head
 keeps a crisp edge, and with a falloff (F) the LEDs just behind the arc fade from the colour
-to black instead of cutting off, with W 1 the LEDs just ahead of the head do the same. While it turns, a brightness change (`h=` with the same hue
-and saturation, 2.1.2) keeps it turning. Any other colour command, and every other command
+to black instead of cutting off, with W 1 the LEDs just ahead of the head do the same. The
+arc is 8 pixels unless L says otherwise, and the falloff is a share of the arc's own length.
+A `spin=` sent while it turns updates any of the numbers without restarting the turn
+(2.1.13); a brightness change (`h=` with the same hue and saturation, 2.1.2) keeps it
+turning. Any other colour command, and every other command
 (candle, breathe, rain, `p=`, `pal=`, halves), ends it, as before.
 
 ### Settings and system

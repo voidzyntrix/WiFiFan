@@ -179,6 +179,31 @@ per the ask - the falloff should light both edges), sent as W on every `spin=`, 
 while the spinner runs, carried by scenes, and the ring preview renders the mirrored leak.
 `FW_VERSION` bumps to 2.1.12; no version gate moves (2.2.0 stays reserved for `imp=`).
 
+## 2.1.13 - the arc's length is a setting, and spin= stops restarting the turn
+
+Two follow-ups to the falloff pair:
+
+- The arc no longer has to be the fixed 8 pixels: `spin=` grows a 7th optional number,
+  `spin=H/S/V/T/F/W/L`, with L the arc's length in pixels, 1-12 (half the 24-pixel ring;
+  default 8). The falloff stays a % of the ARC's own length, so it scales with L. To keep
+  the behind and ahead leaks from running into each other when the arc is long, the
+  effective falloff is clamped at (ring - arc) / 2 when the arc is set - with a long arc the
+  slider's % then leaks a little less far than it promises; at the default length nothing is
+  clamped. At maximum arc the falloff drops to zero: a 12-pixel arc alone fills the half.
+- The spinner used to restart from the head whenever the app re-sent `spin=` - every slider
+  move (falloff, front + back, turn length) jumped the arc back to its start; brightness
+  already lived through the `h=` path (2.1.2). Now `led_spin` captures the old phase before
+  ending the modes and, when the spinner was already turning, rescales it to the new turn
+  length (old position as a share of the turn, times the new period): the head keeps its
+  place on the ring and only the speed changes. On a resting ring the first `spin=` still
+  starts from the head, as before.
+
+The app gains a Length slider (1-12 px, default 8) after the speed one on the Spinner tab,
+sent as L on every `spin=`; falloff, front, length and speed changes all apply live
+(2.1.13+ boards keep the position; older boards restart as they always did - they ignore
+the numbers they do not know). `FW_VERSION` bumps to 2.1.13; no version gate moves
+(2.2.0 stays reserved for `imp=`).
+
 
 
 
