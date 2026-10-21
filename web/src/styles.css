@@ -321,9 +321,12 @@ code { font-family: 'JetBrains Mono', monospace; font-size: 0.9em; }
 .leaving { pointer-events: none; }
 .menu-item.scene { animation: item-in 0.42s var(--emph-decel) both; }
 .menu-item.scene.leaving { overflow: hidden; animation: chip-out 0.3s var(--emph-accel) forwards; }
-/* a directed deck swap holds the incoming panel a beat before the reveal — its intro animations
+/* a directed deck swap holds the incoming panel a beat before the reveal - its intro animations
    wait too, and play fresh when the panel actually appears, as they never run out of sight */
 .swap-in.pending .menu-item.scene { animation: none; }
+/* the leaving copy is freshly mounted, so the buttons would replay their intro on the way out;
+   the old card just fades, its buttons stay settled */
+.swap-out .menu-item.scene { animation: none; }
 .board-tile, .nearby-row { animation: item-in 0.42s var(--emph-decel) both; }
 .board-tile.leaving, .nearby-row.leaving { animation: item-out 0.3s var(--emph-accel) forwards; }
 @keyframes item-in { from { opacity: 0; transform: scale(0.92); } }
