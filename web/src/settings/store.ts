@@ -151,7 +151,7 @@ const DEFAULTS: Settings = {
   rainbowSeconds: 15,
   spinSeconds: 2,
   spinLength: 8,
-  spinFalloff: 25,
+  spinFalloff: 50,
   spinFalloffFront: true,
   fadeMs: 1500,
   candleHue: 19,

@@ -179,10 +179,10 @@ export function simulatedRing(c: LedController, t: number): DotColour[] {
         if (behind < arc) v = 1                           // the arc itself, full brightness
         else if (fall > 0 && behind < arc + fall) {
           const x = (behind - arc) / fall                 // 0..1 into the falloff
-          v = (1 - x) * (1 - x)                           // like the firmware: full at the arc, easing to black
+          v = 1 - x                                       // like the firmware: an even, step-by-step fade to black
         } else if (fall > 0 && prefs.spinFalloffFront && behind > n - fall) {
           const x = (n - behind) / fall                   // how far ahead of the head, 0..1 out of the falloff
-          v = (1 - x) * (1 - x)                           // the mirror of the falloff behind
+          v = 1 - x                                       // the mirror of the falloff behind
         }
         const [gh, gs, gv] = gammaHsv(s.hue, s.sat, bri * v, caps.noGamma)
         return { hue: gh, sat: gs, val: gv }
