@@ -2,6 +2,14 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.74',
+    notes: [
+      'The spinner falloff splits into a radius and a strength',
+      'Sliders answer the mouse wheel a notch at a time in their own units, and wheeling one no longer scrolls the page or card behind it',
+    ],
+  },
+
+  {
     version: '2.13.73',
     notes: [
       'Fixed: the Spinner card\'s sliders squashed under the deck panel, leaving their tracks below the thumbs - sliders keep their height and the card scrolls',
