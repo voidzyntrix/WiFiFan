@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.72',
+    notes: [
+      'Spinner: the falloff now fades evenly, pixel by pixel, so you can actually see it dimming out - and its default strength is higher (board firmware 2.1.14)',
+    ],
+  },
+
+  {
     version: '2.13.71',
     notes: [
       'Spinner: a Length slider sets how many pixels the arc itself covers, falloff not included (needs board firmware 2.1.13); and on 2.1.13+ boards, moving any spinner setting - falloff, front + back, length or speed - no longer restarts the turn',
