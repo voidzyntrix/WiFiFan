@@ -24,6 +24,16 @@ const path = require('node:path')
 const updater = require('./updater.cjs')
 const { setupWifi } = require('./wifi.cjs')
 
+// Windows' hardware-overlay compositing (Multi-Plane Overlay) has a long-standing Chromium bug:
+// cursors with alpha (the system's grab/gripping hands, and any custom bitmap do this) blend
+// half-transparent and wash out over the app (chromium issue 40239916 — "cursor goes white and
+// nearly invisible"; the team's hunch: alpha blending gone wrong once the window sits in an MPO
+// overlay plane). Visualizer and Screen sync open real video capture, which is what invites the
+// overlay plane, but their frames feed analysers — the video itself is never shown. Turning the
+// overlay path off costs only that invisible-video promotion, and every cursor keeps its alpha on
+// any machine: no per-cursor bitmaps needed, for these and for future custom ones.
+if (process.platform === 'win32') app.commandLine.appendSwitch('disable-direct-composition-video-overlays')
+
 const DEV_URL = process.env.GLOW_DEV_URL   // set by scripts/dev.mjs
 let win = null
 let tray = null
