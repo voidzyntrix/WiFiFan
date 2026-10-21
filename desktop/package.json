@@ -2,7 +2,7 @@
   "name": "glow-desktop",
   "productName": "Glow",
   "private": true,
-  "version": "2.13.69",
+  "version": "2.13.70",
   "description": "Glow for Windows: the Electron shell that hosts Glow (web/) and gives it Bluetooth, screen capture and updates.",
   "main": "electron/main.cjs",
   "scripts": {

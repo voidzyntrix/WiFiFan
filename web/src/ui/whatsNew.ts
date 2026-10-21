@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.70',
+    notes: [
+      'Spinner: a Front + back toggle lets the falloff leak into the LEDs ahead of the head too (with board firmware 2.1.12)',
+    ],
+  },
+
+  {
     version: '2.13.69',
     notes: [
       'Spinner: a Falloff slider fades the arc\'s light out over the LEDs behind it (with board firmware 2.1.11)',
