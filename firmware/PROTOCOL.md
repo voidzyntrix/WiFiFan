@@ -95,14 +95,14 @@ Streaming (music / visualizer / screen sync): send `hh=...` per frame, with
 | `candle=V/M/H` | ... flame hue H degrees (0-60, default 19) | `candle=60/0/25\` |
 | `candle=V/M/H/S` | S accepted and ignored (every flame is individual) | `candle=60/1/19/0\` |
 | `breathe[=V]` | the last colour slowly fades up and down (4 s) | `breathe=80\` |
-| `spin=H/S/V/T` | **spinner**: a comet chasing round the ring in this colour, one turn every T seconds (1-60) | `spin=200/100/100/2\` |
+| `spin=H/S/V/T` | **spinner**: a flat arc of 8 pixels chasing round the ring in this colour, one turn every T seconds (1-60) | `spin=200/100/100/2\` |
+| `spin=H/S/V/T/F` (2.1.11) | ... with a falloff: F% of the arc's length fades out behind the arc, so its light looks like it blooms into the LEDs behind it (0-100, 0 = off; 2.1.10 and older ignore F) | `spin=200/100/100/2/25\` |
 
-`spin=` draws a comet of 8 pixels in one colour, chasing round the ring: it brightens over the
-pixel in front of the head and fades evenly off over the 7 behind it, so every pixel's
-brightness glides through the pass (firmware 2.1.10; 2.1.9 and older drew a flat, hard-edged
-arc of 8 pixels). While it turns, a brightness change (`h=` with the same hue and saturation,
-2.1.2) keeps it turning. Any other colour command, and every other command (candle, breathe,
-rain, `p=`, `pal=`, halves), ends it, as before.
+`spin=` draws a flat arc of 8 pixels in one colour, chasing round the ring; the arc's head
+keeps a crisp edge, and with a falloff (F) the LEDs just behind the arc fade from the colour
+to black instead of cutting off. While it turns, a brightness change (`h=` with the same hue
+and saturation, 2.1.2) keeps it turning. Any other colour command, and every other command
+(candle, breathe, rain, `p=`, `pal=`, halves), ends it, as before.
 
 ### Settings and system
 

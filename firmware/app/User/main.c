@@ -25,12 +25,11 @@
  *   send  candle=V/M -> M=1: smooth candle (slow, gentle), M=0: lively flicker
  *   send  candle=V/M/H -> ... with flame hue H in degrees (0-60, default 19)
  *   send  candle=V/M/H/S -> S is accepted and ignored (every flame is individual)
- *   send  spin=H/S/V/T -> spinner: a comet of 8 pixels in this colour chasing round
- *                      the ring, one turn every T seconds (1-60) - it brightens
- *                      over the pixel in front of the head and fades evenly off
- *                      over the 7 behind, so every pixel's brightness glides
- *                      through the pass (2.1.10; was a flat arc); a brightness-only
- *                      h= keeps it turning (2.1.2)
+ *   send  spin=H/S/V/T -> spinner: a flat arc of 8 pixels in this colour chasing round
+ *                      the ring, one turn every T seconds (1-60); a brightness-only h=
+ *                      keeps it turning (2.1.2). spin=H/S/V/T/F (2.1.11) adds a falloff
+ *                      of F% of the arc's length fading out behind the arc, so its light
+ *                      seems to bloom into the LEDs behind it (F 0 = off, the default)
  *   send  breathe=V -> the last colour fades up and down over 4 s (Separate: as a wave round the ring)
  *   send  fade=MS  ->  colour change duration 0-5000 ms (default 1500)
  *   Rainbow, candle, breathe and spin replace each other; a colour command ends them.
@@ -97,7 +96,7 @@
 
 #define WS_USE_DMA   1               /* 1 = timer + DMA, 0 = polled SysTick */
 
-#define FW_VERSION   "2.1.10"    /* reported by "ver"; bump for each release */
+#define FW_VERSION   "2.1.11"    /* reported by "ver"; bump for each release */
 
 #define START_BAUD   115200          /* used until a baud rate has been detected */
 
@@ -577,12 +576,13 @@ static uint8_t  candle, cd_smooth, cd_v = 255;
 static int16_t  cd_hue = CANDLE_HUE;         /* flame hue, 0..1535 units */
 static uint32_t cd_ms, cd_last;              /* candle clock in ms, last tick */
 
-/* Spinner: a comet chasing round the ring. */
-#define SPIN_TAIL    8                       /* comet length: the pixel ahead of the head + the 7 fading behind it */
+/* Spinner: a flat arc chasing round the ring, with an optional falloff behind it. */
+#define SPIN_TAIL    8                       /* arc length, pixels */
 #define SPIN_FP      256u                    /* sub-pixel steps per pixel */
 static uint8_t  spin;
 static hsv_t    spin_c;
 static uint32_t spin_period, spin_t, spin_last;   /* one turn in ms, clock, last tick */
+static uint32_t spin_falloff;                     /* fade-out length behind the arc, in sub-pixels (0 = none) */
 
 /* sin(2*pi*x): parabolic approximation (error < 0.1 %), so no libm is needed */
 static float sin_turns(float x)
@@ -828,8 +828,9 @@ static void led_flash(uint8_t r, uint8_t g, uint8_t b, uint32_t ms)
     flash_end = now() + ms * TICKS_PER_MS;
 }
 
-/* Spinner: colour [c], one turn of the ring every [secs] seconds. */
-static void led_spin(hsv_t c, uint32_t secs)
+/* Spinner: colour [c], one turn of the ring every [secs] seconds, with a falloff of
+ * [falloff_pct]% of the arc's length fading out behind it (0 = the plain flat arc). */
+static void led_spin(hsv_t c, uint32_t secs, uint16_t falloff_pct)
 {
     end_modes();
     for (int i = 0; i < RING_PIXELS; i++) L[i].fading = 0;
@@ -837,6 +838,7 @@ static void led_spin(hsv_t c, uint32_t secs)
     spin_period = secs * 1000u;
     spin_t      = 0;
     spin_last   = now();
+    spin_falloff = (uint32_t)falloff_pct * (SPIN_TAIL * SPIN_FP) / 100;
     spin        = 1;
     flashing    = 0;
     dirty       = 1;
@@ -878,12 +880,11 @@ static void candle_frame(uint8_t p, float tt)
     d->shown.v = (uint8_t)(cd_v * f);
 }
 
-/* One spinner frame: a comet of 8 pixels chasing round the ring (one colour).
- * Every pixel's brightness glides as the comet passes: it brightens over the
- * pixel in front of the head (SPIN_FP sub-pixel ramp) and fades evenly off over
- * the 7 behind, so nothing pops on or off - the old flat arc lit its 8 pixels
- * hard, which read as a one-bit spinner. The head itself is a sub-pixel
- * position, so brightening and fading are smooth in time at any turn speed. */
+/* One spinner frame: a flat arc of SPIN_TAIL pixels at full brightness, chasing round
+ * the ring (the arc itself is unchanged: the head is crisp, every pixel inside is on).
+ * What follows it is a falloff (2.1.11): the next spin_falloff sub-pixels of LEDs fade
+ * smoothly from the colour to black, so the arc looks like its light blooms and leaks
+ * into the pixels behind it instead of cutting off. Falloff 0 is the plain flat arc. */
 static void spin_frame(uint32_t t)
 {
     if (!spin) return;
@@ -893,25 +894,24 @@ static void spin_frame(uint32_t t)
     uint32_t ph   = spin_t % spin_period;
     uint32_t span = RING_PIXELS * SPIN_FP;
     uint32_t head = (uint32_t)((uint64_t)ph * span / spin_period);   /* head, in sub-pixels */
-    uint32_t fade = SPIN_TAIL * SPIN_FP - SPIN_FP;  /* the 7 trailing pixels fade over this */
+    uint32_t arc  = SPIN_TAIL * SPIN_FP;
+    uint32_t fall = spin_falloff;
 
     for (uint8_t p = 0; p < RING_PIXELS; p++) {
-        /* Signed distance from the head, in sub-pixels: positive = behind it
-         * (inside the fade), negative = ahead of it (inside the brighten-in). */
-        int32_t s = (int32_t)((head + span - (uint32_t)p * SPIN_FP) % span);
-        if (s > (int32_t)(span / 2)) s -= (int32_t)span;
-
-        uint32_t weight = 0;               /* share of the colour to show, 0..fade */
-        if (s >= 0) {
-            if (s < (int32_t)fade) weight = fade - (uint32_t)s;             /* the fade-out */
-        } else if (s >= -(int32_t)SPIN_FP) {
-            uint32_t ahead = (uint32_t)-s;                       /* sub-pixels in front of the head */
-            weight = (uint32_t)(fade * (SPIN_FP - ahead) / SPIN_FP);  /* ramps to full exactly at the head */
-        }
+        uint32_t d = (head + span - (uint32_t)p * SPIN_FP) % span;   /* how far behind the head */
         led_t *px = &L[p];
         px->shown.h = spin_c.h;
         px->shown.s = spin_c.s;
-        px->shown.v = (uint8_t)((uint32_t)spin_c.v * weight / fade);
+        if (d < arc) {
+            px->shown.v = spin_c.v;                    /* the arc, full brightness */
+        } else if (fall && d < arc + fall) {
+            /* The falloff: full colour at the arc's end, easing to black like a light leak. */
+            uint32_t x  = ((d - arc) << 10) / fall;    /* 0..1023 into the falloff */
+            uint32_t k  = (1024 - x) * (1024 - x) / 1024;
+            px->shown.v = (uint8_t)((uint32_t)spin_c.v * k / 1024);
+        } else {
+            px->shown.v = 0;
+        }
     }
 }
 
@@ -1321,13 +1321,29 @@ static void led_palette(const hsv_t pal[], int cnt)
     }
 }
 
+/* `spin=H/S/V/T`, plus an optional 5th number F (2.1.11): the falloff, F% of the arc's
+ * length fading out behind it. The plain 4-number form still works (no falloff); a
+ * 5-number command on 2.1.10 and older is accepted by them with F ignored, exactly like
+ * the app's other extended forms. 1 on success. */
+static int spin_parse(const char *s, uint16_t n[], uint16_t *falloff)
+{
+    *falloff = 0;
+    if (parse_nums(s, n, 5, 360)) {
+        if (n[1] > 100 || n[2] > 100 || n[3] < 1 || n[3] > 60 || n[4] > 100) return 0;
+        *falloff = n[4];
+        return 1;
+    }
+    return parse_nums(s, n, 4, 360) && n[1] <= 100 && n[2] <= 100 && n[3] >= 1 && n[3] <= 60;
+}
+
 /* End of a message: decode it and act on it. Only ver/ota reply. */
 static void line_end(void)
 {
     char        t[LINE_MAX];
     const char *p, *w;
     uint8_t     rgb[3];
-    uint16_t    n[4];
+    uint16_t    n[5];
+    uint16_t    falloff;
     hsv_t       hv[2];
     int         br;
 
@@ -1417,9 +1433,9 @@ static void line_end(void)
     else if (strcmp(w, "candle") == 0) {
         led_candle(last_v, 0);
     }
-    else if (strncmp(w, "spin=", 5) == 0 && parse_nums(w + 5, n, 4, 360) && n[1] <= 100 && n[2] <= 100 && n[3] >= 1 && n[3] <= 60) {
-        hsv_t c = { (int16_t)((n[0] % 360u) * HUE_MAX / 360u), pct(n[1]), pct(n[2]) };   /* H/S/V/T: T seconds a turn */
-        led_spin(c, n[3]);
+    else if (strncmp(w, "spin=", 5) == 0 && spin_parse(w + 5, n, &falloff)) {
+        hsv_t c = { (int16_t)((n[0] % 360u) * HUE_MAX / 360u), pct(n[1]), pct(n[2]) };   /* H/S/V/T[/F] */
+        led_spin(c, n[3], falloff);
     }
     else if (strncmp(w, "fade=", 5) == 0 && parse_nums(w + 5, n, 1, 5000)) {
         fade_ms = n[0];

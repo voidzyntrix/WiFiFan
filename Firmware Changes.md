@@ -136,6 +136,30 @@ a live brightness change scales the whole comet). The app's ring preview (`simul
 MODE.SPIN) now renders the same comet profile, in pixel units. `FW_VERSION` bumps to 2.1.10;
 no version gate moves (2.2.0 stays reserved for `imp=`).
 
+## 2.1.11 - back to the flat arc, with an adjustable falloff behind it (spin=H/S/V/T/F)
+
+What 2.1.10 tried: making the arc itself a comet - brighten in over the pixel ahead, fade
+evenly off over the 7 behind. Not the ask: the arc is meant to STAY the arc (crisp head,
+every pixel inside on), and the smoothing belongs at the end of the light, not along the
+whole strip.
+
+What 2.1.11 does: `spin_frame` is reverted to the original flat arc (`d < arc` full, the rest
+off, crisp head), and a falloff hangs behind it: the next `spin_falloff` sub-pixels fade
+smoothly from the colour to black, so the arc's light reads as blooming and leaking into the
+pixels behind instead of cutting off. The fade is quadratic - full brightness right at the
+arc's end, easing slower and slower to black - which is how light leaks look. The length is a
+new optional 5th number on `spin=H/S/V/T/F`: F as a PERCENT OF THE ARC'S LENGTH (0-100, so
+25 = 2 pixels on the 8-pixel arc), 0 = the plain flat arc, which is also the default with the
+plain 4-number form. `spin_parse` accepts both forms and the old constraint checks; F is
+within parse range 360, so 2.1.10 and older hardware accept the 5-number form and ignore it,
+exactly like the other extended forms (`candle=`'s style arg) before it.
+
+The app drives it: the Spinner tab gains a Falloff slider (0-100%, default 25), sent as the
+5th number on every `spin=` (turn-length and brightness changes re-send like before, the
+preview and scenes carry it too). `FW_VERSION` bumps to 2.1.11; no version gate moves
+(2.2.0 stays reserved for `imp=`).
+
+
 
 
 
