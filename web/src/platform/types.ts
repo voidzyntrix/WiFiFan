@@ -15,8 +15,9 @@ export interface BleLink {
   readonly via?: 'lan' | 'cloud'
   readonly id: string
   readonly name: string | null
-  /** Bytes per write the link takes (ATT MTU - 3). */
-  readonly chunk: number
+  /** Bytes per write the link takes when it opens (the negotiated ATT MTU - 3); a link may drop
+   * this to 20 bytes once it finds a device that only takes the classic 20-byte write. */
+  chunk: number
   /** Writes one chunk (at most `chunk` bytes); resolves once it is sent. */
   write(data: Uint8Array): Promise<void>
   /** Bytes from the device, as they arrive. */

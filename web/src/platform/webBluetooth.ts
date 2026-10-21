@@ -19,7 +19,16 @@ const OP_TIMEOUT_MS = 3000
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
 
 class WebLink implements BleLink {
-  readonly chunk = 20                                // ATT_MTU 23 - 3: what every module takes
+  /** One text command goes out as one characteristic value when the module takes it: the browser
+   * negotiates the ATT MTU (Chromium settles far above 20 bytes on Windows) and hands the whole
+   * value over, which the module then forwards to the chip's UART as one contiguous burst. The
+   * hard chop at 20 bytes that preceded this split every longer command (`hh=`, the two-LED colour
+   * the Music/Visualizer/Screen streams send several times a second) between two characteristic
+   * values that arrive a connection event apart; when that gap beat the firmware's 50 ms
+   * inter-character idle window, the line was cut mid-command and the board white-flashed. A
+   * device that really only takes the classic 20-byte value fails the longer write, and the first
+   * such failure downgrades this link to 20-byte writes for the rest of the session. */
+  chunk = 244
   private dataFns = new Set<(d: Uint8Array) => void>()
   private closeFns = new Set<() => void>()
   private closed = false
@@ -31,10 +40,20 @@ class WebLink implements BleLink {
   get id() { return this.device.id }
   get name() { return this.device.name ?? null }
 
-  async write(data: Uint8Array) {
+  async write(data: Uint8Array): Promise<void> {
     const ch = this.writeChar
-    const write = ch.properties.write ? ch.writeValueWithResponse(data) : ch.writeValueWithoutResponse(data)
-    await Promise.race([write, sleep(OP_TIMEOUT_MS).then(() => { throw new Error('Bluetooth write timed out') })])
+    const wait = (piece: Uint8Array) => {
+      const write = ch.properties.write ? ch.writeValueWithResponse(piece) : ch.writeValueWithoutResponse(piece)
+      write.catch(() => {})   // a floated verdict already reached the race below
+      return Promise.race([write, sleep(OP_TIMEOUT_MS).then(() => { throw new Error('Bluetooth write timed out') })])
+    }
+    try {
+      for (let off = 0; off < data.length; off += this.chunk) await wait(data.subarray(off, off + this.chunk))
+    } catch (e) {
+      if (this.chunk <= 20) throw e
+      this.chunk = 20         // the device only took the classic 20-byte write all along
+      return this.write(data) // the send again, in 20-byte pieces
+    }
   }
 
   onData(fn: (d: Uint8Array) => void) { this.dataFns.add(fn); return () => { this.dataFns.delete(fn) } }
