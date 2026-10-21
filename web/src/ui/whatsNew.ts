@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.64',
+    notes: [
+      'The LED preview matches firmware 2.1.6: the board\'s colours are truer at every brightness now and the preview does the same, keeping the earlier look on older firmware.',
+    ],
+  },
+
+  {
     version: '2.13.63',
     notes: [
       'Cursors work how they should on desktop again: grab, grabbing and future custom cursors keep their alpha - the app no longer enters the Windows overlay mode that washed them half-transparent.',
