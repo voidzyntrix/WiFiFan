@@ -1,10 +1,11 @@
 // The LEDs as the board drives them, simulated on the phone with the firmware's own formulas: the hsv
-// colour maths, each animation (breathe, rainbow, candle, noise), and the 2.2 gamma the LED output applies.
+// colour maths, each animation (breathe, rainbow, candle, noise), and the LED output encode — the 2.2
+// gamma through firmware 2.1.5, colours as sent from 2.1.6 (the board stopped gamma-encoding).
 // The animations run on this device's clock, so their timing starts at a different point from the board's;
 // the colours at any moment follow the same rules. Modes that depend on live data (Solar, the sound and
 // screen modes) keep the estimate in preview.ts, passed through the same colour maths.
 
-import { kelvinToHueSat, rgbToHsv } from '../../lib/color'
+import { kelvinToHueSat, rgbToHsv, hsvToRgb } from '../../lib/color'
 import { MODE } from './modes'
 import { previewOf, type Preview } from './preview'
 import type { LedController } from './useLed'
@@ -20,7 +21,8 @@ function hsvLin(h: number, sat: number, v: number): Lin {
   return [r + m, g + m, b + m]
 }
 
-/** The firmware's ledsWrite(): gamma 2.2, then 8 bits per colour. */
+/** The firmware's ledsWrite(): worlds per firmware — the gamma 2.2 encode through 2.1.5, then colours
+ * as they are once 2.1.6 stopped encoding the output. */
 const gamma = (lin: Lin): Out => lin.map((x) => Math.round(Math.pow(Math.min(1, Math.max(0, x)), 2.2) * 255)) as Out
 
 /** The firmware's hash01() and noise(), bit for bit. */
@@ -51,7 +53,8 @@ function previewFrom(a: Out, b: Out): Preview {
 /** One ring pixel's colour, through the same gamma and colour maths the cards show. */
 export interface DotColour { hue: number; sat: number; val: number }
 
-function gammaHsv(h: number, sat: number, v: number): [number, number, number] {
+function gammaHsv(h: number, sat: number, v: number, noGamma = false): [number, number, number] {
+  if (noGamma) return [h, sat, v]          // 2.1.6: the colour reaches the LEDs unaltered — the input is the output
   const [r, g, b] = gamma(hsvLin(h, sat, v))
   return rgbToHsv(r, g, b)
 }
@@ -63,18 +66,21 @@ export function simulatedPreview(c: LedController, t: number): Preview {
   const [h1, sat1] = s.kelvinMode ? kelvinToHueSat(s.kelvin) : [s.hue, s.sat]
   const [h2, sat2] = two ? (s.kelvinMode2 ? kelvinToHueSat(s.kelvin2) : [s.hue2, s.sat2]) : [h1, sat1]
   const bri = s.bri
+  // The board's output encode, per firmware: 2.1.5 and older gamma-encode, 2.1.6+ leave colours as sent.
+  const ledsOut = (h: number, sat: number, v: number): Out =>
+    (caps.noGamma ? hsvToRgb(h, sat, v) : gamma(hsvLin(h, sat, v))) as Out
   switch (s.mode) {
     case MODE.SOLID:
-      return previewFrom(gamma(hsvLin(h1, sat1, bri)), gamma(hsvLin(h2, sat2, bri)))
+      return previewFrom(ledsOut(h1, sat1, bri), ledsOut(h2, sat2, bri))
     case MODE.BREATHE: {
       // LED 2 runs 0.6 rad behind LED 1 (firmware: ph * 0.6)
       const k = (ph: number) => 0.5 - 0.5 * Math.cos((t * 2 * Math.PI) / 4 + ph * 0.6)
-      return previewFrom(gamma(hsvLin(h1, sat1, bri * k(0))), gamma(hsvLin(two ? h2 : h1, two ? sat2 : sat1, bri * k(1))))
+      return previewFrom(ledsOut(h1, sat1, bri * k(0)), ledsOut(two ? h2 : h1, two ? sat2 : sat1, bri * k(1)))
     }
     case MODE.RAINBOW: {
       // one full turn every rainbowSeconds; LED 2 sits 30 degrees further round (firmware: ph * 30)
       const hue = (ph: number) => (t / prefs.rainbowSeconds) * 360 + ph * 30
-      return previewFrom(gamma(hsvLin(hue(0), s.sat, bri)), gamma(hsvLin(hue(1), s.sat, bri)))
+      return previewFrom(ledsOut(hue(0), s.sat, bri), ledsOut(hue(1), s.sat, bri))
     }
     case MODE.CANDLE: {
       // candle: the same flicker for both LEDs unless Separate with two candles (own seeds per LED)
@@ -83,7 +89,7 @@ export function simulatedPreview(c: LedController, t: number): Preview {
       const candle = (idx: number) => {
         const target = 0.55 + 0.45 * noise(t * 9 * f, idx * 31 + 1) * (0.6 + 0.4 * noise(t * 2 * f, idx + 7))
         const hue = hueBase + 8 * noise(t * 3 * f, idx * 17 + 3)
-        return gamma(hsvLin(hue, 0.95, bri * target))
+        return ledsOut(hue, 0.95, bri * target)
       }
       const separateFlames = two && prefs.twoCandles
       return previewFrom(candle(0), separateFlames ? candle(1) : candle(0))
@@ -91,7 +97,7 @@ export function simulatedPreview(c: LedController, t: number): Preview {
     default: {
       // sound, screen and Solar modes: the estimate, passed through the same colour maths
       const p = previewOf(c, t)
-      return previewFrom(gamma(hsvLin(p.hue, p.sat, p.val)), gamma(hsvLin(p.hue2, p.sat2, p.val2)))
+      return previewFrom(ledsOut(p.hue, p.sat, p.val), ledsOut(p.hue2, p.sat2, p.val2))
     }
   }
 }
@@ -108,7 +114,7 @@ export function simulatedRing(c: LedController, t: number): DotColour[] {
   const hueSatOf = (i: number): [number, number] => (i < half ? [h1, sat1] : [h2, sat2])
   const dots = Array.from({ length: n }, (_, i) => {
     const [h, sat] = hueSatOf(i)
-    const [gh, gs, gv] = gammaHsv(h, sat, bri)
+    const [gh, gs, gv] = gammaHsv(h, sat, bri, caps.noGamma)
     return { hue: gh, sat: gs, val: gv }
   })
   switch (s.mode) {
@@ -118,17 +124,17 @@ export function simulatedRing(c: LedController, t: number): DotColour[] {
         const px = s.ringPal[i]
         if (!px) return dots[i]
         const [h, sat] = px.kelvinMode ? kelvinToHueSat(px.kelvin) : [px.hue, px.sat]
-        const [gh, gs, gv] = gammaHsv(h, sat, bri)
+        const [gh, gs, gv] = gammaHsv(h, sat, bri, caps.noGamma)
         return { hue: gh, sat: gs, val: gv }
       })
     case MODE.RAINBOW: {
       if (!caps.spin) {                  // pre-2.0 rainbow: all the pixels share one turning hue
         const hue = (t / prefs.rainbowSeconds) * 360
-        return dots.map(() => { const [gh, gs, gv] = gammaHsv(hue, s.sat, bri); return { hue: gh, sat: gs, val: gv } })
+        return dots.map(() => { const [gh, gs, gv] = gammaHsv(hue, s.sat, bri, caps.noGamma); return { hue: gh, sat: gs, val: gv } })
       }
       // The wheel: the hues spread round the ring (24 pixels, 15 degrees apart) and turn once per T.
       return dots.map((_, i) => {
-        const [gh, gs, gv] = gammaHsv(((t / prefs.rainbowSeconds) * 360 + i * (360 / n)) % 360, s.sat, bri)
+        const [gh, gs, gv] = gammaHsv(((t / prefs.rainbowSeconds) * 360 + i * (360 / n)) % 360, s.sat, bri, caps.noGamma)
         return { hue: gh, sat: gs, val: gv }
       })
     }
@@ -139,7 +145,7 @@ export function simulatedRing(c: LedController, t: number): DotColour[] {
       return dots.map((_, i) => {
         const ph = caps.spin ? (s.separate ? i / 12 : 0) : s.separate ? (i < half ? 0 : 1) : 0
         const [h, sat] = hueSatOf(i)
-        const [gh, gs, gv] = gammaHsv(h, sat, bri * k(ph))
+        const [gh, gs, gv] = gammaHsv(h, sat, bri * k(ph), caps.noGamma)
         return { hue: gh, sat: gs, val: gv }
       })
     }
@@ -151,7 +157,7 @@ export function simulatedRing(c: LedController, t: number): DotColour[] {
         const idx = caps.spin ? (s.separate ? i : 0) : s.separate && prefs.twoCandles ? (i < half ? 0 : half) : 0
         const target = 0.55 + 0.45 * noise(t * 9 * f, idx * 31 + 1) * (0.6 + 0.4 * noise(t * 2 * f, idx + 7))
         const hue = hueBase + 8 * noise(t * 3 * f, idx * 17 + 3)
-        const [gh, gs, gv] = gammaHsv(hue, 0.95, bri * target)
+        const [gh, gs, gv] = gammaHsv(hue, 0.95, bri * target, caps.noGamma)
         return { hue: gh, sat: gs, val: gv }
       })
     }
@@ -163,7 +169,7 @@ export function simulatedRing(c: LedController, t: number): DotColour[] {
       return dots.map((_, i) => {
         const behind = ((head - i * step) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI)
         const tailIdx = Math.round(behind / step)
-        const [gh, gs, gv] = gammaHsv(s.hue, s.sat, bri * (tailIdx < 8 ? 1 : 0))
+        const [gh, gs, gv] = gammaHsv(s.hue, s.sat, bri * (tailIdx < 8 ? 1 : 0), caps.noGamma)
         return { hue: gh, sat: gs, val: gv }
       })
     }
@@ -173,7 +179,7 @@ export function simulatedRing(c: LedController, t: number): DotColour[] {
       const two = s.separate && caps.split
       return dots.map((_, i) => {
         const [h, sat, v] = i < half ? [p.hue, p.sat, p.val] : two ? [p.hue2, p.sat2, p.val2] : [p.hue, p.sat, p.val]
-        const [gh, gs, gv] = gammaHsv(h, sat, v)
+        const [gh, gs, gv] = gammaHsv(h, sat, v, caps.noGamma)
         return { hue: gh, sat: gs, val: gv }
       })
     }
