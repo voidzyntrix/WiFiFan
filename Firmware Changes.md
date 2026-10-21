@@ -88,4 +88,29 @@ the 87 us byte time, so the 2.1.7 RX queue still loses no byte and auto-baud kee
 The high-pulse mask adds ~10 cycles per bit (~80 us per ~0.75 ms frame), swallowed by the 10 ms
 frame cadence. `FW_VERSION` bumps to 2.1.8; the app needs no change.
 
+## 2.1.9 - LED frames are generated in hardware (the interrupt-stretch game is over)
+
+What 2.1.8 left behind: masking the high pulse moved the UART interrupt into the bit's low half,
+where it stretched that bit's PERIOD (the ISR cannot finish inside the remaining ~0.5-0.95 us).
+A WS2812B decodes by high-pulse width and shrugs at 2.5 us periods, but clones that decode by
+duty cycle do not: a "1" bit is ~56 % duty at the nominal 1.25 us period, ~32 % once the period
+stretches to ~2.2 us - which reads as a "0", i.e. that byte's value drops and the pixel DIMS.
+Streaming modes hit this too: with bytes arriving almost continuously, nearly every frame had
+the ISR land in some bit's low. So the why-it-shows-in-sync story repeated itself, only as
+random brightness dips on individual LEDs instead of stray colour flashes.
+
+What 2.1.9 changes: the LED waveform is generated in hardware - `WS_USE_DMA` is switched from 0
+to 1 (a complete driver that had been in the source, inactive, all along). TIM2 runs PWM on the
+remapped PB3 output and its update event paces DMA1 channel 2, which loads each bit's compare
+value (T0H/T1H or the latch gap's low) exactly one period ahead - the same dummy-first-slot
+accounting as before. PWM reload happens in hardware; no interrupt can stretch any pulse, ever,
+so both the 2.1.7 colour flips and the 2.1.8 brightness dips are structurally gone. The USART
+RX interrupt now runs whenever it likes during a frame (it only fills the byte queue) and can
+no longer lose a byte either - the serial path keeps every 2.1.x behaviour. `ws_write` still
+blocks the main loop for the frame (~0.75 ms, unchanged) and the DMA inits per frame, which is
+redone every call anyway at the 10 ms frame cadence. The polled driver stays in the source
+(`WS_USE_DMA 0`) as the one-line fallback if this board shows a silicon quirk in the DMA path.
+`FW_VERSION` bumps to 2.1.9; the app needs no change.
+
+
 

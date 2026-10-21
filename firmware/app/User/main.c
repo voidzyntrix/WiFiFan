@@ -75,25 +75,26 @@
  * Two WS2812 drivers, chosen by WS_USE_DMA:
  *   1 = TIM2 CH2 PWM (PB3 via partial remap 1) + DMA1 ch2
  *   0 = software timing from the SysTick counter (known to work on this board)
- * Needs a 72 MHz core clock (set in system_ch32v20x.c). Nothing may stretch the
- * polled bit stream: each bit's high pulse is sent with interrupts masked
- * (2.1.8), because a UART byte arriving mid-bit otherwise preempted the timing
- * and stretched the pulse - the WS2812s read the bit wrong and single LEDs
- * flashed stray colours while a sync streamed colours (every 10 ms frame has
- * hundreds of bits, so streaming hit this constantly). The interrupt simply
- * runs inside that bit's low half, which only stretches the gap between bits -
- * the LEDs ignore it (a latch needs ~50 us of continuous low). At most one
- * bit's latency, far below a byte time, so no byte is lost. A frame is all 24
- * pixels' 24 bits (~0.8 ms); the reset/latch gap (>= 300 us) is not waited for
- * after a frame but enforced before the next one, so the main loop is blocked
- * only while a frame renders.
+ * Needs a 72 MHz core clock (set in system_ch32v20x.c). The LED signal is
+ * generated in hardware (2.1.9, WS_USE_DMA = 1): TIM2 CH2 PWM paces DMA1 ch2,
+ * which loads each bit's compare value at period boundaries, so the waveform is
+ * exact and no interrupt can stretch it. Bit-banging with interrupts on could
+ * not be made safe: 2.1.7 let the UART byte interrupt preempt a bit and stretch
+ * its high (stray colour flashes), 2.1.8 masked the high so the interrupt ran
+ * in the bit's low half which stretched the period instead (duty-cycle decoders
+ * read that as a dimming bit - random brightness dips in sync modes, which
+ * stream bytes continuously). The USART RX interrupt and its byte queue are
+ * untouched: during a frame they now run freely, nothing can lose a byte, and
+ * ws_write still blocks the main loop for the frame (~0.75 ms) plus its DMA
+ * wait. The polled driver (0) stays in the source as the instant fallback if
+ * this board shows a silicon quirk (one-line change, rebuild, re-flash).
  */
 #include "ch32v20x.h"
 #include <string.h>
 
-#define WS_USE_DMA   0               /* 1 = timer + DMA, 0 = polled SysTick */
+#define WS_USE_DMA   1               /* 1 = timer + DMA, 0 = polled SysTick */
 
-#define FW_VERSION   "2.1.8"     /* reported by "ver"; bump for each release */
+#define FW_VERSION   "2.1.9"     /* reported by "ver"; bump for each release */
 
 #define START_BAUD   115200          /* used until a baud rate has been detected */
 
