@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.66',
+    notes: [
+      'Spinner to solid now ends the spin: the mode change can\'t be mistaken for a spinner brightness tweak any more',
+    ],
+  },
+
+  {
     version: '2.13.65',
     notes: [
       'Unknown commands while the music and visualizer streams ran are gone: long Bluetooth writes went out in pieces that arrived apart, and the board white-flashed at each not-understood half. Every command travels as one write now, with the old pieces kept only for devices that need them.',
