@@ -26,32 +26,56 @@ export function GradientBar(props: {
   label?: string
   /** A plain level (brightness, volume): Material 3 Expressive draws it two-tone, active and inactive track. */
   level?: boolean
+  /** How much one wheel notch moves the fraction (default 0.02); pass the fraction of one
+   * whole step so pixel-grained bars answer the wheel a step at a time like every other slider. */
+  wheelStep?: number
 }) {
   const ref = useRef<HTMLDivElement>(null)
   const material = useDesign() === 'MATERIAL'
+  const latest = useRef(props)   // the native wheel listener mounts once, so it reads props through here
+  latest.current = props
   const [dragging, setDragging] = useState(false)   // while held the thumb follows the pointer exactly
   const [over, setOver] = useState(0)               // rubber-band drift past an end while held
   const [spin, setSpin] = useState(45)              // which way the square turns this drag: ±45, coin-flipped per grab
   const step = useRef(-1)
   const finishTimer = useRef(0)
   const grab = useRef(0)   // pointer-to-pebble offset (px) from a drag that started on the pebble itself
+  // Wheel and keys finish a moment after the last nudge, like letting go of a drag.
+  const finishSoon = () => {
+    window.clearTimeout(finishTimer.current)
+    finishTimer.current = window.setTimeout(() => latest.current.onFinished(), 250)
+  }
+  // A wheel notch on the bar is a nudge of the bar itself - never a scroll of the card or
+  // page behind it. React's own wheel handlers are passive at the root, so this attaches
+  // natively with passive:false to keep the default (scroll) away while it steps.
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      const d = latest.current.wheelStep ?? 0.02
+      const c = Math.min(1, Math.max(0, latest.current.fraction + (e.deltaY < 0 || e.deltaX > 0 ? d : -d)))
+      const s = Math.round(c * 20)          // a tick every 5 %, like dragging
+      if (step.current >= 0 && s !== step.current) sound.tick()
+      step.current = s
+      latest.current.onFraction(c)
+      finishSoon()
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [])
   const report = (f: number) => {
     const c = Math.min(1, Math.max(0, f))
     const s = Math.round(c * 20)            // a tick every 5 %
     if (step.current >= 0 && s !== step.current) sound.tick()
     step.current = s
-    props.onFraction(c)
+    latest.current.onFraction(c)
   }
   const at = (clientX: number) => {
     const r = ref.current!.getBoundingClientRect()
     // material's track is inset by the handle's 16px reach (styles.css), so the pointer maps to that span
     const [inset, span] = material ? [16, r.width - 32] : [0, r.width]
     return (clientX - r.left - inset) / span
-  }
-  // Wheel and keys finish a moment after the last nudge, like letting go of a drag.
-  const finishSoon = () => {
-    window.clearTimeout(finishTimer.current)
-    finishTimer.current = window.setTimeout(() => props.onFinished(), 250)
   }
   // the thumb shows the colour of the gradient right beneath it (level bars are solid primary).
   // it's a registered colour property, so it glides to a new colour exactly like the track stops and
@@ -101,10 +125,6 @@ export function GradientBar(props: {
         setOver(0)
         props.onFinished()
       }}
-      onWheel={(e) => {
-        report(props.fraction + (e.deltaY < 0 || e.deltaX > 0 ? 0.02 : -0.02))
-        finishSoon()
-      }}
       onKeyDown={(e) => {
         const d = e.shiftKey ? 0.1 : 0.01
         const next = e.key === 'ArrowRight' || e.key === 'ArrowUp' ? props.fraction + d
@@ -137,6 +157,8 @@ export function LevelBar(props: {
   fraction: number; label: string; onFraction: (f: number) => void; onFinished: () => void
   /** Glass: the strip's colours and thumb. */
   stops?: string[]; thumbColor?: string
+  /** How much one wheel notch moves it (default 0.02 of the range). */
+  wheelStep?: number
 }) {
   const design = useDesign()
   const ref = useRef<HTMLElement & { value: number }>(null)
@@ -157,12 +179,12 @@ export function LevelBar(props: {
   })
   if (design === 'MATERIAL') {
     // Material 3 Expressive slider: thick two-tone track, a gap around a slim bar handle, a stop dot at the end
-    return <GradientBar label={props.label} fraction={props.fraction} stops={['#000', '#000']} thumbColor="transparent" level
+    return <GradientBar label={props.label} fraction={props.fraction} stops={['#000', '#000']} thumbColor="transparent" level wheelStep={props.wheelStep}
       onFraction={props.onFraction} onFinished={props.onFinished} />
   }
   return (
     <GradientBar label={props.label} fraction={props.fraction} stops={props.stops ?? ['var(--on-bg-12)', 'var(--on-bg-55)']}
-      thumbColor={props.thumbColor ?? 'var(--primary)'} onFraction={props.onFraction} onFinished={props.onFinished} />
+      thumbColor={props.thumbColor ?? 'var(--primary)'} wheelStep={props.wheelStep} onFraction={props.onFraction} onFinished={props.onFinished} />
   )
 }
 

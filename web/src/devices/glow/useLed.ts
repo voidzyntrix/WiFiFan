@@ -144,7 +144,7 @@ export function useLed() {
   function sendCandle() { send(candleCommand(st.current.bri)); update({ mode: MODE.CANDLE }) }
   function sendSpinner() {
     const s = st.current
-    send(LedCommands.spinner(s.hue, s.sat, s.bri, prefs.spinSeconds, prefs.spinFalloff, prefs.spinFalloffFront, prefs.spinLength))
+    send(LedCommands.spinner(s.hue, s.sat, s.bri, prefs.spinSeconds, prefs.spinRadius, prefs.spinFalloffFront, prefs.spinLength, prefs.spinStrength))
     update({ mode: MODE.SPIN })
   }
   function sendEffect(mode: number) { send(LedCommands.effect(mode, st.current.bri)); update({ mode }) }
@@ -537,15 +537,24 @@ export function useLed() {
     if (st.current.mode !== MODE.SPIN || !caps.spin) return
     sendSpinner()
   }, [prefs.spinSeconds])
-  // Same for the falloff behind the arc (2.1.11): the board only re-learns it through spin=.
-  const spinFalloffAt = useRef(prefs.spinFalloff)
+  // Same for the falloff's radius (2.1.11): the board only re-learns it through spin=.
+  const spinRadiusAt = useRef(prefs.spinRadius)
   useEffect(() => {
-    const before = spinFalloffAt.current
-    spinFalloffAt.current = prefs.spinFalloff
-    if (before === prefs.spinFalloff || !connected) return
+    const before = spinRadiusAt.current
+    spinRadiusAt.current = prefs.spinRadius
+    if (before === prefs.spinRadius || !connected) return
     if (st.current.mode !== MODE.SPIN || !caps.spin) return
     sendSpinner()
-  }, [prefs.spinFalloff])
+  }, [prefs.spinRadius])
+  // And its strength (2.1.16).
+  const spinStrengthAt = useRef(prefs.spinStrength)
+  useEffect(() => {
+    const before = spinStrengthAt.current
+    spinStrengthAt.current = prefs.spinStrength
+    if (before === prefs.spinStrength || !connected) return
+    if (st.current.mode !== MODE.SPIN || !caps.spin) return
+    sendSpinner()
+  }, [prefs.spinStrength])
   // And for whether it also leaks ahead of the head (2.1.12).
   const spinFalloffFrontAt = useRef(prefs.spinFalloffFront)
   useEffect(() => {

@@ -65,11 +65,14 @@ export function TuneTab({ c }: { c: LedController }) {
             <LevelBar label="Seconds per turn" fraction={(prefs.spinSeconds - 1) / 59}
               onFraction={(f) => set({ spinSeconds: 1 + Math.round(f * 59) })} onFinished={() => {}} />
             <SliderLabel text="Length" value={`${prefs.spinLength} px`} />
-            <LevelBar label="Length" fraction={(prefs.spinLength - 1) / 11}
+            <LevelBar label="Length" fraction={(prefs.spinLength - 1) / 11} wheelStep={1 / 11}
               onFraction={(f) => set({ spinLength: 1 + Math.round(f * 11) })} onFinished={() => {}} />
-            <SliderLabel text="Falloff" value={`${prefs.spinFalloff} %`} />
-            <LevelBar label="Falloff" fraction={prefs.spinFalloff / 100}
-              onFraction={(f) => set({ spinFalloff: Math.round(f * 100) })} onFinished={() => {}} />
+            <SliderLabel text="Falloff radius" value={`${prefs.spinRadius} px`} />
+            <LevelBar label="Falloff radius" fraction={prefs.spinRadius / 12} wheelStep={1 / 12}
+              onFraction={(f) => set({ spinRadius: Math.round(f * 12) })} onFinished={() => {}} />
+            <SliderLabel text="Falloff strength" value={`${prefs.spinStrength} %`} />
+            <LevelBar label="Falloff strength" fraction={prefs.spinStrength / 100} wheelStep={0.05}
+              onFraction={(f) => set({ spinStrength: Math.round(f * 100) })} onFinished={() => {}} />
             <SettingSwitch title="Front + back" subtitle="The falloff also leaks into the LEDs ahead of the head" checked={prefs.spinFalloffFront} onChange={(v) => set({ spinFalloffFront: v })} />
           </>
         ) : needs('2.0.0')}

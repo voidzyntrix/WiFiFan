@@ -74,11 +74,13 @@ export const LedCommands = {
     return `${LED_EFFECTS.find((e) => e[0] === mode)![2]}=${Math.round(bri * 100)}`
   },
   /** Spinner (2.0.0+): a tail chasing round the ring, one turn every 1-60 s; the 5th
-   * number (2.1.11) is the falloff, % of the ring fading out behind it (2.1.15); the
-   * 6th (2.1.12) is 1 when the falloff also fades into the LEDs ahead of the head;
-   * the 7th (2.1.13) is the arc's length in pixels, 1-12. */
-  spinner(h: number, s: number, v: number, seconds: number, falloff = 0, front = false, length = 8) {
-    return `spin=${LedCommands.hsv(h, s, v)}/${Math.round(clamp(seconds, 1, 60))}/${clamp(Math.round(falloff), 0, 100)}/${front ? 1 : 0}/${clamp(Math.round(length), 1, 12)}`
+   * number (2.1.11) is the falloff radius as a % of the ring (the app keeps it in px, 24
+   * to a turn); the 6th (2.1.12) is 1 when the falloff also fades into the LEDs ahead of
+   * the head; the 7th (2.1.13) is the arc's length in pixels, 1-12; the 8th (2.1.16) is
+   * the leak's strength 0-100. */
+  spinner(h: number, s: number, v: number, seconds: number, radiusPx = 0, front = false, length = 8, strength = 100) {
+    const radius = clamp(Math.round(radiusPx), 0, 12)
+    return `spin=${LedCommands.hsv(h, s, v)}/${Math.round(clamp(seconds, 1, 60))}/${Math.round(radius * 100 / 24)}/${front ? 1 : 0}/${clamp(Math.round(length), 1, 12)}/${clamp(Math.round(strength), 0, 100)}`
   },
   /** One pixel of the ring (firmware 2.1.0+, "Firmware Changes.md"; index 0-based from the leds reply). */
   pixel(index: number, h: number, s: number, v: number) {

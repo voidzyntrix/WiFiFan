@@ -163,15 +163,17 @@ export function simulatedRing(c: LedController, t: number): DotColour[] {
     }
     case MODE.SPIN: {
       // The board's spinner: a flat arc (spinLength pixels, firmware 2.1.13's L, default
-      // 8); the falloff (2.1.11) is a share of the whole ring (2.1.15) fading out behind
-      // it evenly, and with spinFalloffFront (2.1.12) the same leak mirrors into the
-      // LEDs ahead of the head. Like the firmware, the leak is clamped when the arc is
-      // long so the two never meet. The head's sub-pixel position keeps both ends moving
-      // smoothly between pixels.
+      // 8); the falloff (2.1.11) reaches spinRadius pixels, sharing of the ring on the
+      // wire (2.1.15), fading out evenly, and its whole ramp burns at spinStrength (P,
+      // 2.1.16). With spinFalloffFront (2.1.12) the leak mirrors into the LEDs ahead of
+      // the head. Like the firmware, the leak is clamped when the arc is long so the two
+      // never meet. The head's sub-pixel position keeps both ends moving smoothly between
+      // pixels.
       if (!caps.spin) return dots
       const arc = Math.min(prefs.spinLength, n)           // the flat arc's length (firmware L)
       const cap = Math.max(0, (n - arc) / 2)              // like the firmware: keep the leaks apart
-      const fall = Math.min((prefs.spinFalloff / 100) * n, cap)   // falloff as a share of the ring (firmware 2.1.15)
+      const fall = Math.min(prefs.spinRadius, cap)        // the leak's reach, in pixels
+      const strength = prefs.spinStrength / 100           // how bright the leak's ramp burns
       const head = ((t / prefs.spinSeconds) % 1) * n      // the head's position, in pixels
       return dots.map((_, i) => {
         const behind = (((head - i) % n) + n) % n         // how far behind the head, in pixels
@@ -179,10 +181,10 @@ export function simulatedRing(c: LedController, t: number): DotColour[] {
         if (behind < arc) v = 1                           // the arc itself, full brightness
         else if (fall > 0 && behind < arc + fall) {
           const x = (behind - arc) / fall                 // 0..1 into the falloff
-          v = 1 - x                                       // like the firmware: an even, step-by-step fade to black
+          v = strength * (1 - x)                          // like the firmware: an even, step-by-step fade to black
         } else if (fall > 0 && prefs.spinFalloffFront && behind > n - fall) {
           const x = (n - behind) / fall                   // how far ahead of the head, 0..1 out of the falloff
-          v = 1 - x                                       // the mirror of the falloff behind
+          v = strength * (1 - x)                          // the mirror of the falloff behind
         }
         const [gh, gs, gv] = gammaHsv(s.hue, s.sat, bri * v, caps.noGamma)
         return { hue: gh, sat: gs, val: gv }

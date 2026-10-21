@@ -160,9 +160,9 @@ export function resolveScene(scene: Scene, current: LedState, caps: BoardCaps): 
   return { next, supported }
 }
 
-export interface LedOptions { smoothCandle: boolean; candleHue: number; twoCandles: boolean; rainbowSeconds: number; spinSeconds: number; spinLength: number; spinFalloff: number; spinFalloffFront: boolean }
+export interface LedOptions { smoothCandle: boolean; candleHue: number; twoCandles: boolean; rainbowSeconds: number; spinSeconds: number; spinLength: number; spinRadius: number; spinStrength: number; spinFalloffFront: boolean }
 export const ledOptionsOf = (s: Settings): LedOptions =>
-  ({ smoothCandle: s.smoothCandle, candleHue: s.candleHue, twoCandles: s.twoCandles, rainbowSeconds: s.rainbowSeconds, spinSeconds: s.spinSeconds, spinLength: s.spinLength, spinFalloff: s.spinFalloff, spinFalloffFront: s.spinFalloffFront })
+  ({ smoothCandle: s.smoothCandle, candleHue: s.candleHue, twoCandles: s.twoCandles, rainbowSeconds: s.rainbowSeconds, spinSeconds: s.spinSeconds, spinLength: s.spinLength, spinRadius: s.spinRadius, spinStrength: s.spinStrength, spinFalloffFront: s.spinFalloffFront })
 
 /** The commands that show [state]: the layout first when it changes, then the mode. */
 export function stateCommands(state: LedState, caps: BoardCaps, opts: LedOptions, layoutChanged: boolean): string[] {
@@ -179,7 +179,7 @@ export function stateCommands(state: LedState, caps: BoardCaps, opts: LedOptions
     case MODE.BREATHE: mode = [colour(), LedCommands.effect(state.mode, state.bri)]; break
     case MODE.SPIN:
       // spin= is the only command that starts the arc; a 2.1.1 board keeps turning while h= recolours
-      mode = caps.spin ? [colour(), LedCommands.spinner(state.hue, state.sat, state.bri, opts.spinSeconds, opts.spinFalloff, opts.spinFalloffFront, opts.spinLength)] : [colour()]
+      mode = caps.spin ? [colour(), LedCommands.spinner(state.hue, state.sat, state.bri, opts.spinSeconds, opts.spinRadius, opts.spinFalloffFront, opts.spinLength, opts.spinStrength)] : [colour()]
       break
     case MODE.MUSIC:
     case MODE.VISUALIZER:
