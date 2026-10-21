@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.68',
+    notes: [
+      'Screen sync sends richer colours: the dominant colour\'s saturation is lifted before it reaches the board',
+    ],
+  },
+
+  {
     version: '2.13.67',
     notes: [
       'The scenes card\'s buttons no longer flicker when switching to another card',
