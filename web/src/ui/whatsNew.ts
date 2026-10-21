@@ -2,6 +2,14 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.73',
+    notes: [
+      'Fixed: the Spinner card\'s sliders squashed under the deck panel, leaving their tracks below the thumbs - sliders keep their height and the card scrolls',
+      'The falloff now spreads a share of the whole ring, so defaults reach further (board firmware 2.1.15)',
+    ],
+  },
+
+  {
     version: '2.13.72',
     notes: [
       'Spinner: the falloff now fades evenly, pixel by pixel, so you can actually see it dimming out - and its default strength is higher (board firmware 2.1.14)',
