@@ -25,9 +25,12 @@
  *   send  candle=V/M -> M=1: smooth candle (slow, gentle), M=0: lively flicker
  *   send  candle=V/M/H -> ... with flame hue H in degrees (0-60, default 19)
  *   send  candle=V/M/H/S -> S is accepted and ignored (every flame is individual)
- *   send  spin=H/S/V/T -> spinner: a flat arc of 8 pixels in this colour chasing round
- *                      the ring, one turn every T seconds (1-60); a brightness-only h=
- *                      keeps it turning (2.1.2)
+ *   send  spin=H/S/V/T -> spinner: a comet of 8 pixels in this colour chasing round
+ *                      the ring, one turn every T seconds (1-60) - it brightens
+ *                      over the pixel in front of the head and fades evenly off
+ *                      over the 7 behind, so every pixel's brightness glides
+ *                      through the pass (2.1.10; was a flat arc); a brightness-only
+ *                      h= keeps it turning (2.1.2)
  *   send  breathe=V -> the last colour fades up and down over 4 s (Separate: as a wave round the ring)
  *   send  fade=MS  ->  colour change duration 0-5000 ms (default 1500)
  *   Rainbow, candle, breathe and spin replace each other; a colour command ends them.
@@ -94,7 +97,7 @@
 
 #define WS_USE_DMA   1               /* 1 = timer + DMA, 0 = polled SysTick */
 
-#define FW_VERSION   "2.1.9"     /* reported by "ver"; bump for each release */
+#define FW_VERSION   "2.1.10"    /* reported by "ver"; bump for each release */
 
 #define START_BAUD   115200          /* used until a baud rate has been detected */
 
@@ -574,8 +577,8 @@ static uint8_t  candle, cd_smooth, cd_v = 255;
 static int16_t  cd_hue = CANDLE_HUE;         /* flame hue, 0..1535 units */
 static uint32_t cd_ms, cd_last;              /* candle clock in ms, last tick */
 
-/* Spinner: a flat arc of one colour chasing round the ring. */
-#define SPIN_TAIL    8                       /* tail length, pixels */
+/* Spinner: a comet chasing round the ring. */
+#define SPIN_TAIL    8                       /* comet length: the pixel ahead of the head + the 7 fading behind it */
 #define SPIN_FP      256u                    /* sub-pixel steps per pixel */
 static uint8_t  spin;
 static hsv_t    spin_c;
@@ -875,7 +878,12 @@ static void candle_frame(uint8_t p, float tt)
     d->shown.v = (uint8_t)(cd_v * f);
 }
 
-/* One spinner frame: a flat arc of SPIN_TAIL pixels, one colour, chasing round the ring. */
+/* One spinner frame: a comet of 8 pixels chasing round the ring (one colour).
+ * Every pixel's brightness glides as the comet passes: it brightens over the
+ * pixel in front of the head (SPIN_FP sub-pixel ramp) and fades evenly off over
+ * the 7 behind, so nothing pops on or off - the old flat arc lit its 8 pixels
+ * hard, which read as a one-bit spinner. The head itself is a sub-pixel
+ * position, so brightening and fading are smooth in time at any turn speed. */
 static void spin_frame(uint32_t t)
 {
     if (!spin) return;
@@ -885,14 +893,25 @@ static void spin_frame(uint32_t t)
     uint32_t ph   = spin_t % spin_period;
     uint32_t span = RING_PIXELS * SPIN_FP;
     uint32_t head = (uint32_t)((uint64_t)ph * span / spin_period);   /* head, in sub-pixels */
-    uint32_t tail = SPIN_TAIL * SPIN_FP;
+    uint32_t fade = SPIN_TAIL * SPIN_FP - SPIN_FP;  /* the 7 trailing pixels fade over this */
 
     for (uint8_t p = 0; p < RING_PIXELS; p++) {
-        uint32_t d = (head + span - (uint32_t)p * SPIN_FP) % span;   /* how far behind the head */
+        /* Signed distance from the head, in sub-pixels: positive = behind it
+         * (inside the fade), negative = ahead of it (inside the brighten-in). */
+        int32_t s = (int32_t)((head + span - (uint32_t)p * SPIN_FP) % span);
+        if (s > (int32_t)(span / 2)) s -= (int32_t)span;
+
+        uint32_t weight = 0;               /* share of the colour to show, 0..fade */
+        if (s >= 0) {
+            if (s < (int32_t)fade) weight = fade - (uint32_t)s;             /* the fade-out */
+        } else if (s >= -(int32_t)SPIN_FP) {
+            uint32_t ahead = (uint32_t)-s;                       /* sub-pixels in front of the head */
+            weight = (uint32_t)(fade * (SPIN_FP - ahead) / SPIN_FP);  /* ramps to full exactly at the head */
+        }
         led_t *px = &L[p];
         px->shown.h = spin_c.h;
         px->shown.s = spin_c.s;
-        px->shown.v = d < tail ? spin_c.v : 0;     /* a flat arc of one colour, the rest dark */
+        px->shown.v = (uint8_t)((uint32_t)spin_c.v * weight / fade);
     }
 }
 

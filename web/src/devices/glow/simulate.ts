@@ -162,14 +162,20 @@ export function simulatedRing(c: LedController, t: number): DotColour[] {
       })
     }
     case MODE.SPIN: {
-      // 2.1.1: a flat arc — 8 pixels at full brightness, the rest dark, chasing round the ring.
+      // 2.1.10: a comet of 8 pixels, matching the firmware: it brightens over the
+      // pixel in front of the head and fades evenly off over the 7 behind it, so
+      // every pixel glides through the pass (2.1.9 and older: a flat hard-edged arc).
       if (!caps.spin) return dots
-      const step = (2 * Math.PI) / n
-      const head = ((t / prefs.spinSeconds) * 2 * Math.PI) % (2 * Math.PI)
+      const head = ((t / prefs.spinSeconds) % 1) * n   // the head's position, in pixels
+      const comet = 8                                  // comet length (firmware SPIN_TAIL)
       return dots.map((_, i) => {
-        const behind = ((head - i * step) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI)
-        const tailIdx = Math.round(behind / step)
-        const [gh, gs, gv] = gammaHsv(s.hue, s.sat, bri * (tailIdx < 8 ? 1 : 0), caps.noGamma)
+        let sd = (head - i) % n                        // signed distance from the head
+        if (sd > n / 2) sd -= n
+        if (sd < -n / 2) sd += n
+        const weight = sd >= 0                          // behind: fade over the trailing 7
+          ? Math.max(0, 1 - sd / (comet - 1))
+          : Math.max(0, 1 + sd)                         // ahead: brighten over the pixel in front
+        const [gh, gs, gv] = gammaHsv(s.hue, s.sat, bri * weight, caps.noGamma)
         return { hue: gh, sat: gs, val: gv }
       })
     }

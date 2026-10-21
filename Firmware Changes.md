@@ -112,5 +112,30 @@ redone every call anyway at the 10 ms frame cadence. The polled driver stays in 
 (`WS_USE_DMA 0`) as the one-line fallback if this board shows a silicon quirk in the DMA path.
 `FW_VERSION` bumps to 2.1.9; the app needs no change.
 
+## 2.1.10 - the spinner is a comet, not a one-bit arc (every pixel's brightness glides)
+
+What 2.1.9 (and every spinner before it) drew: `spin_frame` split the ring into two groups -
+the 8 pixels inside the arc showed the colour at full brightness, everything else showed
+nothing. The arc was placed at a sub-pixel position, but that only smoothed the two edge
+crossings: seen from outside, each LED turned OFF to ON in one step as the head passed and ON
+to OFF 8 pixels later - a one-bit state machine per LED, and the reason the spinner never
+looked smooth.
+
+What 2.1.10 changes: the arc is a comet. Each pixel's brightness is a continuous function of
+its signed distance from the head: it ramps 0 to full over the pixel in FRONT of the head
+(`SPIN_FP` sub-pixels), holds full exactly as the head passes, and fades evenly to zero over
+the 7 pixels behind. Total comet length stays 8 pixels (1 + 7), as the docs describe. Since
+the head moves in sub-pixel steps and the profile is continuous, every pixel's value glides
+through the pass there and back - no LED ever steps between two levels, at any turn speed.
+The trailing `fade = SPIN_TAIL * SPIN_FP - SPIN_FP` windows both edges so the whole 8 pixels
+are a shape, not a rectangle.
+
+Unchanged: the command (`spin=H/S/V/T`), the arc length, `spin_c` and the 2.1.2
+brightness-only `h=` live recolour (the comet multiplies `spin_c.v` by the pixel's weight, so
+a live brightness change scales the whole comet). The app's ring preview (`simulate.ts`,
+MODE.SPIN) now renders the same comet profile, in pixel units. `FW_VERSION` bumps to 2.1.10;
+no version gate moves (2.2.0 stays reserved for `imp=`).
+
+
 
 
