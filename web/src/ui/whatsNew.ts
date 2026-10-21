@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.63',
+    notes: [
+      'Cursors work how they should on desktop again: grab, grabbing and future custom cursors keep their alpha - the app no longer enters the Windows overlay mode that washed them half-transparent.',
+    ],
+  },
+
+  {
     version: '2.13.62',
     notes: [
       'Desktop windows use their full width now: the app fills the real window size instead of stopping at a 1080px centred strip.',
