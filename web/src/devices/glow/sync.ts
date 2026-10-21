@@ -119,6 +119,13 @@ function endedByItself(message: string | null) {
 const SEND_GAP_AUDIO = 55       // at most ~18 colours a second
 const SEND_GAP_SCREEN = 25
 
+/**
+ * The screen's dominant colour reads duller on the LEDs than on the display, so the
+ * sampled saturation is lifted before it is smoothed, shown and sent (1 keeps it as sampled).
+ */
+const SCREEN_SAT_GAIN = 1.4
+const vivid = ([h, s]: [number, number]): [number, number] => [h, Math.min(1, s * SCREEN_SAT_GAIN)]
+
 /** Music: the microphone. Loudness is brightness; beats step the hue (or keep the picked colour). */
 export async function startMusic(): Promise<boolean> {
   stopSync(false)
@@ -250,13 +257,13 @@ export async function startScreen(): Promise<boolean> {
     const px = g.getImageData(0, 0, W, H).data
     const p = syncParams
     if (twoLeds()) {
-      smoothed = smoothColour(smoothed, dominantColour(px, W, 0, W / 2))
-      smoothed2 = smoothColour(smoothed2, dominantColour(px, W, W / 2, W))
+      smoothed = smoothColour(smoothed, vivid(dominantColour(px, W, 0, W / 2)))
+      smoothed2 = smoothColour(smoothed2, vivid(dominantColour(px, W, W / 2, W)))
       publish({ hue: smoothed[0], sat: smoothed[1], hue2: smoothed2[0], sat2: smoothed2[1] })
       sendColours(smoothed[0], smoothed[1], p.bri, smoothed2[0], smoothed2[1], p.bri, SEND_GAP_SCREEN, true)
       return
     }
-    smoothed = smoothColour(smoothed, dominantColour(px, W, 0, W))
+    smoothed = smoothColour(smoothed, vivid(dominantColour(px, W, 0, W)))
     publish({ hue: smoothed[0], sat: smoothed[1] })
     sendColour(smoothed[0], smoothed[1], p.bri, SEND_GAP_SCREEN, true)
   }
