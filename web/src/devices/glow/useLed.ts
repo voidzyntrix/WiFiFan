@@ -132,6 +132,11 @@ export function useLed() {
     }
     // Separate (a ring-less board): both colours in one command; brightness applies to both.
     if (twoLeds()) send(LedCommands.pair(s.hue, s.sat, s.bri, s.hue2, s.sat2, s.bri))
+    else if (s.mode === MODE.SPIN && caps.spin)
+      // Leaving a running spinner: with the arc's own hue and saturation, h= and l= are
+      // read as a brightness tweak (2.1.2) and the board keeps spinning. hh= always ends
+      // the mode, and both halves get the same colour, so the board shows exactly the solid.
+      send(LedCommands.pair(s.hue, s.sat, s.bri, s.hue, s.sat, s.bri))
     else send(LedCommands.colour(s.hue, s.sat, s.bri, caps.hsv))
   }
   function sendSolid() { sendHsvColour(); update({ mode: MODE.SOLID }) }
