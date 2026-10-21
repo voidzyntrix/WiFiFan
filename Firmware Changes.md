@@ -69,3 +69,23 @@ flags (FE/NE/ORE) are counted in the IRQ, so the auto-baud detection still sees 
 unchanged. `FW_VERSION` bumps to 2.1.7; the app needs no change and keeps its `spinLive` /
 `spinBri` / per-pixel caps as they are.
 
+## 2.1.8 - WS2812 high pulses go out with interrupts masked (stray LEDs flashing during sync)
+
+What 2.1.7 left behind: with receive now interrupt-driven, a UART byte arriving while a LED
+frame was bit-banged let `USART1_IRQHandler` preempt `ws_send_byte` mid-bit. The interrupt
+stretched the bit's high pulse, and a WS2812 reads pulse width: a stretched ~0.3 us "0" crossed
+the "1" threshold, so one colour channel of one pixel took the wrong bit. One frame has 24 bits
+per pixel x 24 pixels, and the sync modes (screen / music / visualizer) re-render a frame every
+10 ms while streaming colour commands - so now and then a single LED flashed a stray colour for
+one refresh. Solid modes rarely had bytes arriving, which is why it showed up mostly in syncs.
+
+What 2.1.8 changes: each bit's high pulse is emitted with interrupts globally masked
+(`__disable_irq()` before `WS_HIGH()`, `__enable_irq()` right after `WS_LOW()`). The deferring
+interrupt then runs inside that bit's low half, where a stretch is harmless - the latch
+threshold is ~50 us of continuous low, far above a 1.5 us gapped bit. Pulse width stays exact
+and phase doesn't matter; the extra interrupt latency is one high pulse (max ~0.7 us) against
+the 87 us byte time, so the 2.1.7 RX queue still loses no byte and auto-baud keeps working.
+The high-pulse mask adds ~10 cycles per bit (~80 us per ~0.75 ms frame), swallowed by the 10 ms
+frame cadence. `FW_VERSION` bumps to 2.1.8; the app needs no change.
+
+
