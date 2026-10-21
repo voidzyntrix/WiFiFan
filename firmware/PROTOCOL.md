@@ -96,7 +96,7 @@ Streaming (music / visualizer / screen sync): send `hh=...` per frame, with
 | `candle=V/M/H/S` | S accepted and ignored (every flame is individual) | `candle=60/1/19/0\` |
 | `breathe[=V]` | the last colour slowly fades up and down (4 s) | `breathe=80\` |
 | `spin=H/S/V/T` | **spinner**: a flat arc of 8 pixels chasing round the ring in this colour, one turn every T seconds (1-60) | `spin=200/100/100/2\` |
-| `spin=H/S/V/T/F` (2.1.11) | ... with a falloff: F% of the arc's length fades out behind the arc, so its light looks like it blooms into the LEDs behind it (0-100, 0 = off; 2.1.10 and older ignore F) | `spin=200/100/100/2/25\` |
+| `spin=H/S/V/T/F` (2.1.11) | ... with a falloff: F% of the arc's length fades out behind the arc in an even, every-step-dimmer fade, so its light looks like it blooms into the LEDs behind it (0-100, 0 = off; 2.1.10 and older ignore F) | `spin=200/100/100/2/25\` |
 | `spin=H/S/V/T/F/W` (2.1.12) | ... with W 1 the falloff also fades into the LEDs ahead of the head (W 0/1, default 0 = behind only; 2.1.11 and older ignore W) | `spin=200/100/100/2/25/1\` |
 | `spin=H/S/V/T/F/W/L` (2.1.13) | ... with L the arc's length in pixels (1-12, default 8); a `spin=` sent while it turns keeps the head where it was and only re-learns the settings | `spin=200/100/100/2/25/1/8\` |
 

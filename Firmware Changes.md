@@ -204,6 +204,24 @@ sent as L on every `spin=`; falloff, front, length and speed changes all apply l
 the numbers they do not know). `FW_VERSION` bumps to 2.1.13; no version gate moves
 (2.2.0 stays reserved for `imp=`).
 
+## 2.1.14 - the falloff fades evenly, so you can actually see it fade
+
+The 2.1.11 falloff used a quadratic shape, (1 - x) squared from the arc's end to black:
+"how light leaks". In practice the eye never saw it: the quadratic puts most of its drop in
+the first pixel or two of the zone, and the board's output gamma then pushes those mid
+values down toward black - a 2-pixel falloff rendered as full colour, then roughly one
+half-lit pixel, then nothing. "Can't even tell if it's fading away or not."
+
+Now the fade is even (linear): value = (1 - x) * colour. At the default 25% that is full,
+about 3/4, about half strength, faint, off - every pixel in the leak's length is a clearly
+visible step dimmer than the last, while the sub-pixel sampling keeps the edge sweeping
+smooth as it turns. Both leaks (behind the arc and ahead of the head) share the same even
+shape. No command change: `spin=H/S/V/T/F/W/L` stands, only the pixels' brightness along
+the leak changed. The app's Falloff default moves 25 to 50 for a first impression worth
+seeing ("% of the arc's length" is unchanged).
+
+`FW_VERSION` bumps to 2.1.14; no version gate moves (2.2.0 stays reserved for `imp=`).
+
 
 
 

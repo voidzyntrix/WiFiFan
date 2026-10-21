@@ -100,7 +100,7 @@
 
 #define WS_USE_DMA   1               /* 1 = timer + DMA, 0 = polled SysTick */
 
-#define FW_VERSION   "2.1.13"    /* reported by "ver"; bump for each release */
+#define FW_VERSION   "2.1.14"    /* reported by "ver"; bump for each release */
 
 #define START_BAUD   115200          /* used until a baud rate has been detected */
 
@@ -906,11 +906,12 @@ static void candle_frame(uint8_t p, float tt)
 
 /* One spinner frame: the flat arc (spin_arc, default SPIN_TAIL pixels) at full brightness,
  * chasing round the ring (the head is crisp, every pixel inside is on). What follows it
- * behind is a falloff (2.1.11): the next spin_falloff sub-pixels of LEDs fade smoothly from
- * the colour to black, so the arc looks like its light blooms and leaks into the pixels
- * behind it instead of cutting off. With spin_falloff_front (2.1.12) the same leak mirrors
- * across the head, into the sub-pixels of LEDs ahead of it. The falloff is clamped at set
- * time so the two leaks never meet even on a long arc. Falloff 0 is the plain flat arc. */
+ * behind is a falloff (2.1.11): the next spin_falloff sub-pixels of LEDs fade evenly from
+ * the colour to black, an every-step-dimmer leak instead of a clean cut-off (linear since
+ * 2.1.14: a curved fade gets lost in the output's gamma). With spin_falloff_front (2.1.12)
+ * the same leak mirrors across the head, into the sub-pixels of LEDs ahead of it. The
+ * falloff is clamped at set time so the two leaks never meet even on a long arc. Falloff 0
+ * is the plain flat arc. */
 static void spin_frame(uint32_t t)
 {
     if (!spin) return;
@@ -931,18 +932,22 @@ static void spin_frame(uint32_t t)
         if (d < arc) {
             px->shown.v = spin_c.v;                    /* the arc, full brightness */
         } else if (fall && d < arc + fall) {
-            /* The falloff behind: full colour at the arc's end, easing to black like a light leak. */
+            /* The falloff behind: full colour at the arc's end, an even (linear) fade to
+             * black over the leak's length. Every step is a visible one dimmer than the
+             * last - the quadratic easing tried first (2.1.11) put all its drop into the
+             * first pixel, which the board's gamma then crushed toward black, so the
+             * falloff read as on/off. */
             uint32_t x  = ((d - arc) << 10) / fall;    /* 0..1023 into the falloff */
-            uint32_t k  = (1024 - x) * (1024 - x) / 1024;
+            uint32_t k  = 1024 - x;
             px->shown.v = (uint8_t)((uint32_t)spin_c.v * k / 1024);
         } else if (spin_falloff_front && fall && d >= span - fall) {
             /* The falloff ahead of the head: the mirror of the one behind, full colour at
-             * the head easing to black over the same length. The zones never overlap:
-             * arc + fall <= 4096 and this zone starts at span - fall >= 4096, so at the
-             * worst setting they just meet. */
+             * the head easing down evenly to black over the same length. The zones never
+             * overlap: arc + fall <= 4096 and this zone starts at span - fall >= 4096, so
+             * at the worst setting they just meet. */
             uint32_t a  = span - d;                    /* how far ahead of the head */
             uint32_t x  = (a << 10) / fall;            /* 0..1023 out of the falloff */
-            uint32_t k  = (1024 - x) * (1024 - x) / 1024;
+            uint32_t k  = 1024 - x;
             px->shown.v = (uint8_t)((uint32_t)spin_c.v * k / 1024);
         } else {
             px->shown.v = 0;
