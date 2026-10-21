@@ -67,6 +67,7 @@ export function TuneTab({ c }: { c: LedController }) {
             <SliderLabel text="Falloff" value={`${prefs.spinFalloff} %`} />
             <LevelBar label="Falloff" fraction={prefs.spinFalloff / 100}
               onFraction={(f) => set({ spinFalloff: Math.round(f * 100) })} onFinished={() => {}} />
+            <SettingSwitch title="Front + back" subtitle="The falloff also leaks into the LEDs ahead of the head" checked={prefs.spinFalloffFront} onChange={(v) => set({ spinFalloffFront: v })} />
           </>
         ) : needs('2.0.0')}
       </div>

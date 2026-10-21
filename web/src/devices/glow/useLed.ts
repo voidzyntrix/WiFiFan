@@ -144,7 +144,7 @@ export function useLed() {
   function sendCandle() { send(candleCommand(st.current.bri)); update({ mode: MODE.CANDLE }) }
   function sendSpinner() {
     const s = st.current
-    send(LedCommands.spinner(s.hue, s.sat, s.bri, prefs.spinSeconds, prefs.spinFalloff))
+    send(LedCommands.spinner(s.hue, s.sat, s.bri, prefs.spinSeconds, prefs.spinFalloff, prefs.spinFalloffFront))
     update({ mode: MODE.SPIN })
   }
   function sendEffect(mode: number) { send(LedCommands.effect(mode, st.current.bri)); update({ mode }) }
@@ -546,6 +546,15 @@ export function useLed() {
     if (st.current.mode !== MODE.SPIN || !caps.spin) return
     sendSpinner()
   }, [prefs.spinFalloff])
+  // And for whether it also leaks ahead of the head (2.1.12).
+  const spinFalloffFrontAt = useRef(prefs.spinFalloffFront)
+  useEffect(() => {
+    const before = spinFalloffFrontAt.current
+    spinFalloffFrontAt.current = prefs.spinFalloffFront
+    if (before === prefs.spinFalloffFront || !connected) return
+    if (st.current.mode !== MODE.SPIN || !caps.spin) return
+    sendSpinner()
+  }, [prefs.spinFalloffFront])
   // A new Settings candle colour drops the colour picked while Candle ran.
   useEffect(() => { st.current.candleHue = null }, [prefs.candleHue])
 

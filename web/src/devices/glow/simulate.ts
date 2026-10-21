@@ -163,8 +163,9 @@ export function simulatedRing(c: LedController, t: number): DotColour[] {
     }
     case MODE.SPIN: {
       // The board's spinner: a flat arc of 8 full pixels; spinFalloff percent of the arc
-      // (firmware 2.1.11) fades out behind it like a light leak. The head's sub-pixel
-      // position keeps both ends moving smoothly between pixels.
+      // (firmware 2.1.11) fades out behind it like a light leak, and with
+      // spinFalloffFront (2.1.12) the same leak mirrors into the LEDs ahead of the head.
+      // The head's sub-pixel position keeps both ends moving smoothly between pixels.
       if (!caps.spin) return dots
       const arc = 8                                       // the flat arc's length (firmware SPIN_TAIL)
       const head = ((t / prefs.spinSeconds) % 1) * n      // the head's position, in pixels
@@ -176,6 +177,9 @@ export function simulatedRing(c: LedController, t: number): DotColour[] {
         else if (fall > 0 && behind < arc + fall) {
           const x = (behind - arc) / fall                 // 0..1 into the falloff
           v = (1 - x) * (1 - x)                           // like the firmware: full at the arc, easing to black
+        } else if (fall > 0 && prefs.spinFalloffFront && behind > n - fall) {
+          const x = (n - behind) / fall                   // how far ahead of the head, 0..1 out of the falloff
+          v = (1 - x) * (1 - x)                           // the mirror of the falloff behind
         }
         const [gh, gs, gv] = gammaHsv(s.hue, s.sat, bri * v, caps.noGamma)
         return { hue: gh, sat: gs, val: gv }
