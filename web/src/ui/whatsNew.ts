@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.67',
+    notes: [
+      'The scenes card\'s buttons no longer flicker when switching to another card',
+    ],
+  },
+
+  {
     version: '2.13.66',
     notes: [
       'Spinner to solid now ends the spin: the mode change can\'t be mistaken for a spinner brightness tweak any more',
