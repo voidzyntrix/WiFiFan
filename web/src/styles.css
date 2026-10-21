@@ -211,7 +211,10 @@ code { font-family: 'JetBrains Mono', monospace; font-size: 0.9em; }
 .deck-panel { height: clamp(272px, 44dvh, 340px); padding: 14px 16px; overflow: hidden; }
 .deck { display: flex; flex-direction: column; gap: 12px; --gap: 12px; height: 100%; min-height: 0; }
 .deck.scenes { gap: 0; }
-.deck.tune { gap: 12px; }
+/* the Tune decks scroll where a card outgrew the panel (the Spinner tune card packs a
+   heading, three sliders and a switch); scrollbars are hidden everywhere, so the drag or
+   a swipe on the heading and labels is how it moves - the sliders keep their geometry */
+.deck.tune { gap: 12px; overflow-y: auto; overscroll-behavior: contain; }
 .deck.colour { justify-content: center; }
 /* Solar has a lot to show (sign-in, live data, grid-loss settings): it scrolls inside the normal card */
 .deck.solar { overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; padding-bottom: 18px; -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent); }   /* the fade says there is more below */
@@ -400,7 +403,11 @@ code { font-family: 'JetBrains Mono', monospace; font-size: 0.9em; }
 
 .slider-label { display: flex; justify-content: space-between; font-size: 12px; color: var(--on-bg-55); margin-bottom: -6px; }
 .slider-value { color: var(--on-bg-85); font-weight: 600; font-variant-numeric: tabular-nums; }
-.gbar { position: relative; height: 32px; cursor: grab; touch-action: none; border-radius: 16px; }
+/* flex:none: a slider bar has no intrinsic content of its own (everything inside is
+   absolutely placed), so a squeezed flex column - the Tune deck's clamped panel - would
+   shrink it under its design height and leave the track's px offsets floating below the
+   centred thumb */
+.gbar { position: relative; height: 32px; flex: none; cursor: grab; touch-action: none; border-radius: 16px; }
 .gbar.dragging { cursor: grabbing; }   /* the keywords stay put now: the desktop shell keeps the window out of the overlay path that washed them out */
 .gbar-track {
   position: absolute; left: 0; right: 0; top: 9px; height: 14px;
