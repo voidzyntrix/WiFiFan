@@ -99,11 +99,13 @@ Streaming (music / visualizer / screen sync): send `hh=...` per frame, with
 | `spin=H/S/V/T/F` (2.1.11) | ... with a falloff: F% of the ring's length fades out behind the arc in an even, every-step-dimmer fade, so its light looks like it blooms into the LEDs behind it (0-100, 0 = off; 2.1.15 measures F against the whole ring — through 2.1.14 it was % of the arc's length; 2.1.10 and older ignore F) | `spin=200/100/100/2/25\` |
 | `spin=H/S/V/T/F/W` (2.1.12) | ... with W 1 the falloff also fades into the LEDs ahead of the head (W 0/1, default 0 = behind only; 2.1.11 and older ignore W) | `spin=200/100/100/2/25/1\` |
 | `spin=H/S/V/T/F/W/L` (2.1.13) | ... with L the arc's length in pixels (1-12, default 8); a `spin=` sent while it turns keeps the head where it was and only re-learns the settings | `spin=200/100/100/2/25/1/8\` |
+| `spin=H/S/V/T/F/W/L/P` (2.1.16) | ... with P the leak's strength (0-100, default 100): the whole ramp burns at that share of the arc's brightness, so 30 is a dim shadow leak and 100 starts right at the arc's own brightness | `spin=200/100/100/2/25/1/8/100\` |
 
 `spin=` draws a flat arc in one colour, chasing round the ring; the arc's head
-keeps a crisp edge, and with a falloff (F) the LEDs just behind the arc fade from the colour
-to black instead of cutting off, with W 1 the LEDs just ahead of the head do the same. The
-arc is 8 pixels unless L says otherwise, and the falloff is a share of the arc's own length.
+keeps a crisp edge, and with a falloff (F, the radius) the LEDs just behind the arc fade
+from the colour to black instead of cutting off, with W 1 the LEDs just ahead of the head
+do the same. The arc is 8 pixels unless L says otherwise, the falloff is a share of the
+whole ring, and P sets how bright the leak burns along its whole reach.
 A `spin=` sent while it turns updates any of the numbers without restarting the turn
 (2.1.13); a brightness change (`h=` with the same hue and saturation, 2.1.2) keeps it
 turning. Any other colour command, and every other command

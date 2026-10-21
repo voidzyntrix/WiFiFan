@@ -235,6 +235,25 @@ back to 25 (which now reaches further than 25 previously did).
 
 `FW_VERSION` bumps to 2.1.15; no version gate moves (2.2.0 stays reserved for `imp=`).
 
+## 2.1.16 - the leak splits into radius and strength (spin=H/S/V/T/F/W/L/P)
+
+The app's insight, and the right one: "how far the glow reaches" (radius) and "how brightly
+it burns" (strength) are two different dials, and one number can't carry both. The command
+grows an 8th optional number, P: the leak's brightness as a percent (0-100, default 100).
+The shape stays the even 1-to-0 ramp of 2.1.14; P scales the whole ramp, so the pixel right
+at the arc's edge now shows P% of the arc's brightness - 100 is the continuous full bleed
+the earlier firmware drew (no boundary step), 30 a clear dim shadow of a leak, 0 the same
+as no falloff at all. In the frame both leaks multiply by `spin_strength` (0-1024 fixed
+point; the arc itself is untouched, since the leak's brightness belongs to the leak).
+
+The app accordingly splits its Falloff slider into a Falloff radius (0-12 px, default 6,
+sent as F = radius share of the 24-px ring - backward compatible with their stored 25%)
+and a Falloff strength (0-100, default 100, sent as P). The wheel fix belongs to the app
+release notes (scroll-on-slider is prevented natively now; the pixel-grained sliders step
+their own unit per notch).
+
+`FW_VERSION` bumps to 2.1.16; no version gate moves (2.2.0 stays reserved for `imp=`).
+
 
 
 
