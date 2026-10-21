@@ -222,6 +222,19 @@ seeing ("% of the arc's length" is unchanged).
 
 `FW_VERSION` bumps to 2.1.14; no version gate moves (2.2.0 stays reserved for `imp=`).
 
+## 2.1.15 - the falloff measures a share of the whole ring
+
+"Still too subtle": F as a % of the ARC capped the leak at the arc's own length (8 px on
+the default arc - only 25% strength's 2 px of fade before that cap ever mattered). Now F is
+a % of the RING's length: 25% = about 6 LEDs of leak regardless of the arc, 50% = 12, and
+the clip of the share against (ring - arc) / 2 stays, so with both leaks on and the arc at
+8 pixels the whole ring can wash into the colour at 100% but nothing ever overlaps.
+`led_spin` just multiplies by the span instead of the arc; the effective-falloff clamp is
+untouched. No app protocol change - the app's slider means the same 0-100, its default goes
+back to 25 (which now reaches further than 25 previously did).
+
+`FW_VERSION` bumps to 2.1.15; no version gate moves (2.2.0 stays reserved for `imp=`).
+
 
 
 

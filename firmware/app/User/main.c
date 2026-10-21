@@ -28,7 +28,7 @@
  *   send  spin=H/S/V/T -> spinner: a flat arc of 8 pixels in this colour chasing round
  *                      the ring, one turn every T seconds (1-60); a brightness-only h=
  *                      keeps it turning (2.1.2). spin=H/S/V/T/F (2.1.11) adds a falloff
- *                      of F% of the arc's length fading out behind the arc, so its light
+ *                      of F% of the ring's length fading out behind the arc, so its light
  *                      seems to bloom into the LEDs behind it (F 0 = off, the default);
  *                      spin=H/S/V/T/F/W (2.1.12) with W 1 fades it into the LEDs ahead
  *                      of the head too; spin=H/S/V/T/F/W/L (2.1.13) with L the arc's
@@ -100,7 +100,7 @@
 
 #define WS_USE_DMA   1               /* 1 = timer + DMA, 0 = polled SysTick */
 
-#define FW_VERSION   "2.1.14"    /* reported by "ver"; bump for each release */
+#define FW_VERSION   "2.1.15"    /* reported by "ver"; bump for each release */
 
 #define START_BAUD   115200          /* used until a baud rate has been detected */
 
@@ -835,8 +835,9 @@ static void led_flash(uint8_t r, uint8_t g, uint8_t b, uint32_t ms)
 }
 
 /* Spinner: colour [c], one turn of the ring every [secs] seconds, an arc [arc_px] pixels
- * long, with a falloff of [falloff_pct]% of the arc's length fading out behind it (0 = the
- * plain flat arc), and with [falloff_front] also into the LEDs ahead of the head. While the
+ * long, with a falloff of [falloff_pct]% of the RING's length fading out behind it (0 = the
+ * plain flat arc, 2.1.15 measures F against the whole ring so it scales the same on any
+ * arc), and with [falloff_front] also into the LEDs ahead of the head. While the
  * spinner is already turning, the turn keeps its position and the arc only re-learns the
  * settings (2.1.13 - sliders stopped restarting it; a brightness-only h= never did, 2.1.2). */
 static void led_spin(hsv_t c, uint32_t secs, uint16_t falloff_pct, uint8_t falloff_front, uint16_t arc_px)
@@ -850,7 +851,7 @@ static void led_spin(hsv_t c, uint32_t secs, uint16_t falloff_pct, uint8_t fallo
     spin_c      = c;
     spin_period = secs * 1000u;
     spin_arc    = (uint32_t)arc_px * SPIN_FP;
-    uint32_t fall = (uint32_t)falloff_pct * spin_arc / 100;        /* % of the arc's length */
+    uint32_t fall = (uint32_t)falloff_pct * (RING_PIXELS * SPIN_FP) / 100;   /* F% of the ring's length, not the arc's (2.1.15) */
     uint32_t cap  = (RING_PIXELS * SPIN_FP - spin_arc) / 2;        /* so the two leaks never meet */
     spin_falloff       = fall > cap ? cap : fall;
     spin_falloff_front = falloff_front ? 1 : 0;
@@ -1361,8 +1362,9 @@ static void led_palette(const hsv_t pal[], int cnt)
     }
 }
 
-/* `spin=H/S/V/T`, plus an optional 5th number F (2.1.11): the falloff, F% of the arc's
- * length fading out behind it, a 6th W (2.1.12): 1 also fades the falloff into the LEDs
+/* `spin=H/S/V/T`, plus an optional 5th number F (2.1.11): the falloff, F% of the RING's
+ * length fading out behind it (2.1.15 - through 2.1.14 it was % of the arc's length), a
+ * 6th W (2.1.12): 1 also fades the falloff into the LEDs
  * ahead of the head, and a 7th L (2.1.13): the arc's length in pixels, 1 to half the ring
  * (default 8). Older forms still work: the 4-number command has no falloff, the 5-number
  * one fades only behind, the 6-number keeps the 8-pixel arc; older hardware accepts and
