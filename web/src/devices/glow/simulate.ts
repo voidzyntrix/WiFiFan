@@ -162,20 +162,22 @@ export function simulatedRing(c: LedController, t: number): DotColour[] {
       })
     }
     case MODE.SPIN: {
-      // 2.1.10: a comet of 8 pixels, matching the firmware: it brightens over the
-      // pixel in front of the head and fades evenly off over the 7 behind it, so
-      // every pixel glides through the pass (2.1.9 and older: a flat hard-edged arc).
+      // The board's spinner: a flat arc of 8 full pixels; spinFalloff percent of the arc
+      // (firmware 2.1.11) fades out behind it like a light leak. The head's sub-pixel
+      // position keeps both ends moving smoothly between pixels.
       if (!caps.spin) return dots
-      const head = ((t / prefs.spinSeconds) % 1) * n   // the head's position, in pixels
-      const comet = 8                                  // comet length (firmware SPIN_TAIL)
+      const arc = 8                                       // the flat arc's length (firmware SPIN_TAIL)
+      const head = ((t / prefs.spinSeconds) % 1) * n      // the head's position, in pixels
+      const fall = (prefs.spinFalloff / 100) * arc        // the falloff's length, in pixels
       return dots.map((_, i) => {
-        let sd = (head - i) % n                        // signed distance from the head
-        if (sd > n / 2) sd -= n
-        if (sd < -n / 2) sd += n
-        const weight = sd >= 0                          // behind: fade over the trailing 7
-          ? Math.max(0, 1 - sd / (comet - 1))
-          : Math.max(0, 1 + sd)                         // ahead: brighten over the pixel in front
-        const [gh, gs, gv] = gammaHsv(s.hue, s.sat, bri * weight, caps.noGamma)
+        const behind = (((head - i) % n) + n) % n         // how far behind the head, in pixels
+        let v = 0
+        if (behind < arc) v = 1                           // the arc itself, full brightness
+        else if (fall > 0 && behind < arc + fall) {
+          const x = (behind - arc) / fall                 // 0..1 into the falloff
+          v = (1 - x) * (1 - x)                           // like the firmware: full at the arc, easing to black
+        }
+        const [gh, gs, gv] = gammaHsv(s.hue, s.sat, bri * v, caps.noGamma)
         return { hue: gh, sat: gs, val: gv }
       })
     }

@@ -144,7 +144,7 @@ export function useLed() {
   function sendCandle() { send(candleCommand(st.current.bri)); update({ mode: MODE.CANDLE }) }
   function sendSpinner() {
     const s = st.current
-    send(LedCommands.spinner(s.hue, s.sat, s.bri, prefs.spinSeconds))
+    send(LedCommands.spinner(s.hue, s.sat, s.bri, prefs.spinSeconds, prefs.spinFalloff))
     update({ mode: MODE.SPIN })
   }
   function sendEffect(mode: number) { send(LedCommands.effect(mode, st.current.bri)); update({ mode }) }
@@ -537,6 +537,15 @@ export function useLed() {
     if (st.current.mode !== MODE.SPIN || !caps.spin) return
     sendSpinner()
   }, [prefs.spinSeconds])
+  // Same for the falloff behind the arc (2.1.11): the board only re-learns it through spin=.
+  const spinFalloffAt = useRef(prefs.spinFalloff)
+  useEffect(() => {
+    const before = spinFalloffAt.current
+    spinFalloffAt.current = prefs.spinFalloff
+    if (before === prefs.spinFalloff || !connected) return
+    if (st.current.mode !== MODE.SPIN || !caps.spin) return
+    sendSpinner()
+  }, [prefs.spinFalloff])
   // A new Settings candle colour drops the colour picked while Candle ran.
   useEffect(() => { st.current.candleHue = null }, [prefs.candleHue])
 

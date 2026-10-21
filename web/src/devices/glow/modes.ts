@@ -73,9 +73,10 @@ export const LedCommands = {
   effect(mode: number, bri: number) {
     return `${LED_EFFECTS.find((e) => e[0] === mode)![2]}=${Math.round(bri * 100)}`
   },
-  /** Spinner (2.0.0+): a tail chasing round the ring, one turn every 1-60 s. */
-  spinner(h: number, s: number, v: number, seconds: number) {
-    return `spin=${LedCommands.hsv(h, s, v)}/${Math.round(clamp(seconds, 1, 60))}`
+  /** Spinner (2.0.0+): a tail chasing round the ring, one turn every 1-60 s; the 5th
+   * number (2.1.11) is the falloff, % of the arc's length fading out behind it. */
+  spinner(h: number, s: number, v: number, seconds: number, falloff = 0) {
+    return `spin=${LedCommands.hsv(h, s, v)}/${Math.round(clamp(seconds, 1, 60))}/${clamp(Math.round(falloff), 0, 100)}`
   },
   /** One pixel of the ring (firmware 2.1.0+, "Firmware Changes.md"; index 0-based from the leds reply). */
   pixel(index: number, h: number, s: number, v: number) {

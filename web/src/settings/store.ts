@@ -87,6 +87,8 @@ export interface Settings {
   rainbowSeconds: number
   /** Spinner: seconds per turn (1-60, firmware 2.0.0's spin=T). */
   spinSeconds: number
+  /** Spinner: the falloff behind the arc, % of the arc's length (0-100, firmware 2.1.11's spin=F). */
+  spinFalloff: number
   fadeMs: number
   candleHue: number
   roundLedPreview: boolean
@@ -144,6 +146,7 @@ const DEFAULTS: Settings = {
   twoCandles: false,
   rainbowSeconds: 15,
   spinSeconds: 2,
+  spinFalloff: 25,
   fadeMs: 1500,
   candleHue: 19,
   roundLedPreview: true,

@@ -64,6 +64,9 @@ export function TuneTab({ c }: { c: LedController }) {
             <SliderLabel text="Seconds per turn" value={`${prefs.spinSeconds} s`} />
             <LevelBar label="Seconds per turn" fraction={(prefs.spinSeconds - 1) / 59}
               onFraction={(f) => set({ spinSeconds: 1 + Math.round(f * 59) })} onFinished={() => {}} />
+            <SliderLabel text="Falloff" value={`${prefs.spinFalloff} %`} />
+            <LevelBar label="Falloff" fraction={prefs.spinFalloff / 100}
+              onFraction={(f) => set({ spinFalloff: Math.round(f * 100) })} onFinished={() => {}} />
           </>
         ) : needs('2.0.0')}
       </div>
