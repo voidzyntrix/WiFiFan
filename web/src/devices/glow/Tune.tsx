@@ -1,6 +1,6 @@
 // Every mode's own options, on the control screen (the "tune" tab shows the current mode's):
 //   Solid     colour fade          Rainbow   speed, animated sliders       Candle  flicker, tint, style
-//   Music     sensitivity, colours, beat flash, one LED per beat (rings)     Visualizer  sensitivity, beat flash
+//   Music     sensitivity, colours, beat flash, one LED per beat + trail decay (rings)     Visualizer  the same options where they fit
 //   Screen    which display (PCs with several)
 // Options the board's firmware is too old for say so instead of vanishing.
 
@@ -132,9 +132,17 @@ export function TuneTab({ c }: { c: LedController }) {
         <SegmentedPill options={['Beat colours', 'My colour']} selected={prefs.musicKeepColour ? 1 : 0} onSelect={(i) => set({ musicKeepColour: i === 1 })} />
       )}
       {(s.mode === MODE.MUSIC || s.mode === MODE.VISUALIZER) && c.ring && (     // the whole ring is a two-LED stream there; per-LED beats need pixels
-        c.caps.perPixel
-          ? <SettingSwitch title="One LED per beat" subtitle="Each beat lands on the next pixel round the ring; every beat's LED fades out to black again" checked={prefs.musicPerPixel} onChange={(v) => set({ musicPerPixel: v })} />
-          : needs('2.1.0')
+        c.caps.perPixel ? (
+          <>
+            <SettingSwitch title="One LED per beat" subtitle="Each beat lands on the next pixel round the ring; every beat's LED fades out to black again" checked={prefs.musicPerPixel} onChange={(v) => set({ musicPerPixel: v })} />
+            {prefs.musicPerPixel && (
+              <>
+                <SliderLabel text="Beat trail decay" value={`${prefs.musicDecayMs} ms`} />
+                <LevelBar label="Beat trail decay" fraction={(prefs.musicDecayMs - 100) / 1900} onFraction={(f) => set({ musicDecayMs: 100 + Math.round((f * 1900) / 50) * 50 })} onFinished={() => {}} />
+              </>
+            )}
+          </>
+        ) : needs('2.1.0')
       )}
       <SettingSwitch title="Beat flash" subtitle="A quick burst of brightness on every beat" checked={prefs.beatFlash} onChange={(v) => set({ beatFlash: v })} />
       <PillButton text={`Stop ${s.mode === MODE.MUSIC ? 'music' : 'visualizer'}`} onClick={() => void c.startMode(MODE.SOLID)} />
