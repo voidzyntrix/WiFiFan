@@ -103,7 +103,7 @@ export interface Settings {
   musicKeepColour: boolean
   /** Music: one LED per beat on ring boards (firmware 2.1.0+ streams p=); off = the whole ring. */
   musicPerPixel: boolean
-  /** Music/Visualizer per-LED trail: how many ms a beat's LED takes to fade back to black (300-2000, decay=MS on 2.1.18+). */
+  /** Music/Visualizer per-LED trail: how many ms a beat's LED takes to fade back to black (300-2000, decay=MS on 2.1.19+). */
   musicDecayMs: number
   beatFlash: boolean
   boardVersions: Record<string, string>
