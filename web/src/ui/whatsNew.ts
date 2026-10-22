@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.75',
+    notes: [
+      'Music: one LED per beat - every beat lights the next pixel round the ring, a short trail fading behind it (a switch in the Music tab; needs board firmware 2.1.0+)',
+    ],
+  },
+
+  {
     version: '2.13.74',
     notes: [
       'The spinner falloff splits into a radius and a strength',
