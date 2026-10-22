@@ -2,6 +2,15 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.85',
+    notes: [
+      'Music and Visualizer catch fast notes now: every onset is its own event, so hi-hat runs and rolls all land on the ring',
+      'Real beats flash the whole ring at once instead of one LED - needs board firmware 2.1.21',
+      'The Visualizer analyses the same 40 ms window as Music does - it used to skip half the audio between ticks',
+    ],
+  },
+
+  {
     version: '2.13.84',
     notes: [
       'the Music and Visualizer tuning panel shows its volume bar again - it was collapsing to zero height whenever the card grew tall enough to scroll',
