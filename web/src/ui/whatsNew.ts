@@ -2,6 +2,14 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.86',
+    notes: [
+      'The whole-ring beat flash is gone: every note lands on its own pixel again, exactly as before 2.13.85',
+      'Board firmware 2.1.22 takes the one-command ring flash back out to match',
+    ],
+  },
+
+  {
     version: '2.13.85',
     notes: [
       'Music and Visualizer catch fast notes now: every onset is its own event, so hi-hat runs and rolls all land on the ring',
