@@ -242,6 +242,13 @@ code { font-family: 'JetBrains Mono', monospace; font-size: 0.9em; }
 .menu-title { flex: none; font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--on-bg-55); padding: 0 4px; }
 .menu-grid { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: repeat(var(--rows, 1), minmax(34px, 40px)); align-content: center; gap: 6px; }
 .menu-grid > * { min-width: 0; min-height: 0; height: 40px; }
+/* Music + Visualizer carry a live level strip along the card's bottom edge - the mic's /
+ * the captured sound's volume; it moves while that sync runs, rests empty otherwise. The
+ * strip lives inside the card's own cell, so the grid's rows never move for it. */
+.menu-card { position: relative; }
+.menu-level { position: absolute; left: 4px; right: 4px; bottom: 2px; height: 5px; border-radius: var(--r-pill); background: var(--on-bg-8); overflow: hidden; }
+.menu-level div { height: 100%; background: var(--active-strong); transition: width 60ms linear; }
+:root[data-design='material'] .menu-level { background: rgb(var(--mdui-color-surface-container-highest)); }
 
 /* ── Pages (lists that never scroll) ───────────────────────── */
 

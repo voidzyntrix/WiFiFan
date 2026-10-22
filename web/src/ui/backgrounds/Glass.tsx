@@ -20,6 +20,7 @@ const GLASS_SELECTOR = [
   '.panel', '.board-tile', '.toast', '.update-block', '.nearby-row', '.dialog', 'input.text-field', 'button.action-row',
   'button.circle-btn', '.pill', '.pill-thumb', 'button.pill-button', 'button.switch', '.switch-knob', 'button.chip', 'button.menu-item',
   '.progress', '.progress-fill', '.gbar-track', '.gbar-thumb', '.gbar-dot', '.preset', '.level-meter', '.level-meter > div',
+  '.menu-level', '.menu-level > div',
   '.board-pill', '.quiet-link', '.led-disc', '.swatch', '.beacon', '.board-dot', '.scan-dots span', '.update-dot',
 ].join(',')
 /** Things that sit above the rest of the UI: their glass is drawn last. */

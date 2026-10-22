@@ -195,16 +195,32 @@ export function ControlScreen(props: ControlScreenProps) {
                     <div key={title} className="mode-group" style={{ ['--rows' as string]: Math.ceil(modes.length / 3) }}>
                       <div className="menu-title">{title}</div>
                       <div className="menu-grid">
-                        {modes.map(([m, l, enabled]) => (
-                          <Chip
-                            key={m}
-                            label={l}
-                            disabled={!enabled}
-                            selected={m === s.mode}
-                            className="menu-item"
-                            onClick={() => { sound.tap(); void c.startMode(m) }}
-                          />
-                        ))}
+                        {modes.map(([m, l, enabled]) => {
+                          // Music + Visualizer carry a live level strip under their card: the
+                          // mic's volume for Music, the captured sound's for Visualizer. It
+                          // moves while that sync runs (the strip is empty when it doesn't).
+                          if (m === MODE.MUSIC || m === MODE.VISUALIZER) {
+                            const live = (m === MODE.MUSIC && c.sync.active === 'MUSIC') || (m === MODE.VISUALIZER && c.sync.active === 'VISUALIZER')
+                            const pct = live ? Math.round(Math.min(1, Math.max(0, c.sync.level)) * 100) : 0
+                            return (
+                              <div key={m} className="menu-card">
+                                <Chip label={l} disabled={!enabled} selected={m === s.mode} className="menu-item"
+                                  onClick={() => { sound.tap(); void c.startMode(m) }} />
+                                <div className="menu-level"><div style={{ width: `${pct}%` }} /></div>
+                              </div>
+                            )
+                          }
+                          return (
+                            <Chip
+                              key={m}
+                              label={l}
+                              disabled={!enabled}
+                              selected={m === s.mode}
+                              className="menu-item"
+                              onClick={() => { sound.tap(); void c.startMode(m) }}
+                            />
+                          )
+                        })}
                       </div>
                     </div>
                   ))}
