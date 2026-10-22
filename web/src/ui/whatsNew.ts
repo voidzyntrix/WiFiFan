@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.83',
+    notes: [
+      'the live volume strip is back under the Music and Visualizer cards - the mic level on one, the captured sound\'s on the other, moving while the mode runs',
+    ],
+  },
+
+  {
     version: '2.13.82',
     notes: [
       'the Visualizer colours are vivid now: the sound mix only picks the hue and every colour plays at full saturation instead of a washed-out mix',
