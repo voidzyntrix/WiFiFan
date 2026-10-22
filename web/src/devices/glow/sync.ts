@@ -191,15 +191,17 @@ function runAudio(kind: 'MUSIC' | 'VISUALIZER', stream: MediaStream) {
   let hue = syncParams.hue, hue2 = syncParams.hue2
   const windowSamples = Math.round((ctx.sampleRate * WINDOW_MS) / 1000)
   // One LED per beat (Music and Visualizer, a ring board on 2.1.0+ with the setting): each
-  // beat lands on the next pixel round the ring, that LED carries the loudness until the
-  // next one comes round, and the pixels it left fade out as a trail behind it. On 2.1.20
-  // the board owns the fading (`decay=MS`, one `p=` per frame); on older firmware the app
-  // streams every lit pixel itself.
+  // note lands on the next pixel round the ring, that LED carries the loudness until the
+  // next one comes round, and the pixels it left fade out as a trail behind it. A real beat
+  // (2.1.21) is the ring's: one h= flashes every pixel at once and the board fades it - on
+  // older firmware a beat is a pixel like a note. On 2.1.20 the board owns the fading
+  // (`decay=MS`, one `p=` per frame); on older firmware the app streams every lit pixel
+  // itself.
   const N = Math.max(0, Math.round(syncParams.pixels))
   const trail = new Float32Array(N)
   const trailHue = new Float32Array(N)
   const lit = new Uint8Array(N)
-  let beatPix = 0, sinceTick = performance.now()
+  let beatPix = 0, sinceTick = performance.now(), lastTick = 0
   // The per-LED state on the board is armed here and disarmed when leaving the mode (the
   // setting can be toggled while the stream runs, so the tick calls these as it crosses).
   let perLedOn = false, decayArmed = 0         // the decay= the board carries now (0 = none)
@@ -233,36 +235,40 @@ function runAudio(kind: 'MUSIC' | 'VISUALIZER', stream: MediaStream) {
   }
 
   const tick = () => {
+    const nowMs = performance.now()
+    // The tick means to run every 40 ms; a late timer stretches this pass's window over the
+    // extra time instead of throwing the audio away (a fast note landing in the gap no
+    // longer vanishes), and the beat timers follow the real clock.
+    const dt = lastTick ? Math.min(4 * WINDOW_MS, Math.max(1, nowMs - lastTick)) : WINDOW_MS
+    lastTick = nowMs
     analyser.getFloatTimeDomainData(buf)
-    const n = kind === 'MUSIC' ? windowSamples : spectrum.size
+    // The Visualizer's level window is Music's too (the spectrum stays its own fft tail).
+    const n = Math.min(buf.length, Math.max(windowSamples, Math.round((ctx.sampleRate * dt) / 1000)))
     const recent = buf.subarray(buf.length - n)
     const p = syncParams
-    const [raw, beat] = level.process(recent, n, WINDOW_MS, p.sensitivity)
-    const gap = beat ? 0 : SEND_GAP_AUDIO
+    const [raw, note, beat] = level.process(recent, n, dt, p.sensitivity)
+    const isEvent = note || beat
+    const gap = isEvent ? 0 : SEND_GAP_AUDIO
     // The Visualizer's band mix drives its colours everywhere - the per-LED trail included.
-    const bands = kind === 'VISUALIZER' ? spectrum.process(recent, n) : null
+    const bands = kind === 'VISUALIZER' ? spectrum.process(buf.subarray(buf.length - spectrum.size), spectrum.size) : null
     // One LED per beat needs pixels to write and a ring layout: on the two-LED boards the
     // whole ring is one two-colour stream anyway.
     const perLed = (kind === 'MUSIC' || kind === 'VISUALIZER') && p.perLed && N >= 3 && !twoLeds() && fw('2.1.0')
     if (perLed) armPerLed(); else disarmPerLed()
 
     if (perLed) {
-      const now = performance.now()
       // 2.1.20+: the board scales each fading pixel linearly to black over the decay time,
       // and the preview follows that exact envelope; older firmware keeps the app's
       // exponential. The slider answer is live: decayMs is read once per tick.
       const boardDecay = fw('2.1.20')
       const decayMs = Math.max(1, Math.round(p.decayMs || 700))
-      const drop = boardDecay ? Math.max(0, 1 - (now - sinceTick) / decayMs) : Math.exp(-(now - sinceTick) / 220)
-      sinceTick = now
+      const drop = boardDecay ? Math.max(0, 1 - (nowMs - sinceTick) / decayMs) : Math.exp(-(nowMs - sinceTick) / 220)
+      sinceTick = nowMs
       for (let i = 0; i < N; i++) trail[i] *= drop
       let h: number, s: number
       if (kind === 'MUSIC') {
-        if (p.keepColour) trailHue.fill(p.hue)           // "My colour": every pixel takes the picked one
-        if (beat) {
-          if (!p.keepColour) beatHue = (beatHue + 47) % 360
-          stepBeatPix(p.randomLed)
-        }
+        if (p.keepColour) trailHue.fill(p.hue)             // "My colour": every pixel takes the picked one
+        else if (isEvent) beatHue = (beatHue + 47) % 360   // Beat colours: the hue steps once per note
         h = p.keepColour ? p.hue : beatHue
         s = p.keepColour ? p.sat : 1
       } else {
@@ -271,22 +277,38 @@ function runAudio(kind: 'MUSIC' | 'VISUALIZER', stream: MediaStream) {
         const [bh, bs] = bandColour(bands!, hue)
         hue = bh
         h = bh; s = bs
-        if (beat) stepBeatPix(p.randomLed)
       }
-      const l = flash.apply(raw, beat, WINDOW_MS, p.beatFlash)
-      if (beat) {
-        // A beat is one touch of one LED: its colour and the moment's brightness, once.
+      const l = flash.apply(raw, isEvent, dt, p.beatFlash)
+      // One command on 2.1.21 flashes the whole ring: h=/l= re-arm decay=, so a beat is one
+      // write and the board fades what it wrote. Older firmware keeps a beat on one pixel.
+      const ringBeat = beat && fw('2.1.21')
+      // A ring flash is a flash, however quiet the music: a beat never lands dimmer than 35%.
+      const v = 0.04 + 0.96 * (ringBeat ? Math.max(l, 0.35) : l)
+      if (note || (beat && !ringBeat)) stepBeatPix(p.randomLed)
+      if (ringBeat) {
+        // A real beat: the whole ring takes the beat's colour and brightness at the same
+        // moment. Every pixel keeps its own hue nowhere - one colour for the hit.
+        trail.fill(v)
+        trailHue.fill(h)
+      } else if (isEvent) {
+        // A note is one touch of one LED: its colour and the moment's brightness, once.
         // From there the board does all the changing - no more app touches, no restarted
         // fades, nothing pulsing bright/dim between them.
-        trail[beatPix] = 0.04 + 0.96 * l
+        trail[beatPix] = v
         trailHue[beatPix] = h
       }
       publish({ level: l, hue: h, sat: s, pixelVals: trail, pixelHues: trailHue })
-      if (beat && p.bri >= MIN_VISIBLE && !board.backlogged) {
+      if (isEvent && p.bri >= MIN_VISIBLE && !board.backlogged) {
         if (boardDecay) {
-          // the board fades every pixel the beat leaves behind; the app sends one tiny
-          // `p=` per beat and nothing in between
-          board.sendData(LedCommands.pixel(beatPix, trailHue[beatPix], s, p.bri * trail[beatPix]))
+          if (ringBeat) {
+            // the whole-ring flash is the one command it takes - the board fades every
+            // pixel it wrote from the moment it arrived
+            board.sendData(LedCommands.colour(h, s, p.bri * v, true))
+          } else {
+            // the board fades every pixel the note left behind; the app sends one tiny
+            // `p=` and nothing in between
+            board.sendData(LedCommands.pixel(beatPix, trailHue[beatPix], s, p.bri * trail[beatPix]))
+          }
         } else {
           // older firmware: the app streams the trail itself, every lit pixel per tick
           for (let i = 0; i < N; i++) {
@@ -303,24 +325,24 @@ function runAudio(kind: 'MUSIC' | 'VISUALIZER', stream: MediaStream) {
 
     if (kind === 'MUSIC') {
       if (twoLeds()) {
-        const led = beat ? beats.onBeat() : -1
-        const l1 = flash.apply(raw, led === 0, WINDOW_MS, p.beatFlash)
-        const l2 = flash2.apply(raw, led === 1, WINDOW_MS, p.beatFlash)
+        const led = isEvent ? beats.onBeat() : -1
+        const l1 = flash.apply(raw, led === 0, dt, p.beatFlash)
+        const l2 = flash2.apply(raw, led === 1, dt, p.beatFlash)
         const h1 = p.keepColour ? p.hue : beats.hue1, s1 = p.keepColour ? p.sat : 1
         const h2 = p.keepColour ? p.hue2 : beats.hue2, s2 = p.keepColour ? p.sat2 : 1
         publish({ level: l1, hue: h1, sat: s1, level2: l2, hue2: h2, sat2: s2 })
         sendColours(h1, s1, p.bri * (0.04 + 0.96 * l1), h2, s2, p.bri * (0.04 + 0.96 * l2), gap)
         return
       }
-      const l = flash.apply(raw, beat, WINDOW_MS, p.beatFlash)
-      if (beat && !p.keepColour) beatHue = (beatHue + 47) % 360
+      const l = flash.apply(raw, isEvent, dt, p.beatFlash)
+      if (isEvent && !p.keepColour) beatHue = (beatHue + 47) % 360
       const h = p.keepColour ? p.hue : beatHue, s = p.keepColour ? p.sat : 1
       publish({ level: l, hue: h, sat: s })
       sendColour(h, s, p.bri * (0.04 + 0.96 * l), gap)
       return
     }
 
-    const l = flash.apply(raw, beat, WINDOW_MS, p.beatFlash)
+    const l = flash.apply(raw, isEvent, dt, p.beatFlash)
     if (twoLeds()) {
       const [c1, c2] = twoLedBandColours(bands!, hue, hue2)
       hue = c1[0]; hue2 = c2[0]

@@ -105,6 +105,7 @@ export interface BoardCaps {
   spinLive: boolean     // 2.1.1: h=/l= recolour the arc live without restarting it (2.1.2 took back colour)
   spinBri: boolean      // 2.1.2: a brightness-only h=/l= keeps the arc turning; a colour ends it again
   perPixel: boolean     // 2.1.0: p=/pal=, one colour per ring pixel ("Firmware Changes.md")
+  ringBeat: boolean     // 2.1.21: when decay= is armed, h=/l= re-arm it too - a beat flashes the whole ring with one command
   noGamma: boolean      // 2.1.6: the LEDs take colours as they are, no gamma encode in the output
   importLevels: boolean // 2.2.0: LED 1 steps by import (imp=)
 }

@@ -134,7 +134,8 @@ export function TuneTab({ c }: { c: LedController }) {
       {(s.mode === MODE.MUSIC || s.mode === MODE.VISUALIZER) && c.ring && (     // the whole ring is a two-LED stream there; per-LED beats need pixels
         c.caps.perPixel ? (
           <>
-            <SettingSwitch title="One LED per beat" subtitle="Each beat lands on the next pixel round the ring; every beat's LED fades out to black again" checked={prefs.musicPerPixel} onChange={(v) => set({ musicPerPixel: v })} />
+            <SettingSwitch title="One LED per beat" subtitle="Each fast note lands on the next pixel round the ring (or a random one); a real beat flashes the whole ring at once" checked={prefs.musicPerPixel} onChange={(v) => set({ musicPerPixel: v })} />
+            {!c.caps.ringBeat && <Hint>Needs board firmware 2.1.21 for the whole-ring beat flash</Hint>}
             {prefs.musicPerPixel && (
               <>
                 <SliderLabel text="Beat trail decay" value={`${Math.max(300, Math.min(2000, prefs.musicDecayMs))} ms`} />

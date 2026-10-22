@@ -6,17 +6,22 @@ import { lerpHue, normHue, rgbToHsv } from '../../lib/color'
 
 export const WINDOW_MS = 40
 
-/** Turns loudness into a 0..1 level plus beat events (adaptive floor, auto gain, energy spikes). */
+/** Turns loudness into a 0..1 level, plus note and beat events (adaptive floor, auto gain,
+ *  energy spikes). Two gates: a note is any clear onset - at least 100 ms apart, so rolls
+ *  and hi-hat runs all register, where the ONE global 180 ms gate of the old detector ate
+ *  every second one - and a beat is the strong spike that punches through the whole last
+ *  second: the actual beat, the thing that flashes the whole ring. */
 export class LevelAnalyzer {
   private floor = 0
   private envelope = 0
-  private history = new Float32Array(25)
+  private history = new Float32Array(25)   // the last second of window energies
   private historyCount = 0
   private historyPos = 0
+  private sinceNoteMs = 1e9
   private sinceBeatMs = 1e9
 
-  process(buf: Float32Array, n: number, windowMs: number, sensitivity: number): [number, boolean] {
-    if (n <= 0) return [0, false]
+  process(buf: Float32Array, n: number, windowMs: number, sensitivity: number): [number, boolean, boolean] {
+    if (n <= 0) return [0, false, false]
     let sum = 0, peak = 0
     for (let i = 0; i < n; i++) {
       const s = buf[i]
@@ -35,20 +40,49 @@ export class LevelAnalyzer {
     const level = Math.min(1, Math.max(0, (norm + punch) * gain)) ** 0.8
 
     const energy = rms * rms
-    let avg = energy
+    // The energies of the last second, of the last ~240 ms and of the window before this
+    // one. The history is a ring: entry k back from historyPos is the k-th most recent.
+    let avg = energy, shortAvg = energy, prev = energy
     if (this.historyCount > 0) {
+      const back = (k: number) => this.history[(this.historyPos + this.history.length - 1 - k) % this.history.length]
       avg = 0
-      for (let i = 0; i < this.historyCount; i++) avg += this.history[i]
+      for (let k = 0; k < this.historyCount; k++) avg += back(k)
       avg /= this.historyCount
+      const shortCount = Math.min(this.historyCount, 6)
+      shortAvg = 0
+      for (let k = 0; k < shortCount; k++) shortAvg += back(k)
+      shortAvg /= shortCount
+      prev = back(0)
     }
     this.history[this.historyPos] = energy
     this.historyPos = (this.historyPos + 1) % this.history.length
     if (this.historyCount < this.history.length) this.historyCount++
+    this.sinceNoteMs += windowMs
     this.sinceBeatMs += windowMs
-    const threshold = 1.25 + (1 - sensitivity) * 0.8
-    const beat = this.historyCount > 5 && energy > avg * threshold && rms > this.floor * 1.8 + 0.004 && this.sinceBeatMs >= 180
+
+    // A note: the window's energy clearly above the nearest ~240 ms (a slower average keeps
+    // pace with a run and eats it - at 16ths, ~107 ms apart, a note is still 2x its silence)
+    // or a sharp leap from the window before (the run has already pushed the short average).
+    // Notes get out of each other's way at 100 ms; nothing above floor*1.6+0.003 is silence.
+    const noteFactor = 1.12 + (1 - sensitivity) * 0.28
+    const note = this.historyCount > 3
+      && rms > this.floor * 1.6 + 0.003
+      && (energy > shortAvg * noteFactor || energy > prev * 1.6)
+      && this.sinceNoteMs >= 100
+
+    // A beat additionally stands out of the whole last second (kicks and snares punch
+    // through where a hi-hat does not), and it must still spike against the nearest
+    // windows too - a steady loud part never qualifies, however sharp it looks locally.
+    // One at most every 250 ms: no music carries beats faster than 240 a minute.
+    const beatFactor = 1.25 + (1 - sensitivity) * 0.8
+    const beat = this.historyCount > 8
+      && rms > this.floor * 1.8 + 0.004
+      && energy > avg * beatFactor
+      && (energy > shortAvg * 1.35 || energy > prev * 1.6)
+      && this.sinceBeatMs >= 250
+    if (note) this.sinceNoteMs = 0
     if (beat) this.sinceBeatMs = 0
-    return [Math.min(1, Math.max(0, level)), beat]
+    return [Math.min(1, Math.max(0, level)), note, beat]
   }
 }
 
