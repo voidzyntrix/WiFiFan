@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.84',
+    notes: [
+      'the Music and Visualizer tuning panel shows its volume bar again - it was collapsing to zero height whenever the card grew tall enough to scroll',
+    ],
+  },
+
+  {
     version: '2.13.83',
     notes: [
       'the live volume strip is back under the Music and Visualizer cards - the mic level on one, the captured sound\'s on the other, moving while the mode runs',
