@@ -157,7 +157,10 @@ export class SpectrumAnalyzer {
 
 const BAND_HUES = [0, 120, 240]
 
-/** Colour organ: bass red, mids green, treble blue, mixed by strength. Returns (hue, sat). */
+/** Colour organ: bass red, mids green, treble blue, mixed by strength into a hue.
+ *  Saturation was once mixed too (0.45 + 0.55*coherence) - with music's energy spread
+ *  over bands that sat below ~0.8 and most colours came out washed out; it is always
+ *  full now (2.13.82), the band mix only decides WHERE on the wheel the colour sits. */
 export function bandColour(bands: number[], fallbackHue: number): [number, number] {
   let x = 0, y = 0, sum = 0
   for (let i = 0; i < 3; i++) {
@@ -167,10 +170,8 @@ export function bandColour(bands: number[], fallbackHue: number): [number, numbe
     y += w * Math.sin(a)
     sum += w
   }
-  if (sum < 1e-4) return [fallbackHue, 0.6]
-  const hue = normHue((Math.atan2(y, x) * 180) / Math.PI)
-  const coherence = Math.sqrt(x * x + y * y) / sum
-  return [hue, Math.min(1, Math.max(0, 0.45 + 0.55 * coherence))]
+  if (sum < 1e-4) return [fallbackHue, 1]           /* silence: the picked hue, full sat */
+  return [normHue((Math.atan2(y, x) * 180) / Math.PI), 1]
 }
 
 /** Separate LEDs: LED1 the low end, LED2 the high end; returns (hue, sat, weight) each. */
