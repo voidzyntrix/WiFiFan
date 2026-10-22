@@ -284,6 +284,27 @@ instead of the whole ring) and applies the same setting to Visualizer.
 
 `FW_VERSION` bumps to 2.1.17; no version gate moves (2.2.0 stays reserved for `imp=`).
 
+## 2.1.18 - the decay ends in black (2.1.17's ran backwards)
+
+The trail looked wrong: LEDs seemed to get brighter, not fade. The envelope itself
+was right (each pixel's output drops toward black over decay_ms) - the ending was
+not. When a pixel's countdown ran out, 2.1.17 cleared its decay mark and nothing
+else: the pixel's stored colour stayed in place, and the output redraws never stop
+during a stream (the beat's own LED is re-written every frame), so the next redraw
+took the pixel off its stored colour again - a jump back to full brightness the
+moment its fade reached black. In motion every pixel went bright, faded down,
+snapped bright again and stayed lit until its beat came round: the ring looked
+brighter everywhere the beat had been.
+
+Now expiry blackens the pixel's own state: shown value 0, target RGB 0, no fade -
+every later redraw shows black, as if nothing had ever written it. The next `p=`
+write takes it the normal way (a quick fade in, which reads as the beat landing).
+`decay=0` behaviour is unchanged; nothing else is touched. The app treats `decay=`
+as a 2.1.18 word now (a 2.1.17 board keeps the app-streamed trail, which never had
+the bug) and gained a Beat trail decay slider for Music and Visualizer.
+
+`FW_VERSION` bumps to 2.1.18; no version gate moves (2.2.0 stays reserved for `imp=`).
+
 
 
 

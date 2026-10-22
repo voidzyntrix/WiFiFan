@@ -54,7 +54,8 @@ Streaming (music, visualizer, screen sync) keeps using `hh=` per frame with
 ("one LED per beat" in the app): each beat lands on the next pixel. The board
 runs the trail itself (2.1.17): the app sends `decay=MS\` once, then a single
 `p=I/H/S/V\` per frame, and every pixel the beat left behind fades to black
-by itself. Screen sync keeps its two halves.
+by itself (staying black until the beat writes it again). Screen sync keeps
+its two halves.
 
 ## Reading the ring from the app
 

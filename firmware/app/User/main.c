@@ -104,7 +104,7 @@
 
 #define WS_USE_DMA   1               /* 1 = timer + DMA, 0 = polled SysTick */
 
-#define FW_VERSION   "2.1.17"    /* reported by "ver"; bump for each release */
+#define FW_VERSION   "2.1.18"    /* reported by "ver"; bump for each release */
 
 #define START_BAUD   115200          /* used until a baud rate has been detected */
 
@@ -1111,11 +1111,16 @@ static void led_poll(void)
         for (int i = 0; i < RING_PIXELS; i++) {
             if (L[i].fading || anim) hsv_to_rgb(L[i].shown, px[i]);
             else memcpy(px[i], L[i].target_rgb, 3);    /* settled: exact requested RGB */
-            if (L[i].decay_at) {                      /* decay= (2.1.17): fades to black on its own */
+            if (L[i].decay_at) {                      /* decay= (2.1.18): fades to black on its own */
                 const int32_t  left = (int32_t)(L[i].decay_at - t);
                 const uint32_t dur  = decay_ms * TICKS_PER_MS;
-                if (left < 0) {                           /* run out: this write takes it black */
-                    for (int c = 0; c < 3; c++) px[i][c] = 0;
+                if (left < 0) {                           /* run out: black, and it stays black */
+                    /* the pixel's own memory goes black too - the output redraws it all the
+                     * time (the beat's LED re-arms), and a settled colour would jump it back
+                     * to full brightness, undoing the whole fade (2.1.17 did exactly that) */
+                    L[i].fading = 0;
+                    L[i].shown.v = 0;
+                    L[i].target_rgb[0] = 0; L[i].target_rgb[1] = 0; L[i].target_rgb[2] = 0;
                     L[i].decay_at = 0;
                 }
                 else if (decay_ms && left < (int32_t)dur) {   /* linear to black over decay_ms */
