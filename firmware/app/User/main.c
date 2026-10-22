@@ -104,7 +104,7 @@
 
 #define WS_USE_DMA   1               /* 1 = timer + DMA, 0 = polled SysTick */
 
-#define FW_VERSION   "2.1.19"    /* reported by "ver"; bump for each release */
+#define FW_VERSION   "2.1.20"    /* reported by "ver"; bump for each release */
 
 #define START_BAUD   115200          /* used until a baud rate has been detected */
 
@@ -552,6 +552,9 @@ typedef struct {
     float    cd_flick, cd_target;            /* candle flicker */
     uint32_t rnd;                            /* own xorshift32 state */
     uint32_t decay_at;                       /* "decay=" (2.1.17): tick this pixel starts fading to black */
+    uint16_t trail_ms;                       /* the trail time this pixel armed with (2.1.20): the
+                                              * countdown's length belongs to the write, so a later
+                                              * decay= (slider drag) can't jump a running fade */
 } led_t;
 
 static led_t    L[RING_PIXELS];
@@ -693,7 +696,7 @@ static void end_modes(void)
 static void decay_stop(void)
 {
     decay_ms = 0;
-    for (int i = 0; i < RING_PIXELS; i++) L[i].decay_at = 0;
+    for (int i = 0; i < RING_PIXELS; i++) { L[i].decay_at = 0; L[i].trail_ms = 0; }
 }
 
 /* One half of the ring (0 = LED1, 1 = LED2), from an HSV command (h1=/h2=/hh=). */
@@ -1113,7 +1116,7 @@ static void led_poll(void)
             else memcpy(px[i], L[i].target_rgb, 3);    /* settled: exact requested RGB */
             if (L[i].decay_at) {                      /* decay= (2.1.18): fades to black on its own */
                 const int32_t  left = (int32_t)(L[i].decay_at - t);
-                const uint32_t dur  = decay_ms * TICKS_PER_MS;
+                const uint32_t dur  = L[i].trail_ms * TICKS_PER_MS;
                 if (left < 0) {                           /* run out: black, and it stays black */
                     /* the pixel's own memory goes black too - the output redraws it all the
                      * time (the beat's LED re-arms), and a settled colour would jump it back
@@ -1122,8 +1125,13 @@ static void led_poll(void)
                     L[i].shown.v = 0;
                     L[i].target_rgb[0] = 0; L[i].target_rgb[1] = 0; L[i].target_rgb[2] = 0;
                     L[i].decay_at = 0;
+                    /* AND the frame itself must draw black: px already holds the raw colour
+                     * (copied before this branch, the envelope only ever scaled px), and the
+                     * next redraw is the next beat's write - so 2.1.19 sent every dying dot
+                     * for one frame at full brightness: near zero, blink, back to zero */
+                    px[i][0] = 0; px[i][1] = 0; px[i][2] = 0;
                 }
-                else if (decay_ms && left < (int32_t)dur) {   /* linear to black over decay_ms */
+                else if (L[i].trail_ms && left < (int32_t)dur) {   /* linear to black over trail_ms */
                     /* k = left * 256 / dur: left and dur are ticks (72000 a ms), so the
                      * multiply passes 32 bits for anything over ~233 ms of decay (2.1.18
                      * and older wrapped it round and flickered through most of the fade) */
@@ -1365,7 +1373,7 @@ static void led_pixel(uint8_t p, hsv_t c)
     /* decay= (2.1.17): while it is armed, a written pixel fades to black when
      * nothing re-arms it - the streaming modes' per-LED trail is the board's
      * to run, and it restarts on every fresh write. */
-    if (decay_ms) L[p].decay_at = now() + decay_ms * TICKS_PER_MS;
+    if (decay_ms) { L[p].decay_at = now() + decay_ms * TICKS_PER_MS; L[p].trail_ms = decay_ms; }
 }
 
 /* Several pixels, from pal=H/S/V,H/S/V,... (2.1.0): entry k is pixel k. Stops at the
@@ -1570,7 +1578,7 @@ static void line_end(void)
     }
     else if (strncmp(w, "decay=", 6) == 0 && parse_nums(w + 6, n, 1, 5000)) {   /* 2.1.17 */
         decay_ms = n[0];
-        if (!decay_ms) for (int i = 0; i < RING_PIXELS; i++) L[i].decay_at = 0;   /* pixels hold */
+        if (!decay_ms) for (int i = 0; i < RING_PIXELS; i++) { L[i].decay_at = 0; L[i].trail_ms = 0; }   /* pixels hold */
     }
     else if (strncmp(w, "rain=", 5) == 0 && parse_nums(w + 5, n, 3, 120) && n[0] <= 100 && n[1] <= 100) {
         uint16_t sec = n[2] < 2 ? 2 : n[2];

@@ -328,6 +328,30 @@ trail, which never had the arithmetic bug.
 
 `FW_VERSION` bumps to 2.1.19; no version gate moves (2.2.0 stays reserved for `imp=`).
 
+## 2.1.20 - the last blink: the expiring frame drew the dot at full once
+
+With the arithmetic honest (2.1.19) the trail finally swept cleanly - and one
+fixed flicker became visible: as a dot reached the very end of its trail it
+blinked once at full brightness and then went to black. The cause was in the
+countdown's expiry branch, and had been since 2.1.17: the branch blackens the
+pixel's memory (shown, the settled colour, the countdown) but never touched the
+frame being sent - `px` had been copied from the settled colour *before* the
+branch ran, and the envelope only ever scaled `px`, so the expiry frame sent
+the raw full-brightness colour. The next redraw only happens with the next
+beat's write, so every dying dot read: near zero, one full-brightness frame,
+zero. 2.1.17 let the bright frame stick (the bounce-back), 2.1.18 fixed the
+memory but still drew the frame - only after the 64-bit fix was this the one
+glitch left, and now it is gone: the expiry frame draws black too.
+
+Also each pixel now carries the trail time it armed with (2.1.20). The
+envelope used to divide by the *current* `decay=`, so dragging the trail
+slider down mid-stream left running dots above the new duration - the scale
+branch was skipped and they jumped to full. A countdown's length now belongs
+to the write that started it; the slider only shapes future dots.
+
+`FW_VERSION` bumps to 2.1.20; the app asks for 2.1.20 before it sends `decay=`
+(a 2.1.19 board keeps its in-app streamed trail until it updates).
+
 
 
 
