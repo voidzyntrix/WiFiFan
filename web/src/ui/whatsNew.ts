@@ -2,6 +2,14 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.76',
+    notes: [
+      'Visualizer joins Music\'s one LED per beat: every beat paints its pixel with the spectrum\'s colour, the recent spectra trail round the ring',
+      'The beat trail now fades out on the board itself (firmware 2.1.17\'s decay=) - one tiny command per beat instead of the whole ring, so the trail survives even when the Bluetooth link backs up',
+    ],
+  },
+
+  {
     version: '2.13.75',
     notes: [
       'Music: one LED per beat - every beat lights the next pixel round the ring, a short trail fading behind it (a switch in the Music tab; needs board firmware 2.1.0+)',
