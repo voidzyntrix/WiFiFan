@@ -39,8 +39,9 @@ export const syncParams = {
   /** Separate LEDs wanted and the board has them. */
   split: false, hue2: 210, sat2: 1,
   /** The ring's pixel count when the board reported one (0 = unknown), the music per-LED setting,
-   *  and how long a beat's LED trails before it is back to black (decay=MS, the board's job on 2.1.20+). */
-  pixels: 0, perLed: true, decayMs: 700,
+   *  how long a beat's LED trails before it is back to black (decay=MS, the board's job on 2.1.20+),
+   *  and whether beats land on random pixels instead of the next one round the ring. */
+  pixels: 0, perLed: true, decayMs: 700, randomLed: false,
 }
 
 let snap: SyncSnapshot = { active: 'NONE', level: 0, hue: 0, sat: 1, level2: 0, hue2: 0, sat2: 1, pixelVals: null, pixelHues: null }
@@ -224,6 +225,12 @@ function runAudio(kind: 'MUSIC' | 'VISUALIZER', stream: MediaStream) {
       if (board.snapshot.state === 'connected' && fw('2.1.20')) board.sendData('decay=0')
     }
   }
+  // Where the next beat lands: the next pixel round the ring - or, Random LEDs,
+  // any of the other N-1 pixels, drawn evenly and never the one that just lit,
+  // so two beats in a row never fold onto the same dot.
+  const stepBeatPix = (random: boolean) => {
+    beatPix = random ? (beatPix + 1 + Math.floor(Math.random() * (N - 1))) % N : (beatPix + 1) % N
+  }
 
   const tick = () => {
     analyser.getFloatTimeDomainData(buf)
@@ -254,7 +261,7 @@ function runAudio(kind: 'MUSIC' | 'VISUALIZER', stream: MediaStream) {
         if (p.keepColour) trailHue.fill(p.hue)           // "My colour": every pixel takes the picked one
         if (beat) {
           if (!p.keepColour) beatHue = (beatHue + 47) % 360
-          beatPix = (beatPix + 1) % N
+          stepBeatPix(p.randomLed)
         }
         h = p.keepColour ? p.hue : beatHue
         s = p.keepColour ? p.sat : 1
@@ -264,7 +271,7 @@ function runAudio(kind: 'MUSIC' | 'VISUALIZER', stream: MediaStream) {
         const [bh, bs] = bandColour(bands!, hue)
         hue = bh
         h = bh; s = bs
-        if (beat) beatPix = (beatPix + 1) % N
+        if (beat) stepBeatPix(p.randomLed)
       }
       const l = flash.apply(raw, beat, WINDOW_MS, p.beatFlash)
       if (beat) {
