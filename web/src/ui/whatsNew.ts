@@ -2,6 +2,14 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.78',
+    notes: [
+      'Fixed: the beat\'s LED blinked, because the app kept re-touching it and each touch restarted its fade while the board was already fading that LED down. A beat now lights its LED once and the board does all the fading, so every LED goes up once and smoothly back to black',
+      'The Beat trail decay slider now starts at 300 ms, where the fade stays smooth',
+    ],
+  },
+
+  {
     version: '2.13.77',
     notes: [
       'Fixed: the per-LED beat trail decay ran backwards on the board, LEDs bounced back to bright where a beat passed - flash firmware 2.1.18 with it',
