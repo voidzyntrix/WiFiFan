@@ -9,8 +9,7 @@
  *   send  p=I/H/S/V -> one pixel I (0-23) to HSV (2.1.0)
  *   send  pal=H/S/V,H/S/V,... -> pixel k = entry k, up to 24 entries (2.1.0)
  *   send  decay=MS -> while armed, p= pixels fade to black over MS when not
- *                      re-armed; decay=0 holds (2.1.17). 2.1.21: h=/l= re-arm
- *                      every pixel too, so one command is a flash the board fades
+ *                      re-armed; decay=0 holds (2.1.17)
  *   send  h1=H/S/V, h2=H/S/V, l1=R/G/B, l2=R/G/B -> colour of one half of the ring
  *                      (works in both modes); ends any effect
  *   send  hh=H1/S1/V1/H2/S2/V2 -> both halves in one command (for streaming)
@@ -105,7 +104,7 @@
 
 #define WS_USE_DMA   1               /* 1 = timer + DMA, 0 = polled SysTick */
 
-#define FW_VERSION   "2.1.21"    /* reported by "ver"; bump for each release */
+#define FW_VERSION   "2.1.22"    /* reported by "ver"; bump for each release */
 
 #define START_BAUD   115200          /* used until a baud rate has been detected */
 
@@ -700,17 +699,6 @@ static void decay_stop(void)
     for (int i = 0; i < RING_PIXELS; i++) { L[i].decay_at = 0; L[i].trail_ms = 0; }
 }
 
-/* The pixels a full-ring colour write covers take the decay countdown too (2.1.21):
- * h=/l= re-arm every pixel, exactly as p= re-arms the one it wrote - the streaming
- * modes' whole-ring beat flash is one command, and the board fades what it hit. */
-static void decay_arm_all(void)
-{
-    if (decay_ms) {
-        const uint32_t at = now() + decay_ms * TICKS_PER_MS;
-        for (uint8_t p = 0; p < RING_PIXELS; p++) { L[p].decay_at = at; L[p].trail_ms = decay_ms; }
-    }
-}
-
 /* One half of the ring (0 = LED1, 1 = LED2), from an HSV command (h1=/h2=/hh=). */
 static void led_hsv_one(uint8_t half, hsv_t c)
 {
@@ -746,7 +734,6 @@ static void led_colour(uint8_t r, uint8_t g, uint8_t b)
     if (spin && spin_brightness_only(c)) return;
     end_modes();
     for (uint8_t p = 0; p < RING_PIXELS; p++) fade_led(p, c, rgb);
-    decay_arm_all();
 }
 
 /* The whole ring, from an HSV command (h=). */
@@ -757,7 +744,6 @@ static void led_hsv(hsv_t c)
     hsv_to_rgb(c, rgb);
     end_modes();
     for (uint8_t p = 0; p < RING_PIXELS; p++) fade_led(p, c, rgb);
-    decay_arm_all();
 }
 
 /* Rainbow mode with saturation [s] and brightness [v] (0-255). The wheel sits

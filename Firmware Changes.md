@@ -371,6 +371,18 @@ streaming beats to: without `decay=`, `h=`/`l=` behave exactly as before.
 `FW_VERSION` bumps to 2.1.21; the app flashes the ring only on 2.1.21 - on
 2.1.20 a beat still lands on its one pixel like any fast note.
 
+## 2.1.22 - the one-command whole-ring flash is gone again
+
+2.1.21 armed the decay countdown from `h=`/`l=` writes so the app's Music and
+Visualizer modes could flash the entire ring with one command per beat. The
+app moved away from that visual (a beat carries its LED again, like any fast
+note), and the re-arm has no caller left: it is taken back out. `decay=` keeps
+its 2.1.17 contract exactly, a `p=` write re-arms the one pixel it wrote, and
+a full-ring `h=`/`l=` holds its colour as before. Boards that took 2.1.21
+behave no differently from the app either way.
+
+`FW_VERSION` bumps to 2.1.22.
+
 
 
 
