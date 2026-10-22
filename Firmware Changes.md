@@ -305,6 +305,29 @@ the bug) and gained a Beat trail decay slider for Music and Visualizer.
 
 `FW_VERSION` bumps to 2.1.18; no version gate moves (2.2.0 stays reserved for `imp=`).
 
+## 2.1.19 - the fade's math overflowed (the flicker was arithmetic, not timing)
+
+2.1.18 still flickered, and looking again at the envelope with real numbers found
+the culprit - not the app, not the beat detection, not the streaming: one line of
+arithmetic. The fade steps each pixel down by k = left * 256 / decay_ms, where
+left and decay_ms are counted in raw CPU ticks (72000 a millisecond). For a
+700 ms decay that multiply is 12.9 billion - over three times what the 32-bit
+value can hold - so it wrapped, and k came out small and jumping: for every
+pixel the first ~470 ms of a 700 ms fade was a jumble of wrong brightnesses (the
+just-hit dot started near-black), and only the last ~233 ms drew a proper fade -
+the span below which left * 256 still fits. Every decay= release so far has
+shown exactly this: flashes in brightness, flicker, no clean fade to black.
+
+The multiply now runs in 64 bits, so k is exact from full brightness down to
+black at any decay time (1-5000 ms). Nothing else moves: expiry stays blackened
+(2.1.18), decay=0 holds, the effects still clear their pixels. With a correct
+envelope the one-LED-per-beat trail finally runs as designed: the dot rises
+with its beat, then walks linearly down to black. The app asks for 2.1.19
+before it hands the trail to the board - an older one keeps the app-streamed
+trail, which never had the arithmetic bug.
+
+`FW_VERSION` bumps to 2.1.19; no version gate moves (2.2.0 stays reserved for `imp=`).
+
 
 
 

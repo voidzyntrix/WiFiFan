@@ -104,7 +104,7 @@
 
 #define WS_USE_DMA   1               /* 1 = timer + DMA, 0 = polled SysTick */
 
-#define FW_VERSION   "2.1.18"    /* reported by "ver"; bump for each release */
+#define FW_VERSION   "2.1.19"    /* reported by "ver"; bump for each release */
 
 #define START_BAUD   115200          /* used until a baud rate has been detected */
 
@@ -1124,7 +1124,10 @@ static void led_poll(void)
                     L[i].decay_at = 0;
                 }
                 else if (decay_ms && left < (int32_t)dur) {   /* linear to black over decay_ms */
-                    const uint32_t k = (uint32_t)left * 256u / dur;
+                    /* k = left * 256 / dur: left and dur are ticks (72000 a ms), so the
+                     * multiply passes 32 bits for anything over ~233 ms of decay (2.1.18
+                     * and older wrapped it round and flickered through most of the fade) */
+                    const uint32_t k = (uint32_t)(((uint64_t)left * 256u) / dur);
                     for (int c = 0; c < 3; c++) px[i][c] = (uint8_t)((px[i][c] * k + 127u) >> 8);
                 }
             }
