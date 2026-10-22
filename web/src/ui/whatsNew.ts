@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.81',
+    notes: [
+      'new Random LEDs switch on the Music and Visualizer tuning panel: each beat lands anywhere on the ring instead of the next pixel round it, and never the same LED twice in a row',
+    ],
+  },
+
+  {
     version: '2.13.80',
     notes: [
       'the end of the trail is clean too: a dying dot no longer blinks once at full brightness before going black (firmware 2.1.20 fixes the last flicker)',
