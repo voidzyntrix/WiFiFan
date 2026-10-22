@@ -2,6 +2,14 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.77',
+    notes: [
+      'Fixed: the per-LED beat trail decay ran backwards on the board, LEDs bounced back to bright where a beat passed - flash firmware 2.1.18 with it',
+      'New: a Beat trail decay slider on the Music and Visualizer cards (needs firmware 2.1.18) - drag how fast a beat LED fades to black, it answers live while the music plays',
+    ],
+  },
+
+  {
     version: '2.13.76',
     notes: [
       'Visualizer joins Music\'s one LED per beat: every beat paints its pixel with the spectrum\'s colour, the recent spectra trail round the ring',
