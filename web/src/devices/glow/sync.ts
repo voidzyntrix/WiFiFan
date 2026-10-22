@@ -267,14 +267,19 @@ function runAudio(kind: 'MUSIC' | 'VISUALIZER', stream: MediaStream) {
         if (beat) beatPix = (beatPix + 1) % N
       }
       const l = flash.apply(raw, beat, WINDOW_MS, p.beatFlash)
-      trail[beatPix] = Math.max(trail[beatPix], 0.04 + 0.96 * l)
-      trailHue[beatPix] = h
+      if (beat) {
+        // A beat is one touch of one LED: its colour and the moment's brightness, once.
+        // From there the board does all the changing - no more app touches, no restarted
+        // fades, nothing pulsing bright/dim between them.
+        trail[beatPix] = 0.04 + 0.96 * l
+        trailHue[beatPix] = h
+      }
       publish({ level: l, hue: h, sat: s, pixelVals: trail, pixelHues: trailHue })
-      if (p.bri >= MIN_VISIBLE && due(beat ? 0 : SEND_GAP_AUDIO) && !board.backlogged) {
+      if (beat && p.bri >= MIN_VISIBLE && !board.backlogged) {
         if (boardDecay) {
-          // the board decays by itself: one `p=` for the beat's LED, everything else is its
-          // business. One LED = a couple of characters a frame.
-          board.sendData(LedCommands.pixel(beatPix, trailHue[beatPix], s, Math.min(1, p.bri * trail[beatPix])))
+          // the board fades every pixel the beat leaves behind; the app sends one tiny
+          // `p=` per beat and nothing in between
+          board.sendData(LedCommands.pixel(beatPix, trailHue[beatPix], s, p.bri * trail[beatPix]))
         } else {
           // older firmware: the app streams the trail itself, every lit pixel per tick
           for (let i = 0; i < N; i++) {

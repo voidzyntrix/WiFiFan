@@ -137,8 +137,8 @@ export function TuneTab({ c }: { c: LedController }) {
             <SettingSwitch title="One LED per beat" subtitle="Each beat lands on the next pixel round the ring; every beat's LED fades out to black again" checked={prefs.musicPerPixel} onChange={(v) => set({ musicPerPixel: v })} />
             {prefs.musicPerPixel && (
               <>
-                <SliderLabel text="Beat trail decay" value={`${prefs.musicDecayMs} ms`} />
-                <LevelBar label="Beat trail decay" fraction={(prefs.musicDecayMs - 100) / 1900} onFraction={(f) => set({ musicDecayMs: 100 + Math.round((f * 1900) / 50) * 50 })} onFinished={() => {}} />
+                <SliderLabel text="Beat trail decay" value={`${Math.max(300, Math.min(2000, prefs.musicDecayMs))} ms`} />
+                <LevelBar label="Beat trail decay" fraction={(Math.max(300, Math.min(2000, prefs.musicDecayMs)) - 300) / 1700} onFraction={(f) => set({ musicDecayMs: 300 + Math.round((f * 1700) / 50) * 50 })} onFinished={() => {}} />
               </>
             )}
           </>
