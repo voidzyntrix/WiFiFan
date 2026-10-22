@@ -2,6 +2,14 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.79',
+    notes: [
+      'Found it for real: the fade flicker was the board\'s own math overflowing and wrapping - flash firmware 2.1.19 and the beat trail finally fades cleanly all the way down',
+      'music and visualizer now hand the trail to the board only from firmware 2.1.19 on - older boards keep the app\'s own trail, which never had the bug',
+    ],
+  },
+
+  {
     version: '2.13.78',
     notes: [
       'Fixed: the beat\'s LED blinked, because the app kept re-touching it and each touch restarted its fade while the board was already fading that LED down. A beat now lights its LED once and the board does all the fading, so every LED goes up once and smoothly back to black',
