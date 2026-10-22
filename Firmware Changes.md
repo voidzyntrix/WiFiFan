@@ -254,6 +254,36 @@ their own unit per notch).
 
 `FW_VERSION` bumps to 2.1.16; no version gate moves (2.2.0 stays reserved for `imp=`).
 
+## 2.1.17 - the board fades the per-LED music trail by itself (decay=MS)
+
+The app's one-LED-per-beat Music walked the ring live, but the trail behind it was
+the app's job: every frame it re-sent each still-lit pixel at its shrinking
+brightness. When the Bluetooth link backed up (connection interval stretching,
+a busy palette write in the way), those trail updates were the frames that got
+dropped - so LEDs stuck on until a beat came back round to them. The moment the
+kill was the decay living on the wrong side of the link.
+
+So now the board owns it: `decay=MS` (0-5000, not saved) arms a per-pixel decay
+envelope. While it is armed, every `p=` write restarts that pixel's countdown -
+a pixel the beat is sitting on keeps getting re-armed, and everything it left
+behind fades linearly to black over MS with no help from the phone. The output
+side goes to black exactly (the settled RGB is scaled at write time, so a pixel
+never flashes back), and once its time is out the pixel holds black until the
+next write.
+
+`decay=0` stops the discharge: pixels keep whatever colour they were showing
+(the app uses this when Music stops, instead of leaving them under an envelope
+while the normal mode writes arrive). Every other colour command - `h=`, `h1=/
+h2=`, `l=`, `off`, the picker, `pal=` - touches pixels under `fade_led`, which
+now clears each pixel's decay: a fresh colour is its own, no envelope over it.
+And the four effects (`rain`, `candle=`, `breathe`, `spin=`) call a new
+`decay_stop()` at entry, so none of them lay their colours over a pixel that is
+still counting down. Nothing saved anywhere: a reboot boots with decay off.
+The app sends one `p=` per frame in that mode now (a handful of characters
+instead of the whole ring) and applies the same setting to Visualizer.
+
+`FW_VERSION` bumps to 2.1.17; no version gate moves (2.2.0 stays reserved for `imp=`).
+
 
 
 

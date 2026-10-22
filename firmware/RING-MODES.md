@@ -47,12 +47,14 @@ app's "one flame / two candles" choice no longer does anything.
 | Breathe | `breathe=V\` |
 | Spinner, hue/sat/val, seconds per turn | `spin=H/S/V/T\` (T 1-60) |
 | Fade time | `fade=MS\` |
+| Decay time (streaming) | `decay=MS\` (2.1.17) |
 
 Streaming (music, visualizer, screen sync) keeps using `hh=` per frame with
-`fade=0\` or `fade=40\`. Music can also light one LED per beat ("one LED per beat"
-in the app): each beat lands on the next pixel, and the app streams the lit pixel
-plus the still-fading ones behind it as a few short `p=I/H/S/V\` lines per frame,
-still ruled by `fade=`. Visualizer and screen sync keep their two halves.
+`fade=0\` or `fade=40\`. Music and Visualizer can also light one LED per beat
+("one LED per beat" in the app): each beat lands on the next pixel. The board
+runs the trail itself (2.1.17): the app sends `decay=MS\` once, then a single
+`p=I/H/S/V\` per frame, and every pixel the beat left behind fades to black
+by itself. Screen sync keeps its two halves.
 
 ## Reading the ring from the app
 

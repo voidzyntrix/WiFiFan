@@ -8,6 +8,8 @@
  *   send  split=1  ->  Separate: every pixel is individual (candles, breathe)
  *   send  p=I/H/S/V -> one pixel I (0-23) to HSV (2.1.0)
  *   send  pal=H/S/V,H/S/V,... -> pixel k = entry k, up to 24 entries (2.1.0)
+ *   send  decay=MS -> while armed, p= pixels fade to black over MS when not
+ *                      re-armed; decay=0 holds (2.1.17)
  *   send  h1=H/S/V, h2=H/S/V, l1=R/G/B, l2=R/G/B -> colour of one half of the ring
  *                      (works in both modes); ends any effect
  *   send  hh=H1/S1/V1/H2/S2/V2 -> both halves in one command (for streaming)
@@ -102,7 +104,7 @@
 
 #define WS_USE_DMA   1               /* 1 = timer + DMA, 0 = polled SysTick */
 
-#define FW_VERSION   "2.1.16"    /* reported by "ver"; bump for each release */
+#define FW_VERSION   "2.1.17"    /* reported by "ver"; bump for each release */
 
 #define START_BAUD   115200          /* used until a baud rate has been detected */
 
@@ -549,6 +551,7 @@ typedef struct {
     hsv_t    fx_base;                        /* breathe: the colour that animates */
     float    cd_flick, cd_target;            /* candle flicker */
     uint32_t rnd;                            /* own xorshift32 state */
+    uint32_t decay_at;                       /* "decay=" (2.1.17): tick this pixel starts fading to black */
 } led_t;
 
 static led_t    L[RING_PIXELS];
@@ -567,6 +570,7 @@ static uint32_t flash_end, last_frame;
 #define TICKS_PER_HUE  (RAINBOW_MS * TICKS_PER_MS / HUE_MAX)
 
 static uint32_t fade_ms = FADE_MS;          /* "fade=" */
+static uint32_t decay_ms = 0;               /* "decay=" (2.1.17), 0 = off: p= writes fade out by themselves */
 static uint32_t ticks_per_hue = TICKS_PER_HUE;   /* "rain=S/V/T" */
 static uint8_t  rainbow, rb_ramp;            /* mode on / still easing S and V */
 static uint8_t  rb_s = 255, rb_v = 255;      /* rainbow saturation / brightness */
@@ -642,6 +646,7 @@ static void fade_led(uint8_t i, hsv_t to, const uint8_t rgb[3])
 {
     led_t *d = &L[i];
 
+    d->decay_at = 0;                    /* a fresh colour is its own: no decay envelope over it */
     memcpy(d->target_rgb, rgb, 3);
     d->fade_from = d->shown;
     d->fade_to   = to;
@@ -680,6 +685,15 @@ static void end_modes(void)
     candle  = 0;
     fx      = FX_NONE;
     spin    = 0;
+}
+
+/* Stop the decay= stream state (2.1.17): nothing armed, nothing counting down
+ * to black. The effects lay their own colours every frame - none of them may
+ * keep fading out underneath. */
+static void decay_stop(void)
+{
+    decay_ms = 0;
+    for (int i = 0; i < RING_PIXELS; i++) L[i].decay_at = 0;
 }
 
 /* One half of the ring (0 = LED1, 1 = LED2), from an HSV command (h1=/h2=/hh=). */
@@ -738,6 +752,7 @@ static void led_rainbow(uint8_t s, uint8_t v)
 {
     uint32_t t = now();
 
+    decay_stop();                   /* the wheel lays its own colours; no pixel fades away under it */
     for (int i = 0; i < RING_PIXELS; i++) {
         L[i].rb_from = L[i].shown;
         if (!rainbow && (L[i].shown.v == 0 || L[i].shown.s == 0)) L[i].shown.h = 0;
@@ -771,6 +786,7 @@ static void led_candle(uint8_t v, uint8_t smooth)
     hsv_t   c = { cd_hue, CANDLE_SAT, v };
     uint8_t rgb[3];
 
+    decay_stop();                   /* the flames lay their own colours; no pixel fades away under them */
     hsv_to_rgb(c, rgb);
     rainbow = 0;
     fx      = FX_NONE;
@@ -798,6 +814,7 @@ static void led_fx(uint8_t v)
 {
     uint8_t keep_v = last_v;
 
+    decay_stop();                   /* breathe lays its own colours; no pixel fades away under it */
     for (int p = 0; p < RING_PIXELS; p++) L[p].fx_base = split ? L[p].fade_to : L[0].fade_to;
     rainbow = 0;
     candle  = 0;
@@ -850,6 +867,7 @@ static void led_spin(hsv_t c, uint32_t secs, uint16_t falloff_pct, uint8_t fallo
     uint32_t old_period = spin_period;
     uint32_t old_t     = spin_t;
 
+    decay_stop();                   /* the spinner lays its own colours; no pixel fades away under it */
     end_modes();
     for (int i = 0; i < RING_PIXELS; i++) L[i].fading = 0;
     spin_c      = c;
@@ -988,6 +1006,10 @@ static void led_poll(void)
         dirty = 1;                  /* put the normal colour back */
     }
 
+    if (frame)                      /* decay= (2.1.17): a countdown keeps redrawing its pixel */
+        for (int i = 0; i < RING_PIXELS; i++)
+            if (L[i].decay_at) { dirty = 1; break; }
+
     for (int i = 0; i < RING_PIXELS; i++) {
         led_t *d = &L[i];
         if (!d->fading) continue;
@@ -1089,6 +1111,18 @@ static void led_poll(void)
         for (int i = 0; i < RING_PIXELS; i++) {
             if (L[i].fading || anim) hsv_to_rgb(L[i].shown, px[i]);
             else memcpy(px[i], L[i].target_rgb, 3);    /* settled: exact requested RGB */
+            if (L[i].decay_at) {                      /* decay= (2.1.17): fades to black on its own */
+                const int32_t  left = (int32_t)(L[i].decay_at - t);
+                const uint32_t dur  = decay_ms * TICKS_PER_MS;
+                if (left < 0) {                           /* run out: this write takes it black */
+                    for (int c = 0; c < 3; c++) px[i][c] = 0;
+                    L[i].decay_at = 0;
+                }
+                else if (decay_ms && left < (int32_t)dur) {   /* linear to black over decay_ms */
+                    const uint32_t k = (uint32_t)left * 256u / dur;
+                    for (int c = 0; c < 3; c++) px[i][c] = (uint8_t)((px[i][c] * k + 127u) >> 8);
+                }
+            }
         }
         if (candle) { candle_out(px); ws_write((const uint8_t (*)[3])px); }
         else        ws_set((const uint8_t (*)[3])px);
@@ -1320,6 +1354,10 @@ static void led_pixel(uint8_t p, hsv_t c)
     hsv_to_rgb(c, rgb);
     end_modes();
     fade_led(p, c, rgb);
+    /* decay= (2.1.17): while it is armed, a written pixel fades to black when
+     * nothing re-arms it - the streaming modes' per-LED trail is the board's
+     * to run, and it restarts on every fresh write. */
+    if (decay_ms) L[p].decay_at = now() + decay_ms * TICKS_PER_MS;
 }
 
 /* Several pixels, from pal=H/S/V,H/S/V,... (2.1.0): entry k is pixel k. Stops at the
@@ -1521,6 +1559,10 @@ static void line_end(void)
     }
     else if (strncmp(w, "fade=", 5) == 0 && parse_nums(w + 5, n, 1, 5000)) {
         fade_ms = n[0];
+    }
+    else if (strncmp(w, "decay=", 6) == 0 && parse_nums(w + 6, n, 1, 5000)) {   /* 2.1.17 */
+        decay_ms = n[0];
+        if (!decay_ms) for (int i = 0; i < RING_PIXELS; i++) L[i].decay_at = 0;   /* pixels hold */
     }
     else if (strncmp(w, "rain=", 5) == 0 && parse_nums(w + 5, n, 3, 120) && n[0] <= 100 && n[1] <= 100) {
         uint16_t sec = n[2] < 2 ? 2 : n[2];

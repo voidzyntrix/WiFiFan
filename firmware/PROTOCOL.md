@@ -80,8 +80,10 @@ was showing. Each pixel fades over the `fade=` time.
 
 Streaming (music / visualizer / screen sync): send `hh=...` per frame, with
 `fade=0\` or `fade=40\` set first. A full `hh=360/100/100/360/100/100\` takes
-~2.3 ms at 115200 baud. Music's one-LED-per-beat mode (app setting) streams the
-lit pixel and its fading trail as a few short `p=I/H/S/V\` lines per frame instead.
+~2.3 ms at 115200 baud. The one-LED-per-beat modes (app setting, Music and
+Visualizer) instead send `decay=700\` once (2.1.17), then a single `p=I/H/S/V\`
+per frame - the pixel holding the beat; every pixel it left fades to black by
+itself, with no help from the app.
 
 ### Effects
 
@@ -117,6 +119,7 @@ turning. Any other colour command, and every other command
 | Command | Meaning | Example |
 |---------|---------|---------|
 | `fade=MS` | colour fade time 0-5000 ms (default 1500; not saved) | `fade=300\` |
+| `decay=MS` | streaming decay (2.1.17), 0-5000 ms: while armed, every `p=` write starts a countdown on that pixel, and if nothing re-arms it, its output fades to black over MS. Any other colour command or effect clears it; `decay=0` stops the fading, pixels hold (not saved) | `decay=700\` |
 | `split=0` / `split=1` | Linked / Separate (see above; not saved) | `split=1\` |
 | `alert=C/S/M` | blink alert (1.8.0): C 1 red / 2 green, two short blinks every S seconds (5-3600) for M minutes (0 = no end), shown over the running mode. A repeat of the same C only refreshes it. The alert ends by itself when no byte arrives for 150 s; `alert=0` cancels (not saved) | `alert=1/60/0\` |
 | `sleep=M` | sleep timer (1.7.0): whatever shows fades smoothly to off over M minutes (1-240); `sleep=0` cancels (not saved) | `sleep=30\` |
