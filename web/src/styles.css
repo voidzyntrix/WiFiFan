@@ -215,6 +215,10 @@ code { font-family: 'JetBrains Mono', monospace; font-size: 0.9em; }
    heading, three sliders and a switch); scrollbars are hidden everywhere, so the drag or
    a swipe on the heading and labels is how it moves - the sliders keep their geometry */
 .deck.tune { gap: 12px; overflow-y: auto; overscroll-behavior: contain; }
+/* the cards' children keep their own heights: shrinkable flex items squash before the
+ * scroll ever starts, and the 10px level meter (near-empty content) was the first to
+ * collapse to zero on the tall Music card - invisible exactly when the panel must scroll */
+.deck.tune > * { flex: none; }
 .deck.colour { justify-content: center; }
 /* Solar has a lot to show (sign-in, live data, grid-loss settings): it scrolls inside the normal card */
 .deck.solar { overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; padding-bottom: 18px; -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent); }   /* the fade says there is more below */
