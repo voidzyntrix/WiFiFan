@@ -101,6 +101,8 @@ export interface Settings {
   roundLedPreview: boolean
   musicSensitivity: number
   musicKeepColour: boolean
+  /** Music: one LED per beat on ring boards (firmware 2.1.0+ streams p=); off = the whole ring. */
+  musicPerPixel: boolean
   beatFlash: boolean
   boardVersions: Record<string, string>
   /** The ring layout per board, from the `leds` reply (1.10.0+): how many pixels and logical LEDs. */
@@ -162,6 +164,7 @@ const DEFAULTS: Settings = {
   roundLedPreview: true,
   musicSensitivity: 0.5,
   musicKeepColour: false,
+  musicPerPixel: true,
   beatFlash: true,
   boardVersions: {},
   boardLeds: {},

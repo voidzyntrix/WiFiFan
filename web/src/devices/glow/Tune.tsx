@@ -1,6 +1,6 @@
 // Every mode's own options, on the control screen (the "tune" tab shows the current mode's):
 //   Solid     colour fade          Rainbow   speed, animated sliders       Candle  flicker, tint, style
-//   Music     sensitivity, colours, beat flash                              Visualizer  sensitivity, beat flash
+//   Music     sensitivity, colours, beat flash, one LED per beat (rings)     Visualizer  sensitivity, beat flash
 //   Screen    which display (PCs with several)
 // Options the board's firmware is too old for say so instead of vanishing.
 
@@ -130,6 +130,11 @@ export function TuneTab({ c }: { c: LedController }) {
       <LevelBar label="Sensitivity" fraction={prefs.musicSensitivity} onFraction={(f) => set({ musicSensitivity: f })} onFinished={() => {}} />
       {s.mode === MODE.MUSIC && (
         <SegmentedPill options={['Beat colours', 'My colour']} selected={prefs.musicKeepColour ? 1 : 0} onSelect={(i) => set({ musicKeepColour: i === 1 })} />
+      )}
+      {s.mode === MODE.MUSIC && c.ring && (     // the whole ring is a two-LED stream there; per-LED beats need pixels
+        c.caps.perPixel
+          ? <SettingSwitch title="One LED per beat" subtitle="Each beat lands on the next pixel round the ring; the trail behind it fades out" checked={prefs.musicPerPixel} onChange={(v) => set({ musicPerPixel: v })} />
+          : needs('2.1.0')
       )}
       <SettingSwitch title="Beat flash" subtitle="A quick burst of brightness on every beat" checked={prefs.beatFlash} onChange={(v) => set({ beatFlash: v })} />
       <PillButton text={`Stop ${s.mode === MODE.MUSIC ? 'music' : 'visualizer'}`} onClick={() => void c.startMode(MODE.SOLID)} />

@@ -613,6 +613,7 @@ export function useLed() {
     hue: st.current.hue, sat: st.current.sat, bri: st.current.bri,
     sensitivity: prefs.musicSensitivity, keepColour: prefs.musicKeepColour, beatFlash: prefs.beatFlash,
     split: twoLeds(), hue2: st.current.hue2, sat2: st.current.sat2,
+    pixels: isRing ? ringPixels ?? 0 : 0, perLed: prefs.musicPerPixel,
   })
 
   // A sync that ends by itself (capture stopped, error, disconnect): back to the picked colour.

@@ -31,7 +31,7 @@ import { FirmwareDialog } from './Firmware'
 import { LedPreview, LedPreviewPair } from './LedPreview'
 import { RingPreview } from './RingPreview'
 import { KELVIN_PRESETS, LED_EFFECTS, LED_PRESETS, MODE, modeLabel } from './modes'
-import { simulatedPreview, simulatedRing } from './simulate'
+import { simulatedPreview, simulatedRing, perLedMusic } from './simulate'
 import { sceneSwatch, type Scene } from './scenes'
 import { hasTune, TuneTab, tuneLabel } from './Tune'
 import { checkFirmware, firmwareVersionOf, useOta } from './ota'
@@ -326,11 +326,10 @@ function Preview({ c, onDisconnect }: {
   const { s } = c
   const t = useClock(c.connected && c.ledOn && (ANIMATED.includes(s.mode as 1) || c.sync.active !== 'NONE'))
   const preview = simulatedPreview(c, t)
-  const dots = c.ringInd ? simulatedRing(c, t) : null
-  const pixel = dots ? Math.min(s.editLed, Math.max(0, dots.length - 1)) : 0
-  const shown = dots ? dots[pixel] : preview
-
-  // The background follows the light (Individual: the pixel being edited).
+  const dots = c.ringInd || perLedMusic(c) ? simulatedRing(c, t) : null
+  const pixel = dots ? (c.ringInd ? Math.min(s.editLed, Math.max(0, dots.length - 1)) : -1) : 0
+  // The background follows the light (Individual: the pixel being edited; per-LED music: the beat's colour).
+  const shown = dots ? (pixel >= 0 ? dots[pixel] : { hue: c.sync.hue, sat: c.sync.sat }) : preview
   useEffect(() => { setAmbient({ active: c.connected && c.ledOn, hue: shown.hue, sat: Math.min(1, Math.max(0, shown.sat)) }) })
   useEffect(() => () => setAmbient(null), [])
 
@@ -349,7 +348,7 @@ function Preview({ c, onDisconnect }: {
           <RingPreview
             dots={dots}
             editing={pixel}
-            onTap={(i) => { sound.tap(); c.setEditLed(i) }}
+            onTap={(i) => { if (c.ringInd) { sound.tap(); c.setEditLed(i) } }}
           />
         ) : c.twoLeds ? (
           <LedPreviewPair

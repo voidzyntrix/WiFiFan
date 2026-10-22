@@ -53,6 +53,13 @@ function previewFrom(a: Out, b: Out): Preview {
 /** One ring pixel's colour, through the same gamma and colour maths the cards show. */
 export interface DotColour { hue: number; sat: number; val: number }
 
+/**
+ * Music's one-LED-per-beat mode: wanted on a ring board that can stream pixels (2.1.0+)
+ * with the setting on; the engine's whole-ring/heartbeat fallbacks apply otherwise.
+ */
+export const perLedMusic = (c: LedController) =>
+  c.s.mode === MODE.MUSIC && c.ring && c.caps.perPixel && !c.twoLeds && c.prefs.musicPerPixel
+
 function gammaHsv(h: number, sat: number, v: number, noGamma = false): [number, number, number] {
   if (noGamma) return [h, sat, v]          // 2.1.6: the colour reaches the LEDs unaltered — the input is the output
   const [r, g, b] = gamma(hsvLin(h, sat, v))
@@ -117,6 +124,17 @@ export function simulatedRing(c: LedController, t: number): DotColour[] {
     const [gh, gs, gv] = gammaHsv(h, sat, bri, caps.noGamma)
     return { hue: gh, sat: gs, val: gv }
   })
+  // One-LED-per-beat music: the trail runs round the ring, every pixel lit as its own beat left it.
+  if (perLedMusic(c)) {
+    const { sync } = c
+    const sat = c.prefs.musicKeepColour ? c.s.sat : 1
+    return dots.map((_, i) => {
+      const v = sync.pixelVals?.[i] ?? 0
+      const h = sync.pixelHues?.[i] ?? s.hue
+      const [gh, gs, gv] = gammaHsv(h, sat, bri * v, caps.noGamma)
+      return { hue: gh, sat: gs, val: gv }
+    })
+  }
   switch (s.mode) {
     case MODE.SOLID:
       if (!ringInd) return dots          // Linked: the whole ring one colour
@@ -193,9 +211,11 @@ export function simulatedRing(c: LedController, t: number): DotColour[] {
     default: {
       // sound, screen and Solar modes: the estimate, passed through the same colour maths
       const p = previewOf(c, t)
-      const two = s.separate && caps.split
+      // The sync engines stream one colour for the whole ring, unless the board is the
+      // two-LED kind streaming its halves — the ring's own layout does not matter here.
+      const two = c.twoLeds
       return dots.map((_, i) => {
-        const [h, sat, v] = i < half ? [p.hue, p.sat, p.val] : two ? [p.hue2, p.sat2, p.val2] : [p.hue, p.sat, p.val]
+        const [h, sat, v] = two ? (i < half ? [p.hue, p.sat, p.val] : [p.hue2, p.sat2, p.val2]) : [p.hue, p.sat, p.val]
         const [gh, gs, gv] = gammaHsv(h, sat, v, caps.noGamma)
         return { hue: gh, sat: gs, val: gv }
       })

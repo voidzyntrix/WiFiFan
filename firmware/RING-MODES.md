@@ -49,8 +49,10 @@ app's "one flame / two candles" choice no longer does anything.
 | Fade time | `fade=MS\` |
 
 Streaming (music, visualizer, screen sync) keeps using `hh=` per frame with
-`fade=0\` or `fade=40\`. Two halves are enough for those modes for now; per-pixel
-streaming would need a new command.
+`fade=0\` or `fade=40\`. Music can also light one LED per beat ("one LED per beat"
+in the app): each beat lands on the next pixel, and the app streams the lit pixel
+plus the still-fading ones behind it as a few short `p=I/H/S/V\` lines per frame,
+still ruled by `fade=`. Visualizer and screen sync keep their two halves.
 
 ## Reading the ring from the app
 

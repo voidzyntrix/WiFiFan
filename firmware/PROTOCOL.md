@@ -80,7 +80,8 @@ was showing. Each pixel fades over the `fade=` time.
 
 Streaming (music / visualizer / screen sync): send `hh=...` per frame, with
 `fade=0\` or `fade=40\` set first. A full `hh=360/100/100/360/100/100\` takes
-~2.3 ms at 115200 baud.
+~2.3 ms at 115200 baud. Music's one-LED-per-beat mode (app setting) streams the
+lit pixel and its fading trail as a few short `p=I/H/S/V\` lines per frame instead.
 
 ### Effects
 

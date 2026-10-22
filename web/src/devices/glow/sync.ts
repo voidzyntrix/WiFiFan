@@ -28,6 +28,9 @@ export interface SyncSnapshot {
   level2: number
   hue2: number
   sat2: number
+  /** One-LED-per-beat music: this frame's per-pixel levels (0-1) and each pixel's own hue. */
+  pixelVals: Float32Array | null
+  pixelHues: Float32Array | null
 }
 
 /** What the user picked; the home screen keeps it current and the engines read it live. */
@@ -35,9 +38,11 @@ export const syncParams = {
   hue: 0, sat: 1, bri: 1, sensitivity: 0.5, keepColour: false, beatFlash: true,
   /** Separate LEDs wanted and the board has them. */
   split: false, hue2: 210, sat2: 1,
+  /** The ring's pixel count when the board reported one (0 = unknown), and the music per-LED setting. */
+  pixels: 0, perLed: true,
 }
 
-let snap: SyncSnapshot = { active: 'NONE', level: 0, hue: 0, sat: 1, level2: 0, hue2: 0, sat2: 1 }
+let snap: SyncSnapshot = { active: 'NONE', level: 0, hue: 0, sat: 1, level2: 0, hue2: 0, sat2: 1, pixelVals: null, pixelHues: null }
 const listeners = new Set<() => void>()
 function publish(patch: Partial<SyncSnapshot>) {
   snap = { ...snap, ...patch }
@@ -97,7 +102,7 @@ export function stopSync(restoreFade = true) {
   running = null
   if (!r) return
   r.stop()
-  publish({ active: 'NONE', level: 0, level2: 0 })
+  publish({ active: 'NONE', level: 0, level2: 0, pixelVals: null, pixelHues: null })
   if (restoreFade && board.snapshot.state === 'connected') setFade(settings.get().fadeMs)
 }
 
@@ -105,7 +110,7 @@ function begin(kind: SyncKind, stop: () => void, fadeMs: number) {
   running = { kind, stop }
   setFade(fadeMs)   // short fades so the LED can follow
   publish({
-    active: kind, level: 0, level2: 0,
+    active: kind, level: 0, level2: 0, pixelVals: null, pixelHues: null,
     hue: syncParams.hue, sat: syncParams.sat, hue2: syncParams.hue2, sat2: syncParams.sat2,
   })
 }
@@ -178,6 +183,17 @@ function runAudio(kind: 'MUSIC' | 'VISUALIZER', stream: MediaStream) {
   let beatHue = syncParams.hue
   let hue = syncParams.hue, hue2 = syncParams.hue2
   const windowSamples = Math.round((ctx.sampleRate * WINDOW_MS) / 1000)
+  // One LED per beat (Music, a ring board on 2.1.0+ with the setting): each beat lands on the next
+  // pixel round the ring, that LED carries the loudness until the next one, and the pixels it left
+  // decay into a short trail behind it — streamed as `p=` for whatever is lit or still fading.
+  // One LED = one beat; the whole ring (and everything older) keeps streaming one whole colour.
+  const N = Math.max(0, Math.round(syncParams.pixels))
+  const blackStart = kind === 'MUSIC' && syncParams.perLed && N >= 3 && !twoLeds() && fw('2.1.0')
+  const trail = new Float32Array(N)
+  const trailHue = new Float32Array(N)
+  const lit = new Uint8Array(N)
+  let beatPix = 0, sinceTick = performance.now()
+  if (blackStart) board.sendData(LedCommands.colour(0, 0, 0, true))    // the trail starts on a black ring
 
   const tick = () => {
     analyser.getFloatTimeDomainData(buf)
@@ -188,6 +204,33 @@ function runAudio(kind: 'MUSIC' | 'VISUALIZER', stream: MediaStream) {
     const gap = beat ? 0 : SEND_GAP_AUDIO
 
     if (kind === 'MUSIC') {
+      if (p.perLed && N >= 3 && !twoLeds() && fw('2.1.0')) {
+        const now = performance.now()
+        const decay = Math.exp(-(now - sinceTick) / 220)   // the trail: ~5/8 left after a tick
+        sinceTick = now
+        for (let i = 0; i < N; i++) trail[i] *= decay
+        if (p.keepColour) trailHue.fill(p.hue)             // "My colour": every pixel takes the picked one
+        if (beat) {
+          if (!p.keepColour) beatHue = (beatHue + 47) % 360
+          beatPix = (beatPix + 1) % N
+        }
+        const l = flash.apply(raw, beat, WINDOW_MS, p.beatFlash)
+        const s = p.keepColour ? p.sat : 1
+        const h = p.keepColour ? p.hue : beatHue
+        trail[beatPix] = Math.max(trail[beatPix], 0.04 + 0.96 * l)
+        trailHue[beatPix] = h
+        publish({ level: l, hue: h, sat: s, pixelVals: trail, pixelHues: trailHue })
+        if (p.bri >= MIN_VISIBLE && due(beat ? 0 : SEND_GAP_AUDIO) && !board.backlogged) {
+          for (let i = 0; i < N; i++) {
+            const v = p.bri * trail[i]
+            if (v >= MIN_VISIBLE || lit[i]) {
+              lit[i] = v >= MIN_VISIBLE ? 1 : 0
+              board.sendData(LedCommands.pixel(i, trailHue[i], s, Math.min(1, v)))
+            }
+          }
+        }
+        return
+      }
       if (twoLeds()) {
         const led = beat ? beats.onBeat() : -1
         const l1 = flash.apply(raw, led === 0, WINDOW_MS, p.beatFlash)
