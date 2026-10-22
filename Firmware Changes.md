@@ -352,6 +352,25 @@ to the write that started it; the slider only shapes future dots.
 `FW_VERSION` bumps to 2.1.20; the app asks for 2.1.20 before it sends `decay=`
 (a 2.1.19 board keeps its in-app streamed trail until it updates).
 
+## 2.1.21 - a beat flashes the whole ring from one command (h=/l= re-arm decay=)
+
+The audio modes' beat carried by a single pixel always told half the story: the
+board could only start a countdown per `p=` write, so the app had to choose
+between one LED per beat or a stream of whole-ring frames - and N one-pixel
+writes per beat (24 commands, each awaiting its link) spread the flash over the
+link's own pace: a sweep, not a hit.
+
+Now a full-ring colour write arms the countdown on the pixels it covered, the
+same way a `p=` arms the one it wrote: while `decay=` is armed, `h=` and `l=`
+re-arm every pixel to fade to black over the decay time. The app's Music and
+Visualizer modes send one `h=` per real beat - the whole ring takes the beat's
+colour at the same moment, and the board fades the flash itself. `decay=0`
+still holds pixels as before, and nothing changes for boards the app isn't
+streaming beats to: without `decay=`, `h=`/`l=` behave exactly as before.
+
+`FW_VERSION` bumps to 2.1.21; the app flashes the ring only on 2.1.21 - on
+2.1.20 a beat still lands on its one pixel like any fast note.
+
 
 
 
