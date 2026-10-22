@@ -54,11 +54,11 @@ function previewFrom(a: Out, b: Out): Preview {
 export interface DotColour { hue: number; sat: number; val: number }
 
 /**
- * Music's one-LED-per-beat mode: wanted on a ring board that can stream pixels (2.1.0+)
- * with the setting on; the engine's whole-ring/heartbeat fallbacks apply otherwise.
+ * Music and Visualizer's one-LED-per-beat mode: wanted on a ring board that can stream
+ * pixels (2.1.0+) with the setting on; the whole-ring/heartbeat fallbacks apply otherwise.
  */
-export const perLedMusic = (c: LedController) =>
-  c.s.mode === MODE.MUSIC && c.ring && c.caps.perPixel && !c.twoLeds && c.prefs.musicPerPixel
+export const perLedBeats = (c: LedController) =>
+  (c.s.mode === MODE.MUSIC || c.s.mode === MODE.VISUALIZER) && c.ring && c.caps.perPixel && !c.twoLeds && c.prefs.musicPerPixel
 
 function gammaHsv(h: number, sat: number, v: number, noGamma = false): [number, number, number] {
   if (noGamma) return [h, sat, v]          // 2.1.6: the colour reaches the LEDs unaltered — the input is the output
@@ -124,10 +124,11 @@ export function simulatedRing(c: LedController, t: number): DotColour[] {
     const [gh, gs, gv] = gammaHsv(h, sat, bri, caps.noGamma)
     return { hue: gh, sat: gs, val: gv }
   })
-  // One-LED-per-beat music: the trail runs round the ring, every pixel lit as its own beat left it.
-  if (perLedMusic(c)) {
+  // One-LED-per-beat beats (Music and Visualizer): the trail runs round the ring, every pixel lit
+  // as its beat left it, fading out on the board.
+  if (perLedBeats(c)) {
     const { sync } = c
-    const sat = c.prefs.musicKeepColour ? c.s.sat : 1
+    const sat = c.sync.sat
     return dots.map((_, i) => {
       const v = sync.pixelVals?.[i] ?? 0
       const h = sync.pixelHues?.[i] ?? s.hue

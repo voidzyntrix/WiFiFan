@@ -104,6 +104,11 @@ export function stopSync(restoreFade = true) {
   r.stop()
   publish({ active: 'NONE', level: 0, level2: 0, pixelVals: null, pixelHues: null })
   if (restoreFade && board.snapshot.state === 'connected') setFade(settings.get().fadeMs)
+  // Music/Visualizer may have armed `decay=` on the board: hand the pixels back to normal
+  // commands (2.1.17+ only - an unknown `decay=` would white-flash an older board).
+  if ((r.kind === 'MUSIC' || r.kind === 'VISUALIZER') && board.snapshot.state === 'connected' && fw('2.1.17')) {
+    board.sendData('decay=0')
+  }
 }
 
 function begin(kind: SyncKind, stop: () => void, fadeMs: number) {
@@ -123,6 +128,13 @@ function endedByItself(message: string | null) {
 
 const SEND_GAP_AUDIO = 55       // at most ~18 colours a second
 const SEND_GAP_SCREEN = 25
+
+/**
+ * The board-side decay for the one-LED-per-beat modes (`decay=MS`, 2.1.17+): every `p=`
+ * re-arms the beat's pixel, and every pixel it left behind fades linearly to black over
+ * this long, with no help from the app.
+ */
+const DECAY_MS = 700
 
 /**
  * The screen's dominant colour reads duller on the LEDs than on the display, so the
@@ -183,17 +195,30 @@ function runAudio(kind: 'MUSIC' | 'VISUALIZER', stream: MediaStream) {
   let beatHue = syncParams.hue
   let hue = syncParams.hue, hue2 = syncParams.hue2
   const windowSamples = Math.round((ctx.sampleRate * WINDOW_MS) / 1000)
-  // One LED per beat (Music, a ring board on 2.1.0+ with the setting): each beat lands on the next
-  // pixel round the ring, that LED carries the loudness until the next one, and the pixels it left
-  // decay into a short trail behind it — streamed as `p=` for whatever is lit or still fading.
-  // One LED = one beat; the whole ring (and everything older) keeps streaming one whole colour.
+  // One LED per beat (Music and Visualizer, a ring board on 2.1.0+ with the setting): each
+  // beat lands on the next pixel round the ring, that LED carries the loudness until the
+  // next one comes round, and the pixels it left fade out as a trail behind it. On 2.1.17
+  // the board owns the fading (`decay=MS`, one `p=` per frame); on older firmware the app
+  // streams every lit pixel itself.
   const N = Math.max(0, Math.round(syncParams.pixels))
-  const blackStart = kind === 'MUSIC' && syncParams.perLed && N >= 3 && !twoLeds() && fw('2.1.0')
   const trail = new Float32Array(N)
   const trailHue = new Float32Array(N)
   const lit = new Uint8Array(N)
   let beatPix = 0, sinceTick = performance.now()
-  if (blackStart) board.sendData(LedCommands.colour(0, 0, 0, true))    // the trail starts on a black ring
+  // The per-LED state on the board is armed here and disarmed when leaving the mode (the
+  // setting can be toggled while the stream runs, so the tick calls these as it crosses).
+  let perLedLive = false
+  const armPerLed = () => {
+    if (perLedLive) return
+    perLedLive = true
+    if (fw('2.1.17')) board.sendData(`decay=${DECAY_MS}`)
+    board.sendData(LedCommands.colour(0, 0, 0, true))    // the trail starts on a black ring
+  }
+  const disarmPerLed = () => {
+    if (!perLedLive) return
+    perLedLive = false
+    if (board.snapshot.state === 'connected' && fw('2.1.17')) board.sendData('decay=0')
+  }
 
   const tick = () => {
     analyser.getFloatTimeDomainData(buf)
@@ -202,25 +227,48 @@ function runAudio(kind: 'MUSIC' | 'VISUALIZER', stream: MediaStream) {
     const p = syncParams
     const [raw, beat] = level.process(recent, n, WINDOW_MS, p.sensitivity)
     const gap = beat ? 0 : SEND_GAP_AUDIO
+    // The Visualizer's band mix drives its colours everywhere - the per-LED trail included.
+    const bands = kind === 'VISUALIZER' ? spectrum.process(recent, n) : null
+    // One LED per beat needs pixels to write and a ring layout: on the two-LED boards the
+    // whole ring is one two-colour stream anyway.
+    const perLed = (kind === 'MUSIC' || kind === 'VISUALIZER') && p.perLed && N >= 3 && !twoLeds() && fw('2.1.0')
+    if (perLed) armPerLed(); else disarmPerLed()
 
-    if (kind === 'MUSIC') {
-      if (p.perLed && N >= 3 && !twoLeds() && fw('2.1.0')) {
-        const now = performance.now()
-        const decay = Math.exp(-(now - sinceTick) / 220)   // the trail: ~5/8 left after a tick
-        sinceTick = now
-        for (let i = 0; i < N; i++) trail[i] *= decay
-        if (p.keepColour) trailHue.fill(p.hue)             // "My colour": every pixel takes the picked one
+    if (perLed) {
+      const now = performance.now()
+      // 2.1.17+: the board scales each fading pixel linearly to black over DECAY_MS, and the
+      // preview follows that exact envelope; older firmware keeps the app's exponential.
+      const drop = fw('2.1.17') ? Math.max(0, 1 - (now - sinceTick) / DECAY_MS) : Math.exp(-(now - sinceTick) / 220)
+      sinceTick = now
+      for (let i = 0; i < N; i++) trail[i] *= drop
+      let h: number, s: number
+      if (kind === 'MUSIC') {
+        if (p.keepColour) trailHue.fill(p.hue)           // "My colour": every pixel takes the picked one
         if (beat) {
           if (!p.keepColour) beatHue = (beatHue + 47) % 360
           beatPix = (beatPix + 1) % N
         }
-        const l = flash.apply(raw, beat, WINDOW_MS, p.beatFlash)
-        const s = p.keepColour ? p.sat : 1
-        const h = p.keepColour ? p.hue : beatHue
-        trail[beatPix] = Math.max(trail[beatPix], 0.04 + 0.96 * l)
-        trailHue[beatPix] = h
-        publish({ level: l, hue: h, sat: s, pixelVals: trail, pixelHues: trailHue })
-        if (p.bri >= MIN_VISIBLE && due(beat ? 0 : SEND_GAP_AUDIO) && !board.backlogged) {
+        h = p.keepColour ? p.hue : beatHue
+        s = p.keepColour ? p.sat : 1
+      } else {
+        // the band mix is the beat's colour: every pixel keeps the palette it landed with,
+        // so the trail is a ring of the spectra that have just played
+        const [bh, bs] = bandColour(bands!, hue)
+        hue = bh
+        h = bh; s = bs
+        if (beat) beatPix = (beatPix + 1) % N
+      }
+      const l = flash.apply(raw, beat, WINDOW_MS, p.beatFlash)
+      trail[beatPix] = Math.max(trail[beatPix], 0.04 + 0.96 * l)
+      trailHue[beatPix] = h
+      publish({ level: l, hue: h, sat: s, pixelVals: trail, pixelHues: trailHue })
+      if (p.bri >= MIN_VISIBLE && due(beat ? 0 : SEND_GAP_AUDIO) && !board.backlogged) {
+        if (fw('2.1.17')) {
+          // the board decays by itself: one `p=` for the beat's LED, everything else is its
+          // business. One LED = a couple of characters a frame.
+          board.sendData(LedCommands.pixel(beatPix, trailHue[beatPix], s, Math.min(1, p.bri * trail[beatPix])))
+        } else {
+          // older firmware: the app streams the trail itself, every lit pixel per tick
           for (let i = 0; i < N; i++) {
             const v = p.bri * trail[i]
             if (v >= MIN_VISIBLE || lit[i]) {
@@ -229,8 +277,11 @@ function runAudio(kind: 'MUSIC' | 'VISUALIZER', stream: MediaStream) {
             }
           }
         }
-        return
       }
+      return
+    }
+
+    if (kind === 'MUSIC') {
       if (twoLeds()) {
         const led = beat ? beats.onBeat() : -1
         const l1 = flash.apply(raw, led === 0, WINDOW_MS, p.beatFlash)
@@ -250,15 +301,14 @@ function runAudio(kind: 'MUSIC' | 'VISUALIZER', stream: MediaStream) {
     }
 
     const l = flash.apply(raw, beat, WINDOW_MS, p.beatFlash)
-    const bands = spectrum.process(recent, n)
     if (twoLeds()) {
-      const [c1, c2] = twoLedBandColours(bands, hue, hue2)
+      const [c1, c2] = twoLedBandColours(bands!, hue, hue2)
       hue = c1[0]; hue2 = c2[0]
       publish({ level: l * c1[2], hue: c1[0], sat: c1[1], level2: l * c2[2], hue2: c2[0], sat2: c2[1] })
       sendColours(c1[0], c1[1], p.bri * (0.04 + 0.96 * l * c1[2]), c2[0], c2[1], p.bri * (0.04 + 0.96 * l * c2[2]), gap)
       return
     }
-    const [h, s] = bandColour(bands, hue)
+    const [h, s] = bandColour(bands!, hue)
     hue = h
     publish({ level: l, hue: h, sat: s })
     sendColour(h, s, p.bri * (0.04 + 0.96 * l), gap)
