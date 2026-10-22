@@ -39,7 +39,7 @@ export const syncParams = {
   /** Separate LEDs wanted and the board has them. */
   split: false, hue2: 210, sat2: 1,
   /** The ring's pixel count when the board reported one (0 = unknown), the music per-LED setting,
-   *  and how long a beat's LED trails before it is back to black (decay=MS, the board's job on 2.1.19+). */
+   *  and how long a beat's LED trails before it is back to black (decay=MS, the board's job on 2.1.20+). */
   pixels: 0, perLed: true, decayMs: 700,
 }
 
@@ -106,8 +106,8 @@ export function stopSync(restoreFade = true) {
   publish({ active: 'NONE', level: 0, level2: 0, pixelVals: null, pixelHues: null })
   if (restoreFade && board.snapshot.state === 'connected') setFade(settings.get().fadeMs)
   // Music/Visualizer may have armed `decay=` on the board: hand the pixels back to normal
-  // commands (2.1.19+ only - older boards keep their streamed trail and never see decay=).
-  if ((r.kind === 'MUSIC' || r.kind === 'VISUALIZER') && board.snapshot.state === 'connected' && fw('2.1.19')) {
+  // commands (2.1.20+ only - older boards keep their streamed trail and never see decay=).
+  if ((r.kind === 'MUSIC' || r.kind === 'VISUALIZER') && board.snapshot.state === 'connected' && fw('2.1.20')) {
     board.sendData('decay=0')
   }
 }
@@ -191,7 +191,7 @@ function runAudio(kind: 'MUSIC' | 'VISUALIZER', stream: MediaStream) {
   const windowSamples = Math.round((ctx.sampleRate * WINDOW_MS) / 1000)
   // One LED per beat (Music and Visualizer, a ring board on 2.1.0+ with the setting): each
   // beat lands on the next pixel round the ring, that LED carries the loudness until the
-  // next one comes round, and the pixels it left fade out as a trail behind it. On 2.1.19
+  // next one comes round, and the pixels it left fade out as a trail behind it. On 2.1.20
   // the board owns the fading (`decay=MS`, one `p=` per frame); on older firmware the app
   // streams every lit pixel itself.
   const N = Math.max(0, Math.round(syncParams.pixels))
@@ -207,11 +207,11 @@ function runAudio(kind: 'MUSIC' | 'VISUALIZER', stream: MediaStream) {
       perLedOn = true
       board.sendData(LedCommands.colour(0, 0, 0, true))    // the trail starts on a black ring
     }
-    // decay= on 2.1.19+ does the whole trail: every `p=` re-arms that pixel, everything the
+    // decay= on 2.1.20+ does the whole trail: every `p=` re-arms that pixel, everything the
     // beat left fades to black on the board. Sent again when the slider moved while running,
     // so the fade answers without a restart.
     const ms = Math.max(1, Math.round(syncParams.decayMs || 700))
-    if (decayArmed !== ms && fw('2.1.19')) {
+    if (decayArmed !== ms && fw('2.1.20')) {
       decayArmed = ms
       board.sendData(`decay=${ms}`)
     }
@@ -221,7 +221,7 @@ function runAudio(kind: 'MUSIC' | 'VISUALIZER', stream: MediaStream) {
     perLedOn = false
     if (decayArmed) {
       decayArmed = 0
-      if (board.snapshot.state === 'connected' && fw('2.1.19')) board.sendData('decay=0')
+      if (board.snapshot.state === 'connected' && fw('2.1.20')) board.sendData('decay=0')
     }
   }
 
@@ -241,10 +241,10 @@ function runAudio(kind: 'MUSIC' | 'VISUALIZER', stream: MediaStream) {
 
     if (perLed) {
       const now = performance.now()
-      // 2.1.19+: the board scales each fading pixel linearly to black over the decay time,
+      // 2.1.20+: the board scales each fading pixel linearly to black over the decay time,
       // and the preview follows that exact envelope; older firmware keeps the app's
       // exponential. The slider answer is live: decayMs is read once per tick.
-      const boardDecay = fw('2.1.19')
+      const boardDecay = fw('2.1.20')
       const decayMs = Math.max(1, Math.round(p.decayMs || 700))
       const drop = boardDecay ? Math.max(0, 1 - (now - sinceTick) / decayMs) : Math.exp(-(now - sinceTick) / 220)
       sinceTick = now
