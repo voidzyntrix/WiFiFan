@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.80',
+    notes: [
+      'the end of the trail is clean too: a dying dot no longer blinks once at full brightness before going black (firmware 2.1.20 fixes the last flicker)',
+    ],
+  },
+
+  {
     version: '2.13.79',
     notes: [
       'Found it for real: the fade flicker was the board\'s own math overflowing and wrapping - flash firmware 2.1.19 and the beat trail finally fades cleanly all the way down',
