@@ -132,7 +132,6 @@ export function capsOf(version: string | null): BoardCaps {
     sleep: atLeast(version, '1.7.0'), spin: atLeast(version, '2.0.0'),
     spinLive: atLeast(version, '2.1.1') && !atLeast(version, '2.1.2'), spinBri: atLeast(version, '2.1.2'),
     perPixel: atLeast(version, '2.1.0'), noGamma: atLeast(version, '2.1.6'),
-    ringBeat: atLeast(version, '2.1.21'),
     importLevels: atLeast(version, '2.2.0'),
   }
 }

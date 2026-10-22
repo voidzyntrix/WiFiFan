@@ -10,7 +10,7 @@ export const WINDOW_MS = 40
  *  energy spikes). Two gates: a note is any clear onset - at least 100 ms apart, so rolls
  *  and hi-hat runs all register, where the ONE global 180 ms gate of the old detector ate
  *  every second one - and a beat is the strong spike that punches through the whole last
- *  second: the actual beat, the thing that flashes the whole ring. */
+ *  second: the actual beat, above it, no faster than 240 a minute. */
 export class LevelAnalyzer {
   private floor = 0
   private envelope = 0
