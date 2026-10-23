@@ -317,9 +317,10 @@ function Ascii({ tint, bg, size, intensity }: { tint: string; bg: string; size: 
       g.fillStyle = EMBER_GLYPH
       g.globalAlpha = Math.min(0.94, 0.25 + f.b * 0.72)
       g.fillText(f.glyph, col * cw + cw / 2, row * cw + cw / 2)
-      // the bloom: from a hot centre out over a couple of cells, breathing with the flare itself
+      // the bloom: a tight halo reaching about 1.75 glyphs out at full flare, breathing with the
+      // ember itself
       const ex = col * cw + cw / 2, ey = row * cw + cw / 2
-      const rad = cw * (1.3 + 2.7 * env)
+      const rad = cw * (0.8 + 0.95 * env)
       const bloom = g.createRadialGradient(ex, ey, 0, ex, ey, rad)
       bloom.addColorStop(0, `rgba(255, 176, 68, ${0.75 * env})`)
       bloom.addColorStop(0.42, `rgba(255, 116, 20, ${0.38 * env})`)
