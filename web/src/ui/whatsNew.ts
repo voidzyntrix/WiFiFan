@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.91',
+    notes: [
+      'ASCII background: a pinch of per-cell dither breaks the glow\'s bands, the mouse trails a faint glow of glyphs, and the Glyph size is absolute - the same characters on screen whatever the window',
+    ],
+  },
+
+  {
     version: '2.13.90',
     notes: [
       'ASCII background: a Glyph size slider sets how large the characters spell out, and the brightness ramp drops the half-step strokes (- and =), so every character fills its own cell',
