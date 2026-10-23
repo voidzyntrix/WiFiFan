@@ -890,6 +890,9 @@ input.text-field:focus { border-color: var(--primary); background: var(--on-bg-8
 .m3e-seg:not(.on):active { border-radius: 12px; }
 .m3e-seg:focus-visible { outline: 2px solid rgb(var(--mdui-color-secondary)); outline-offset: 2px; }
 .m3e-seg-label { position: relative; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* five segments in a row: tighter padding and a step down in size keeps every label whole */
+.m3e-group.many .m3e-seg { padding: 0 4px; }
+.m3e-group.many .m3e-seg-label { font: 500 13px/1 var(--font); }
 
 /* the deck navbar, material colours: fixed Material corners, no ripple */
 :root[data-design='material'] .decknav .opt {

@@ -268,8 +268,9 @@ function MdSwitch(props: { checked: boolean; onChange: (v: boolean) => void; lab
  * one turns fully round (the shapes move with a spring).
  */
 function M3eButtonGroup(props: { options: string[]; selected: number; onSelect: (i: number) => void; disabled?: boolean }) {
+  // five options (the backgrounds picker) get tighter labels so they keep their text
   return (
-    <div className={'m3e-group' + (props.disabled ? ' disabled' : '')} role="radiogroup">
+    <div className={'m3e-group' + (props.options.length > 4 ? ' many' : '') + (props.disabled ? ' disabled' : '')} role="radiogroup">
       {props.options.map((o, i) => (
         <button
           key={o}

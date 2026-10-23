@@ -10,8 +10,9 @@ import type { SavedDevice } from '../devices/types'
  * CUSTOM: Material You from a colour picked here. MONOCHROME: grey, no colour.
  */
 export type ColorSource = 'SYSTEM' | 'CUSTOM' | 'MONOCHROME'
-/** SIMPLE is the particles. */
-export type Background = 'SIMPLE' | 'AURORA' | 'IMAGE' | 'PLAIN'
+/** SIMPLE is the particles. AURORA drifts glows in the light's colour; ASCII draws the same glows
+ * as characters, always in the app's own colour (theme.ts's onBg). */
+export type Background = 'SIMPLE' | 'AURORA' | 'ASCII' | 'IMAGE' | 'PLAIN'
 /**
  * The look of the whole app. GLASS: translucent glass cards over a background, our own controls.
  * MATERIAL: Material 3, solid tonal surfaces and Google's widgets. Colours (Material You or not)

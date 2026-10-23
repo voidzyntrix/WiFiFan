@@ -1,4 +1,4 @@
-// What sits behind the UI: floating particles, aurora glows, a photo, or nothing.
+// What sits behind the UI: floating particles, aurora glows, their ASCII twin, a photo, or nothing.
 // Each one registers what it draws into (source.ts), so the refractive glass can bend it.
 
 import { useEffect, useRef, useState } from 'react'
@@ -174,6 +174,73 @@ function Aurora({ hue, sat }: { hue: number; sat: number }) {
 }
 
 // ---------------------------------------------------------------------------
+// ASCII
+// ---------------------------------------------------------------------------
+
+/* The aurora's glows, drawn as characters instead of gradients: one glyph per cell, denser and
+   brighter closer to a glow's centre, always in the app's own colour (the tint prop — onBg from
+   theme.ts — so it follows System / Custom / Monochrome, never the LED light). The glows paint
+   onto a tiny canvas at grid resolution and are read back in a single call, so the field costs
+   next to nothing; the series of fillText over the lit cells is the only real work. */
+
+const ASCII_GLYPHS = ' .:-=+*#%@'   // the brightness ramp: sparse left, dense right
+
+function Ascii({ tint }: { tint: string }) {
+  const ref = useCanvas()
+  const field = useRef<HTMLCanvasElement | null>(null)
+  const next = useRef(0)
+  const smooth = useSmoothColor(tint)
+  useFrames((t, dt) => {
+    if (t < next.current) return   // the drift is slow: ~18 redraws a second, characters pop, they don't smear
+    next.current = t + 0.055
+    const c = ref.current
+    if (!c) return
+    const dpr = c.width / Math.max(1, window.innerWidth)
+    // one cell ≈ 20 px wide, at most ~120 columns (wide, low-dpr windows thin the glyphs instead)
+    const cw = Math.max(Math.round(20 * dpr), Math.ceil(c.width / 120))
+    const cols = Math.ceil(c.width / cw)
+    const rows = Math.ceil(c.height / cw)
+    // one field pixel per character cell: the same four drifting glows as Aurora
+    const f = field.current ?? (field.current = document.createElement('canvas'))
+    if (f.width !== cols || f.height !== rows) { f.width = cols; f.height = rows }
+    const fg = f.getContext('2d', { willReadFrequently: true })!
+    fg.clearRect(0, 0, cols, rows)
+    const r = Math.max(cols, rows) * 0.55
+    GLOWS.forEach((gl, i) => {
+      const cx = cols * (0.5 + 0.42 * Math.sin(t * gl[1] * 6.2832 + gl[3]))
+      const cy = rows * (0.5 + 0.42 * Math.cos(t * gl[2] * 6.2832 + gl[3] * 1.3))
+      const a = i === 3 ? 0.16 : 0.26
+      const grad = fg.createRadialGradient(cx, cy, 0, cx, cy, r)
+      grad.addColorStop(0, `rgba(0, 0, 0, ${a})`)   // the colour is irrelevant; only the alpha is read
+      grad.addColorStop(1, 'rgba(0, 0, 0, 0)')
+      fg.fillStyle = grad
+      fg.fillRect(0, 0, cols, rows)
+    })
+    const px = fg.getImageData(0, 0, cols, rows).data
+    const g = c.getContext('2d')!
+    g.clearRect(0, 0, c.width, c.height)
+    g.fillStyle = smooth(dt)
+    g.font = `${Math.round(cw * 0.62)}px 'JetBrains Mono', ui-monospace, monospace`
+    g.textAlign = 'center'
+    g.textBaseline = 'middle'
+    for (let row = 0; row < rows; row++) {
+      const cells = row * cols
+      for (let col = 0; col < cols; col++) {
+        // the glows overlap at most ~0.6 alpha; that is 1 = the densest glyph at nearly full colour
+        const b = Math.min(1, px[(cells + col) * 4 + 3] / 255 / 0.62)
+        if (b < 0.06) continue
+        const glyph = ASCII_GLYPHS[Math.min(ASCII_GLYPHS.length - 1, Math.round(b * (ASCII_GLYPHS.length - 1)))]
+        if (glyph === ' ') continue
+        g.globalAlpha = Math.min(0.94, 0.25 + b * 0.72)
+        g.fillText(glyph, col * cw + cw / 2, row * cw + cw / 2)
+      }
+    }
+    g.globalAlpha = 1
+  })
+  return <canvas ref={ref} className="bg-canvas" />
+}
+
+// ---------------------------------------------------------------------------
 // Image
 // ---------------------------------------------------------------------------
 
@@ -234,6 +301,7 @@ export function BackgroundLayer(props: {
   switch (shown) {
     case 'SIMPLE': return <Particles active={props.active} tint={props.tint} />
     case 'AURORA': return <Aurora hue={props.active ? props.hue : 200} sat={props.active ? props.sat : 0.7} />
+    case 'ASCII': return <Ascii tint={props.tint} />
     case 'IMAGE': return <Photo dim={props.imageDim} />
     default: return null
   }

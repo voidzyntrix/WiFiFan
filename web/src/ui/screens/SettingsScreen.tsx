@@ -38,7 +38,7 @@ export function SettingsScreen({ onBack, onWhatsNew }: { onBack: () => void; onW
     return () => window.removeEventListener('keydown', k)
   }, [onBack])
 
-  const backgrounds: Background[] = ['SIMPLE', 'AURORA', 'IMAGE', 'PLAIN']
+  const backgrounds: Background[] = ['SIMPLE', 'AURORA', 'ASCII', 'IMAGE', 'PLAIN']
   const sources: ColorSource[] = ['SYSTEM', 'CUSTOM', 'MONOCHROME']
   // a type's section shows once you have a device of it
   const types = DEVICE_TYPES.filter((t) => t.SettingsSection && (p.devices.some((d) => d.type === t.id) || conn.device?.type === t.id))
@@ -81,10 +81,11 @@ export function SettingsScreen({ onBack, onWhatsNew }: { onBack: () => void; onW
             <SettingHeading title="Background" subtitle={{
               SIMPLE: 'Slow floating particles',
               AURORA: "Soft glows drifting in the light's colour",
+              ASCII: 'The same glows drawn as characters, always in the app\'s colour',
               IMAGE: 'A photo of a living room',
               PLAIN: 'Nothing behind the controls; lightest on the GPU',
             }[p.background]} />
-            <SegmentedPill options={['Particles', 'Aurora', 'Image', 'Plain']} selected={backgrounds.indexOf(p.background)} onSelect={(i) => set({ background: backgrounds[i] })} />
+            <SegmentedPill options={['Particles', 'Aurora', 'ASCII', 'Image', 'Plain']} selected={backgrounds.indexOf(p.background)} onSelect={(i) => set({ background: backgrounds[i] })} />
             <Presence show={p.background === 'IMAGE'}>
               <LevelSlider label="Darkness" value={p.imageDim / 0.95} text={`${Math.round(p.imageDim * 100)} %`} onChange={(f) => set({ imageDim: f * 0.95 })} />
             </Presence>
