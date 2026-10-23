@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.89',
+    notes: [
+      'New ASCII background: the aurora\'s drifting glows drawn as characters that glow in the app\'s own colour, not the LED light - the fifth option in the Background picker, for both designs',
+    ],
+  },
+
+  {
     version: '2.13.88',
     notes: [
       'Material You gets the glass backgrounds: particles, aurora, a photo or plain behind the solid cards - the Background picker in Settings now serves both designs',
