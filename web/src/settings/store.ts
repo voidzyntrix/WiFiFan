@@ -10,8 +10,8 @@ import type { SavedDevice } from '../devices/types'
  * CUSTOM: Material You from a colour picked here. MONOCHROME: grey, no colour.
  */
 export type ColorSource = 'SYSTEM' | 'CUSTOM' | 'MONOCHROME'
-/** SIMPLE is the particles. AURORA drifts glows in the light's colour; ASCII draws the same glows
- * as characters, always in the app's own colour (theme.ts's onBg). */
+/** SIMPLE is the particles. AURORA drifts glows in the light's colour; ASCII draws them as
+ * characters on the app's own background — white letters, orange embers. */
 export type Background = 'SIMPLE' | 'AURORA' | 'ASCII' | 'IMAGE' | 'PLAIN'
 /**
  * The look of the whole app. GLASS: translucent glass cards over a background, our own controls.

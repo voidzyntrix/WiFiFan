@@ -81,7 +81,7 @@ export function SettingsScreen({ onBack, onWhatsNew }: { onBack: () => void; onW
             <SettingHeading title="Background" subtitle={{
               SIMPLE: 'Slow floating particles',
               AURORA: "Soft glows drifting in the light's colour",
-              ASCII: 'The same glows drawn as characters, always in the app\'s colour',
+              ASCII: 'Characters on the app\'s own background: white letters, orange embers',
               IMAGE: 'A photo of a living room',
               PLAIN: 'Nothing behind the controls; lightest on the GPU',
             }[p.background]} />

@@ -177,23 +177,25 @@ function Aurora({ hue, sat }: { hue: number; sat: number }) {
 // ASCII
 // ---------------------------------------------------------------------------
 
-/* The aurora's glows, drawn as characters instead of gradients: one glyph per cell, denser and
-   brighter closer to a glow's centre, always in the app's own colour (the tint prop — onBg from
-   theme.ts — so it follows System / Custom / Monochrome, never the LED light). The glows paint
-   onto a tiny canvas at grid resolution and are read back in a single call, so the field costs
-   next to nothing; the series of fillText over the lit cells is the only real work.
+/* The aurora's glows, spelled out as characters: one glyph per cell, denser and brighter closer to
+   a glow's centre, all of them in the colour that contrasts the app's own background (tint —
+   onSurface from theme.ts: white in dark mode, dark ink in light). The letters draw on the app's
+   background colour (bg — the thing the OLED toggle turns black), so the canvas owns its field.
+   The glows paint onto a tiny canvas at grid resolution and are read back in a single call, so
+   the field costs next to nothing; the series of fillText over the lit cells is the only work.
 
    Quantizing a smooth field into glyphs bands it into rings, so every cell carries a pinch of
    dither — one stable pseudo-random offset that interleaves neighbouring glyphs at the band
    edges. A broad band of light keeps crossing the grid (the field breathes on a ~20 s cycle),
-   and stray lit cells flare a few steps denser and fade away like embers, so the light never
-   falls quite still. */
+   and stray lit cells flare a few steps denser and fade away like embers — those flare in
+   orange, each wrapped in a soft additive bloom, while every other glyph stays white(ish). */
 
 /* One brightness step per glyph, denser left to right — and every step a shape that fills its own
    cell: '-' and '=' read as horizontal strokes (a half step at best), so they didn't survive. */
 
 const ASCII_GLYPHS = ' .:;+ox*#%@'
 const ASCII_DITHER = 0.12   // how much of a glyph step one cell's dither can swing across
+const EMBER_GLYPH = '#ffab40'   // an ember's character; its bloom heats from this toward white
 
 /** A stable random 0..1 per cell: the dither never flickers between redraws. */
 function cellHash(x: number, y: number) {
@@ -203,13 +205,14 @@ function cellHash(x: number, y: number) {
   return (h >>> 0) / 4294967296
 }
 
-function Ascii({ tint, size, intensity }: { tint: string; size: number; intensity: number }) {
+function Ascii({ tint, bg, size, intensity }: { tint: string; bg: string; size: number; intensity: number }) {
   const ref = useCanvas()
   const field = useRef<HTMLCanvasElement | null>(null)
   const dither = useRef<Float32Array>(new Float32Array(0))
   const embers = useRef<{ x: number; y: number; t0: number }[]>([])
   const next = useRef(0)
-  const smooth = useSmoothColor(tint)
+  const bgSmooth = useSmoothColor(bg)
+  const tintSmooth = useSmoothColor(tint)
   useFrames((t, dt) => {
     if (t < next.current) return   // the drift is slow: redraws a few times a second, characters pop, they don't smear
     const c = ref.current
@@ -274,27 +277,58 @@ function Ascii({ tint, size, intensity }: { tint: string; size: number; intensit
       px[a4] = Math.min(255, px[a4] + 0.35 * I * Math.sin(Math.PI * age) * 255)
       return true
     })
+    // the ember cells by index, so the white pass can hand their characters to the orange pass
+    const emberCells = new Set(embers.current.map((e) => e.y * cols + e.x))
     const g = c.getContext('2d')!
     g.clearRect(0, 0, c.width, c.height)
-    g.fillStyle = smooth(dt)
+    // the letters' background is the app's own colour — the one the OLED toggle turns black —
+    // painted opaque, so the field reads as a screen no matter what sits behind the canvas
+    g.fillStyle = bgSmooth(dt)
+    g.fillRect(0, 0, c.width, c.height)
+    g.fillStyle = tintSmooth(dt)   // one fill for the whole white pass; embers are held back
     g.font = `${Math.round(cw * 0.62)}px 'JetBrains Mono', ui-monospace, monospace`
     g.textAlign = 'center'
     g.textBaseline = 'middle'
+    const flares: { cell: number; glyph: string; b: number }[] = []
     for (let row = 0; row < rows; row++) {
       const cells = row * cols
       for (let col = 0; col < cols; col++) {
+        const cell = cells + col
         // the glows overlap at most ~0.6 alpha; that is 1 = the densest glyph at nearly full colour
-        const b = Math.min(1, px[(cells + col) * 4 + 3] / 255 / 0.62)
+        const b = Math.min(1, px[cell * 4 + 3] / 255 / 0.62)
         if (b < 0.06) continue
         // the dithered brightness picks the glyph (the quantizing bands break apart); the alpha
         // stays with the undithered brightness, so nothing shimmers as the glows drift
-        const bd = Math.min(1, Math.max(0, b + (dn[cells + col] - 0.5) * ASCII_DITHER))
+        const bd = Math.min(1, Math.max(0, b + (dn[cell] - 0.5) * ASCII_DITHER))
         const glyph = ASCII_GLYPHS[Math.min(ASCII_GLYPHS.length - 1, Math.round(bd * (ASCII_GLYPHS.length - 1)))]
         if (glyph === ' ') continue
+        if (emberCells.has(cell)) { flares.push({ cell, glyph, b }); continue }
         g.globalAlpha = Math.min(0.94, 0.25 + b * 0.72)
         g.fillText(glyph, col * cw + cw / 2, row * cw + cw / 2)
       }
     }
+    // the embers: orange characters wrapped in a vibrant bloom, drawn additively ('lighter') so
+    // the light piles onto the field instead of shading it — near the core it burns toward white
+    g.globalCompositeOperation = 'lighter'
+    for (const f of flares) {
+      const col = f.cell % cols, row = (f.cell / cols) | 0
+      const e = embers.current.find((e) => e.y * cols + e.x === f.cell)!
+      const env = Math.sin(Math.PI * (t - e.t0) / 1.1)
+      g.fillStyle = EMBER_GLYPH
+      g.globalAlpha = Math.min(0.94, 0.25 + f.b * 0.72)
+      g.fillText(f.glyph, col * cw + cw / 2, row * cw + cw / 2)
+      // the bloom: from a hot centre out over a couple of cells, breathing with the flare itself
+      const ex = col * cw + cw / 2, ey = row * cw + cw / 2
+      const rad = cw * (1.3 + 2.7 * env)
+      const bloom = g.createRadialGradient(ex, ey, 0, ex, ey, rad)
+      bloom.addColorStop(0, `rgba(255, 176, 68, ${0.75 * env})`)
+      bloom.addColorStop(0.42, `rgba(255, 116, 20, ${0.38 * env})`)
+      bloom.addColorStop(1, 'rgba(255, 116, 20, 0)')
+      g.globalAlpha = 1
+      g.fillStyle = bloom
+      g.fillRect(ex - rad, ey - rad, rad * 2, rad * 2)
+    }
+    g.globalCompositeOperation = 'source-over'
     g.globalAlpha = 1
   })
   return <canvas ref={ref} className="bg-canvas" />
@@ -329,6 +363,7 @@ export function BackgroundLayer(props: {
   hue: number
   sat: number
   tint: string
+  bg: string
   imageDim: number
   asciiSize: number
   asciiIntensity: number
@@ -363,7 +398,7 @@ export function BackgroundLayer(props: {
   switch (shown) {
     case 'SIMPLE': return <Particles active={props.active} tint={props.tint} />
     case 'AURORA': return <Aurora hue={props.active ? props.hue : 200} sat={props.active ? props.sat : 0.7} />
-    case 'ASCII': return <Ascii tint={props.tint} size={props.asciiSize} intensity={props.asciiIntensity} />
+    case 'ASCII': return <Ascii tint={props.tint} bg={props.bg} size={props.asciiSize} intensity={props.asciiIntensity} />
     case 'IMAGE': return <Photo dim={props.imageDim} />
     default: return null
   }

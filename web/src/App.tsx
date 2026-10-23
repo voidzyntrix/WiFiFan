@@ -50,9 +50,9 @@ type DialogState =
   | null
 
 /** The background follows the light; only this component listens to it, so a rainbow redraws the canvas, not the app. */
-function Backdrop(props: { background: Background; tint: string; imageDim: number; asciiSize: number; asciiIntensity: number }) {
+function Backdrop(props: { background: Background; tint: string; bg: string; imageDim: number; asciiSize: number; asciiIntensity: number }) {
   const ambient = useAmbient()
-  return <BackgroundLayer background={props.background} active={ambient.active} hue={ambient.hue} sat={ambient.sat} tint={props.tint} imageDim={props.imageDim} asciiSize={props.asciiSize} asciiIntensity={props.asciiIntensity} />
+  return <BackgroundLayer background={props.background} active={ambient.active} hue={ambient.hue} sat={ambient.sat} tint={props.tint} bg={props.bg} imageDim={props.imageDim} asciiSize={props.asciiSize} asciiIntensity={props.asciiIntensity} />
 }
 
 export function App() {
@@ -177,7 +177,7 @@ export function App() {
     <>
       {/* both designs get the background (Glass bends it, Material shows it behind its solid cards) */}
       <div className="backdrop">
-        <Backdrop background={prefs.background} tint={colors.onBg} imageDim={prefs.imageDim} asciiSize={prefs.asciiSize} asciiIntensity={prefs.asciiIntensity} />
+        <Backdrop background={prefs.background} tint={colors.onBg} bg={colors.bg} imageDim={prefs.imageDim} asciiSize={prefs.asciiSize} asciiIntensity={prefs.asciiIntensity} />
       </div>
       {glass.mounted && <Suspense fallback={null}><GlassLayer bg={colors.bg} leaving={glass.leaving} /></Suspense>}
       {/* refractive glass without WebGL: a CSS backdrop filter (no rim bend) */}
