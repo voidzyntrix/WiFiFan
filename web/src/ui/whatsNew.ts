@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.14.2',
+    notes: [
+      'API: pulse no longer fades in, only out; the colour fade comes back for the next command',
+    ],
+  },
+
+  {
     version: '2.14.1',
     notes: [
       'API: a pulse command lights a pixel or the whole ring and fades it out over the given milliseconds, like Music\'s beats; the effect command is gone',
