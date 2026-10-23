@@ -1,6 +1,8 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { App } from './App'
+import { startApi } from './api/bridge'
+import { useSettings } from './settings/store'
 // The UI is latin only: the subsets below are the ones the app ever renders, and only the weights
 // styles.css uses (400/500; 700 stands in where 600 is set). Keeps the boot css and the apk small
 // (the full set pulled in cyrillic, greek and vietnamese faces too); other scripts fall back to
@@ -17,8 +19,15 @@ const inField = (e: Event) => e.composedPath().some((n) => n instanceof HTMLInpu
 document.addEventListener('selectstart', (e) => { if (!inField(e)) e.preventDefault() })
 document.addEventListener('dragstart', (e) => e.preventDefault())
 
+/** Headless mode (desktop): nothing is mounted, so there is no UI, no canvas and no animation to pay for. */
+function Root() {
+  return useSettings().headless ? null : <App />
+}
+
+startApi()
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <Root />
   </StrictMode>,
 )

@@ -88,6 +88,20 @@ export interface UpdateChannel {
   install(url: string, version: string, onProgress: (received: number, total: number) => void): Promise<void>
 }
 
+/** What the desktop shell gives the API: a local WebSocket server that only moves text. */
+export interface ApiHost {
+  /** Starts or stops the server; resolves whether it is listening. */
+  listen(on: boolean, port: number): Promise<boolean>
+  /** Text to one client, or to all of them (id 0). */
+  send(id: number, text: string): void
+  onMessage(fn: (id: number, text: string) => void): () => void
+  onClients(fn: (count: number) => void): () => void
+  /** Hides the window (the shell keeps running in the tray) or brings it back. */
+  setHeadless(on: boolean): void
+  /** The tray's "Show Glow" ends headless mode from the shell's side. */
+  onHeadlessExit(fn: () => void): () => void
+}
+
 export interface Platform {
   kind: 'desktop' | 'android' | 'browser'
   /** For "Glow for Windows" style labels. */
@@ -111,6 +125,8 @@ export interface Platform {
   /** Desktop: keep running in the tray while something drives a device. */
   keepRunning(on: boolean): void
   update: UpdateChannel | null
+  /** Desktop: the local WebSocket API and headless mode (see api/bridge.ts, docs/API.md). */
+  api: ApiHost | null
   /** What the system can capture, for the sync modes. */
   capture: {
     microphone: boolean

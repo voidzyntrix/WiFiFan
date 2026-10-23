@@ -52,6 +52,14 @@ contextBridge.exposeInMainWorld('glow', {
   theme: {
     accent: () => ipcRenderer.invoke('theme:accent'),
   },
+  api: {
+    listen: (on, port) => ipcRenderer.invoke('api:listen', on, port),
+    send: (id, text) => ipcRenderer.send('api:send', id, text),
+    onMessage: (fn) => listen('api:message', (m) => fn(m.id, m.text)),
+    onClients: (fn) => listen('api:clients', fn),
+    setHeadless: (on) => ipcRenderer.send('app:headless', on),
+    onHeadlessExit: (fn) => listen('headless:exit', fn),
+  },
   openExternal: (url) => ipcRenderer.send('shell:open', url),
   keepRunning: (on) => ipcRenderer.send('app:keepRunning', on),
 })

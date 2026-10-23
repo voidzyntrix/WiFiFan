@@ -184,6 +184,7 @@ export function androidPlatform(bridge: AndroidBridge): Platform {
     haptic: (kind) => bridge.haptic(kind),
     keepAwake: (on) => bridge.keepAwake(on),
     keepRunning: () => {},
+    api: null,
     systemBars: (dark) => bridge.darkTheme(dark),
     update: {
       asset: /wififan-app-(\d+\.\d+\.\d+)\.apk/,

@@ -166,6 +166,17 @@ export function SettingsScreen({ onBack, onWhatsNew }: { onBack: () => void; onW
 
           <CloudCard i={5} />
 
+          {platform.api && (
+            <SettingsCard id="api" title="API" i={6}>
+              <SettingSwitch title="WebSocket API" subtitle={`Control the LED from scripts: ws://127.0.0.1:${p.apiPort}, this computer only. Commands are in docs/API.md`}
+                checked={p.apiEnabled} onChange={(v) => set({ apiEnabled: v, ...(v ? {} : { headless: false }) })} />
+              <Presence show={p.apiEnabled}>
+                <SettingSwitch title="Headless mode" subtitle="Hides the window and stops drawing the app, so only the API and the board link keep running (much lighter on the GPU). Glow reconnects to the last board by itself. Bring the window back from the tray icon."
+                  checked={p.headless} onChange={(v) => set({ headless: v })} />
+              </Presence>
+            </SettingsCard>
+          )}
+
         {types.map((t) => { const Section = t.SettingsSection!; return <Section key={t.id} /> })}
         </div>
       </div>

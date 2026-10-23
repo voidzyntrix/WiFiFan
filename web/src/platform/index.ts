@@ -3,7 +3,7 @@
 // browser (Web Bluetooth if Chrome has it, fetch for the network).
 
 import { androidPlatform } from './android'
-import type { Platform } from './types'
+import type { ApiHost, Platform } from './types'
 import { socketWifi, type SocketBridge } from './wifi'
 import { webBluetooth, type DevicePicker } from './webBluetooth'
 
@@ -26,6 +26,7 @@ interface ElectronGlow {
   theme: { accent(): Promise<string | null> }
   openExternal(url: string): void
   keepRunning(on: boolean): void
+  api: ApiHost
 }
 
 declare global {
@@ -52,6 +53,7 @@ function desktopPlatform(g: ElectronGlow): Platform {
     haptic: null,
     keepAwake: g.power.keepAwake,
     keepRunning: g.keepRunning,
+    api: g.api,
     update: {
       asset: /Glow-Desktop-(\d+\.\d+\.\d+)\.exe/,
       kind: 'desktop',
@@ -101,6 +103,7 @@ function browserPlatform(): Platform {
     haptic: null,
     keepAwake: () => {},
     keepRunning: () => {},
+    api: null,
     update: null,
     capture: { microphone: !!navigator.mediaDevices, systemAudio: true, screen: !!navigator.mediaDevices?.getDisplayMedia },
     onBack: () => () => {},

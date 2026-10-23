@@ -55,13 +55,20 @@ export interface Settings {
   imageDim: number
   /** ASCII background: the character cell's width in CSS px (10-40, the slider in Settings). */
   asciiSize: number
-  /** ASCII background: how strong the glows burn (0.25-1.4, the slider in Settings). */
+  /** ASCII background: how opaque the letters are (0.1-1, the slider in Settings). */
   asciiIntensity: number
   /** Desktop: soft clicks on sliders and buttons. Android: haptics. */
   sounds: boolean
   soundVolume: number
   keepScreenOn: boolean
   updatePrompts: boolean
+  /** Desktop: the local WebSocket API (api/bridge.ts) and the port it listens on. */
+  apiEnabled: boolean
+  apiPort: number
+  /** Desktop: no window and no UI, only the API and the board link. */
+  headless: boolean
+  /** The device headless mode reconnects to (the last one that connected). */
+  lastDeviceId: string | null
   lastSeenVersion: string | null
   /** Settings cards that are folded shut, by id. */
   collapsed: Record<string, boolean>
@@ -146,6 +153,10 @@ const DEFAULTS: Settings = {
   soundVolume: 0.5,
   keepScreenOn: false,
   updatePrompts: true,
+  apiEnabled: true,
+  apiPort: 8765,
+  headless: false,
+  lastDeviceId: null,
   lastSeenVersion: null,
   collapsed: {},
   devices: [],

@@ -14,6 +14,9 @@
 //    running in the tray (the stand-in for the foreground services and their notifications).
 //  - Wi-Fi boards: UDP discovery and TCP links (wifi.cjs).
 //  - Network: GitHub release files are fetched here, where browser CORS rules don't apply.
+//  - WebSocket API: api.cjs listens on 127.0.0.1; the UI process (web/src/api/bridge.ts) answers.
+//  - Headless: the window is hidden (and the UI unmounted by the app) so only the API and the
+//    board link keep running; the tray brings the window back.
 //  - Updates: the UI's "Update" downloads the new Glow.exe, swaps it in and restarts (updater.cjs).
 
 const {
@@ -21,6 +24,8 @@ const {
   Tray, Menu, nativeImage, net, shell, screen, systemPreferences,
 } = require('electron')
 const path = require('node:path')
+const fs = require('node:fs')
+const { createApiServer } = require('./api.cjs')
 const updater = require('./updater.cjs')
 const { setupWifi } = require('./wifi.cjs')
 
@@ -41,6 +46,9 @@ let quitting = false
 /** The UI says a sync or Auto light is running: closing the window hides it to the tray. */
 let keepRunning = false
 let keepAwakeId = null
+/** Headless mode: no window, only the API. Remembered in a flag file so a launch can skip the window. */
+let headless = false
+const headlessFlag = () => path.join(app.getPath('userData'), 'headless')
 
 if (!app.requestSingleInstanceLock()) {
   app.quit()
@@ -189,6 +197,11 @@ function iconImage() {
 }
 
 function showWindow() {
+  if (headless) {
+    headless = false
+    try { fs.rmSync(headlessFlag(), { force: true }) } catch { /* the flag is a convenience */ }
+    win?.webContents.send('headless:exit')
+  }
   if (!win) return createWindow()
   if (win.isMinimized()) win.restore()
   win.show()
@@ -226,7 +239,7 @@ function createWindow() {
       sandbox: true,
     },
   })
-  win.once('ready-to-show', () => win.show())
+  win.once('ready-to-show', () => { if (!headless) win.show() })
   setupBluetooth(win.webContents)
 
   // Links open in the real browser.
@@ -236,7 +249,7 @@ function createWindow() {
   })
 
   win.on('close', (e) => {
-    if (keepRunning && !quitting) {
+    if ((keepRunning || headless) && !quitting) {
       e.preventDefault()
       win.hide()
       ensureTray()
@@ -252,10 +265,33 @@ function createWindow() {
 ipcMain.on('app:keepRunning', (_e, on) => {
   keepRunning = !!on
   if (keepRunning) ensureTray()
-  else if (tray && win && win.isVisible()) { tray.destroy(); tray = null }
+  else if (tray && win && win.isVisible() && !headless) { tray.destroy(); tray = null }
+})
+
+// ---------------------------------------------------------------------------
+// WebSocket API and headless mode
+// ---------------------------------------------------------------------------
+
+const api = createApiServer({
+  onMessage: (id, text) => { if (win && !win.isDestroyed()) win.webContents.send('api:message', { id, text }) },
+  onClients: (n) => { if (win && !win.isDestroyed()) win.webContents.send('api:clients', n) },
+})
+ipcMain.handle('api:listen', (_e, on, port) => (on ? api.start(Number(port) || 8765) : (api.stop(), false)))
+ipcMain.on('api:send', (_e, id, text) => api.send(id, String(text)))
+
+ipcMain.on('app:headless', (_e, on) => {
+  headless = !!on
+  try {
+    if (headless) fs.writeFileSync(headlessFlag(), '1')
+    else fs.rmSync(headlessFlag(), { force: true })
+  } catch { /* the flag is a convenience */ }
+  if (headless) { ensureTray(); win?.hide() }
+  else { if (!keepRunning && tray) { tray.destroy(); tray = null } win?.show() }
 })
 
 app.whenReady().then(() => {
+  try { headless = fs.existsSync(headlessFlag()) } catch { headless = false }
+  if (headless) ensureTray()
   // Microphone, camera (room light) and the like: the UI only asks when a mode needs them.
   session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(true))
   setupCapture()
@@ -265,5 +301,5 @@ app.whenReady().then(() => {
   createWindow()
 })
 
-app.on('before-quit', () => { quitting = true })
+app.on('before-quit', () => { quitting = true; api.stop() })
 app.on('window-all-closed', () => app.quit())
