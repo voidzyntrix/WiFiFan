@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.14.1',
+    notes: [
+      'API: a pulse command lights a pixel or the whole ring and fades it out over the given milliseconds, like Music\'s beats; the effect command is gone',
+    ],
+  },
+
+  {
     version: '2.14.0',
     notes: [
       'Desktop: a local WebSocket API (ws://127.0.0.1:8765) sets the whole ring, single pixels, on/off and effects, and Settings gets a headless mode that hides the window and stops drawing the app so only the API runs',
