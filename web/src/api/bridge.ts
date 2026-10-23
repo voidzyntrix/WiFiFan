@@ -25,6 +25,9 @@ const r0 = (x: number) => Math.round(x)
 
 /** The fade-out time armed on the board by `pulse` (0 = none: colours hold). */
 let decayMs = 0
+/** The fade time the API set (null: the app's own setting), and whether a pulse has it at 0 right now. */
+let fadeMs: number | null = null
+let fadeZeroed = false
 
 /** The last colour set through the API (what "on" and "brightness" come back to). */
 let cur: Hsv | null = null
@@ -79,6 +82,8 @@ function take(pulsing = false) {
   if (syncHub.get().active !== 'NONE') stopSync()
   // a pulse arms the board's fade-out (`decay=`); every other command wants colours that stay
   if (!pulsing && decayMs !== 0) { send('decay=0'); decayMs = 0 }
+  // a pulse has no fade-in: the colour fade is 0 for it, and every other command gets it back
+  if (!pulsing && fadeZeroed) { send(`fade=${fadeMs ?? settings.get().fadeMs}`); fadeZeroed = false }
 }
 
 function send(cmd: string) { board.sendData(cmd) }
@@ -171,6 +176,7 @@ function run(m: Msg): Msg | void {
       take(true)
       needFirmware(ring ? '2.1.23' : '2.1.20', ring ? 'Pulsing the whole ring' : 'Pulsing a pixel')
       const ms = r0(m.ms)
+      if (!fadeZeroed) { send('fade=0'); fadeZeroed = true }
       if (decayMs !== ms) { send(`decay=${ms}`); decayMs = ms }
       send(ring ? `h=${hsvArg(hsv)}` : `p=${m.index}/${hsvArg(hsv)}`)
       return
@@ -179,7 +185,8 @@ function run(m: Msg): Msg | void {
     case 'fade': {
       if (!num(m.ms)) throw new ApiError('"ms" is 0 to 5000')
       take()
-      send(`fade=${clamp(r0(m.ms), 0, 5000)}`)
+      fadeMs = clamp(r0(m.ms), 0, 5000)
+      send(`fade=${fadeMs}`)
       return
     }
 
@@ -244,7 +251,7 @@ export function startApi() {
     sent = s
     host.send(0, s)
   }
-  board.subscribe(() => { if (board.snapshot.state !== 'connected') decayMs = 0 })
+  board.subscribe(() => { if (board.snapshot.state !== 'connected') { decayMs = 0; fadeZeroed = false } })
   board.subscribe(broadcast)
   connection.subscribe(broadcast)
   syncHub.subscribe(broadcast)
