@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.88',
+    notes: [
+      'Material You gets the glass backgrounds: particles, aurora, a photo or plain behind the solid cards - the Background picker in Settings now serves both designs',
+    ],
+  },
+
+  {
     version: '2.13.87',
     notes: [
       'Beat detection is rebuilt: the ring locks onto the music\'s pulse - no more flashes on wobbles, hats or quiet pads',
