@@ -712,7 +712,9 @@ input.text-field:focus { border-color: var(--primary); background: var(--on-bg-8
 
 /* ═══ Design: Material ══════════════════════════════════════ */
 
-:root[data-design='material'] .backdrop, :root[data-design='material'] .glass-canvas { display: none; }
+/* the glass canvas renders only under Glass design; the .backdrop serves both designs now
+   (Material You picked up Glass's backgrounds) and shows behind the solid tonal surfaces */
+:root[data-design='material'] .glass-canvas { display: none; }
 
 /* Material 3, the way Google's own apps look: a flat tonal background, large display titles, filled
    tonal cards with big shapes, and colourful container tiles. */

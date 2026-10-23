@@ -77,15 +77,15 @@ export function SettingsScreen({ onBack, onWhatsNew }: { onBack: () => void; onW
             <SettingHeading title="Appearance" subtitle={phone ? 'Light or dark, or the same as the phone' : 'Light or dark, or the same as Windows'} />
             <SegmentedPill options={['System', 'Light', 'Dark']} selected={p.themeMode} onSelect={(i) => set({ themeMode: i })} />
             <SettingSwitch title="Pure black (OLED)" subtitle="Black background in dark mode" checked={p.pureBlack} onChange={(v) => set({ pureBlack: v })} />
-            {!material && <SettingSection title="Background" />}
-            {!material && <SettingHeading title="Background" subtitle={{
+            <SettingSection title="Background" />
+            <SettingHeading title="Background" subtitle={{
               SIMPLE: 'Slow floating particles',
               AURORA: "Soft glows drifting in the light's colour",
               IMAGE: 'A photo of a living room',
               PLAIN: 'Nothing behind the controls; lightest on the GPU',
-            }[p.background]} />}
-            {!material && <SegmentedPill options={['Particles', 'Aurora', 'Image', 'Plain']} selected={backgrounds.indexOf(p.background)} onSelect={(i) => set({ background: backgrounds[i] })} />}
-            <Presence show={!material && p.background === 'IMAGE'}>
+            }[p.background]} />
+            <SegmentedPill options={['Particles', 'Aurora', 'Image', 'Plain']} selected={backgrounds.indexOf(p.background)} onSelect={(i) => set({ background: backgrounds[i] })} />
+            <Presence show={p.background === 'IMAGE'}>
               <LevelSlider label="Darkness" value={p.imageDim / 0.95} text={`${Math.round(p.imageDim * 100)} %`} onChange={(f) => set({ imageDim: f * 0.95 })} />
             </Presence>
           </SettingsCard>

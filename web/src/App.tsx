@@ -175,11 +175,10 @@ export function App() {
 
   return (
     <>
-      {prefs.design === 'GLASS' && (
-        <div className="backdrop">
-          <Backdrop background={prefs.background} tint={colors.onBg} imageDim={prefs.imageDim} />
-        </div>
-      )}
+      {/* both designs get the background (Glass bends it, Material shows it behind its solid cards) */}
+      <div className="backdrop">
+        <Backdrop background={prefs.background} tint={colors.onBg} imageDim={prefs.imageDim} />
+      </div>
       {glass.mounted && <Suspense fallback={null}><GlassLayer bg={colors.bg} leaving={glass.leaving} /></Suspense>}
       {/* refractive glass without WebGL: a CSS backdrop filter (no rim bend) */}
       <svg width="0" height="0" style={{ position: 'absolute' }} aria-hidden>
