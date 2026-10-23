@@ -185,8 +185,9 @@ function Aurora({ hue, sat }: { hue: number; sat: number }) {
 
    Quantizing a smooth field into glyphs bands it into rings, so every cell carries a pinch of
    dither — one stable pseudo-random offset that interleaves neighbouring glyphs at the band
-   edges. The mouse floats its own faint glow under the pointer (a lantern that glides after it
-   and fades away when it leaves), so the light visibly reads. */
+   edges. A broad band of light keeps crossing the grid (the field breathes on a ~20 s cycle),
+   and stray lit cells flare a few steps denser and fade away like embers, so the light never
+   falls quite still. */
 
 /* One brightness step per glyph, denser left to right — and every step a shape that fills its own
    cell: '-' and '=' read as horizontal strokes (a half step at best), so they didn't survive. */
@@ -202,42 +203,17 @@ function cellHash(x: number, y: number) {
   return (h >>> 0) / 4294967296
 }
 
-function Ascii({ tint, size }: { tint: string; size: number }) {
+function Ascii({ tint, size, intensity }: { tint: string; size: number; intensity: number }) {
   const ref = useCanvas()
   const field = useRef<HTMLCanvasElement | null>(null)
   const dither = useRef<Float32Array>(new Float32Array(0))
+  const embers = useRef<{ x: number; y: number; t0: number }[]>([])
   const next = useRef(0)
   const smooth = useSmoothColor(tint)
-  // the lantern: where the pointer is, eased toward its target; only an actual mouse (desktops) wields it
-  const lantern = useRef({ x: 0.5, y: 0.45, on: 0 })
-  const pointer = useRef({ x: 0.5, y: 0.45, on: 0 })
-  useEffect(() => {
-    const move = (e: PointerEvent) => {
-      if (e.pointerType !== 'mouse') return
-      pointer.current.x = e.clientX / Math.max(1, window.innerWidth)
-      pointer.current.y = e.clientY / Math.max(1, window.innerHeight)
-      pointer.current.on = 1
-    }
-    const off = () => { pointer.current.on = 0 }
-    window.addEventListener('pointermove', move, { passive: true })
-    document.documentElement.addEventListener('mouseleave', off)
-    window.addEventListener('blur', off)
-    return () => {
-      window.removeEventListener('pointermove', move)
-      document.documentElement.removeEventListener('mouseleave', off)
-      window.removeEventListener('blur', off)
-    }
-  }, [])
   useFrames((t, dt) => {
     if (t < next.current) return   // the drift is slow: redraws a few times a second, characters pop, they don't smear
     const c = ref.current
     if (!c) return
-    // the lantern glides after the pointer and fades with it
-    const l = lantern.current, p = pointer.current
-    const k = 1 - Math.exp(-9 * dt)
-    l.x += (p.x - l.x) * k
-    l.y += (p.y - l.y) * k
-    l.on += (p.on - l.on) * (1 - Math.exp(-5 * dt))
     const dpr = c.width / Math.max(1, window.innerWidth)
     // the cell width is exactly the Glyph size setting: `size` CSS px on screen whatever the
     // window (the canvas's own scale is what dpr is here, so the cell ends up `size` CSS px wide)
@@ -247,6 +223,8 @@ function Ascii({ tint, size }: { tint: string; size: number }) {
     // a big grid redraws a little more slowly (a 4K window spells ~20k cells) — the drift is slow,
     // so the pop rate gives way before the redraw cost does
     next.current = t + Math.min(0.22, Math.max(0.05, cols * rows * 0.05 / 9000))
+    // the glows burn at the Intensity setting's strength: it widens the light, not just brightens it
+    const I = Math.max(0.25, Math.min(1.4, intensity))
     // one field pixel per character cell: the same four drifting glows as Aurora
     const f = field.current ?? (field.current = document.createElement('canvas'))
     if (f.width !== cols || f.height !== rows) { f.width = cols; f.height = rows }
@@ -256,22 +234,24 @@ function Ascii({ tint, size }: { tint: string; size: number }) {
     GLOWS.forEach((gl, i) => {
       const cx = cols * (0.5 + 0.42 * Math.sin(t * gl[1] * 6.2832 + gl[3]))
       const cy = rows * (0.5 + 0.42 * Math.cos(t * gl[2] * 6.2832 + gl[3] * 1.3))
-      const a = i === 3 ? 0.16 : 0.26
+      const a = (i === 3 ? 0.16 : 0.26) * I
       const grad = fg.createRadialGradient(cx, cy, 0, cx, cy, r)
       grad.addColorStop(0, `rgba(0, 0, 0, ${a})`)   // the colour is irrelevant; only the alpha is read
       grad.addColorStop(1, 'rgba(0, 0, 0, 0)')
       fg.fillStyle = grad
       fg.fillRect(0, 0, cols, rows)
     })
-    if (l.on > 0.01) {
-      // the lantern: a faint glow of its own, so the pointer has light to shadow
-      const lx = cols * l.x, ly = rows * l.y
-      const lgrad = fg.createRadialGradient(lx, ly, 0, lx, ly, Math.max(cols, rows) * 0.18)
-      lgrad.addColorStop(0, `rgba(0, 0, 0, ${0.15 * l.on})`)
-      lgrad.addColorStop(1, 'rgba(0, 0, 0, 0)')
-      fg.fillStyle = lgrad
-      fg.fillRect(0, 0, cols, rows)
-    }
+    // a sheen: one broad diagonal band of light keeps crossing the grid — the whole field breathes
+    // through a slow cycle of its own (~20 s) beneath the glows. It shifts the brightness by a
+    // good glyph step or more; anything smaller would drown in the cells' own quantization.
+    const sp = (t / 21) % 1
+    const sx = cols * (sp * 1.6 - 0.3)
+    const sheen = fg.createLinearGradient(sx, rows * (sp * 0.45 - 0.1), sx + cols * 0.28, rows * (sp * 0.45 + 0.2))
+    sheen.addColorStop(0, 'rgba(0, 0, 0, 0)')
+    sheen.addColorStop(0.5, `rgba(0, 0, 0, ${0.09 * I * Math.sin(Math.PI * sp)})`)
+    sheen.addColorStop(1, 'rgba(0, 0, 0, 0)')
+    fg.fillStyle = sheen
+    fg.fillRect(0, 0, cols, rows)
     const px = fg.getImageData(0, 0, cols, rows).data
     // the dither is one stable value per cell — constant between redraws — rebuilt with the grid
     let dn = dither.current
@@ -279,6 +259,21 @@ function Ascii({ tint, size }: { tint: string; size: number }) {
       dn = dither.current = new Float32Array(cols * rows)
       for (let i = 0; i < dn.length; i++) dn[i] = cellHash(i % cols, (i / cols) | 0)
     }
+    // embers: a stray lit cell flares a few steps denser and fades away again (about one at a
+    // time) — at glyph resolution a single character that lights up is exactly one true pixel
+    if (embers.current.length < 3 && Math.random() < 0.06) {
+      for (let tries = 0; tries < 6; tries++) {
+        const ey = (Math.random() * rows) | 0, ex = (Math.random() * cols) | 0
+        if (px[(ey * cols + ex) * 4 + 3] / 255 > 0.12 * I) { embers.current.push({ x: ex, y: ey, t0: t }); break }
+      }
+    }
+    embers.current = embers.current.filter((e) => {
+      const age = (t - e.t0) / 1.1
+      if (age >= 1) return false
+      const a4 = (e.y * cols + e.x) * 4 + 3
+      px[a4] = Math.min(255, px[a4] + 0.35 * I * Math.sin(Math.PI * age) * 255)
+      return true
+    })
     const g = c.getContext('2d')!
     g.clearRect(0, 0, c.width, c.height)
     g.fillStyle = smooth(dt)
@@ -336,6 +331,7 @@ export function BackgroundLayer(props: {
   tint: string
   imageDim: number
   asciiSize: number
+  asciiIntensity: number
 }) {
   // A new background fades the old one out, swaps, and fades in (the glass reads the same fade).
   const [shown, setShown] = useState(props.background)
@@ -367,7 +363,7 @@ export function BackgroundLayer(props: {
   switch (shown) {
     case 'SIMPLE': return <Particles active={props.active} tint={props.tint} />
     case 'AURORA': return <Aurora hue={props.active ? props.hue : 200} sat={props.active ? props.sat : 0.7} />
-    case 'ASCII': return <Ascii tint={props.tint} size={props.asciiSize} />
+    case 'ASCII': return <Ascii tint={props.tint} size={props.asciiSize} intensity={props.asciiIntensity} />
     case 'IMAGE': return <Photo dim={props.imageDim} />
     default: return null
   }

@@ -91,6 +91,11 @@ export function SettingsScreen({ onBack, onWhatsNew }: { onBack: () => void; onW
                 onChange={(f) => set({ asciiSize: Math.round(10 + f * 30) })}
                 hint="The characters' cell width. Smaller spells the glow finer; larger is chunkier and easier on the GPU." />
             </Presence>
+            <Presence show={p.background === 'ASCII'}>
+              <LevelSlider label="Intensity" value={(p.asciiIntensity - 0.25) / 1.15} text={`${Math.round(p.asciiIntensity * 100)} %`}
+                onChange={(f) => set({ asciiIntensity: Math.max(0.25, Math.min(1.4, Math.round((0.25 + f * 1.15) * 20) / 20)) })}
+                hint="How far and how strongly the glows reach." />
+            </Presence>
             <Presence show={p.background === 'IMAGE'}>
               <LevelSlider label="Darkness" value={p.imageDim / 0.95} text={`${Math.round(p.imageDim * 100)} %`} onChange={(f) => set({ imageDim: f * 0.95 })} />
             </Presence>
