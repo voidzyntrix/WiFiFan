@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.92',
+    notes: [
+      'ASCII background: the mouse lantern is gone; an Intensity slider sets how far the glows reach; the field breathes through a slow sheen and stray characters light up and fade like embers',
+    ],
+  },
+
+  {
     version: '2.13.91',
     notes: [
       'ASCII background: a pinch of per-cell dither breaks the glow\'s bands, the mouse trails a faint glow of glyphs, and the Glyph size is absolute - the same characters on screen whatever the window',
