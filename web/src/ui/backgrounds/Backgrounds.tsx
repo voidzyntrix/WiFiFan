@@ -226,8 +226,8 @@ function Ascii({ tint, bg, size, intensity }: { tint: string; bg: string; size: 
     // a big grid redraws a little more slowly (a 4K window spells ~20k cells) — the drift is slow,
     // so the pop rate gives way before the redraw cost does
     next.current = t + Math.min(0.22, Math.max(0.05, cols * rows * 0.05 / 9000))
-    // the glows burn at the Intensity setting's strength: it widens the light, not just brightens it
-    const I = Math.max(0.25, Math.min(1.4, intensity))
+    // the Intensity setting is the glyphs' alpha: the lights themselves always burn at full strength
+    const I = Math.max(0.1, Math.min(1, intensity))
     // one field pixel per character cell: the same four drifting glows as Aurora
     const f = field.current ?? (field.current = document.createElement('canvas'))
     if (f.width !== cols || f.height !== rows) { f.width = cols; f.height = rows }
@@ -237,7 +237,7 @@ function Ascii({ tint, bg, size, intensity }: { tint: string; bg: string; size: 
     GLOWS.forEach((gl, i) => {
       const cx = cols * (0.5 + 0.42 * Math.sin(t * gl[1] * 6.2832 + gl[3]))
       const cy = rows * (0.5 + 0.42 * Math.cos(t * gl[2] * 6.2832 + gl[3] * 1.3))
-      const a = (i === 3 ? 0.16 : 0.26) * I
+      const a = i === 3 ? 0.16 : 0.26
       const grad = fg.createRadialGradient(cx, cy, 0, cx, cy, r)
       grad.addColorStop(0, `rgba(0, 0, 0, ${a})`)   // the colour is irrelevant; only the alpha is read
       grad.addColorStop(1, 'rgba(0, 0, 0, 0)')
@@ -251,7 +251,7 @@ function Ascii({ tint, bg, size, intensity }: { tint: string; bg: string; size: 
     const sx = cols * (sp * 1.6 - 0.3)
     const sheen = fg.createLinearGradient(sx, rows * (sp * 0.45 - 0.1), sx + cols * 0.28, rows * (sp * 0.45 + 0.2))
     sheen.addColorStop(0, 'rgba(0, 0, 0, 0)')
-    sheen.addColorStop(0.5, `rgba(0, 0, 0, ${0.09 * I * Math.sin(Math.PI * sp)})`)
+    sheen.addColorStop(0.5, `rgba(0, 0, 0, ${0.09 * Math.sin(Math.PI * sp)})`)
     sheen.addColorStop(1, 'rgba(0, 0, 0, 0)')
     fg.fillStyle = sheen
     fg.fillRect(0, 0, cols, rows)
@@ -267,14 +267,14 @@ function Ascii({ tint, bg, size, intensity }: { tint: string; bg: string; size: 
     if (embers.current.length < 3 && Math.random() < 0.06) {
       for (let tries = 0; tries < 6; tries++) {
         const ey = (Math.random() * rows) | 0, ex = (Math.random() * cols) | 0
-        if (px[(ey * cols + ex) * 4 + 3] / 255 > 0.12 * I) { embers.current.push({ x: ex, y: ey, t0: t }); break }
+        if (px[(ey * cols + ex) * 4 + 3] / 255 > 0.12) { embers.current.push({ x: ex, y: ey, t0: t }); break }
       }
     }
     embers.current = embers.current.filter((e) => {
       const age = (t - e.t0) / 1.1
       if (age >= 1) return false
       const a4 = (e.y * cols + e.x) * 4 + 3
-      px[a4] = Math.min(255, px[a4] + 0.35 * I * Math.sin(Math.PI * age) * 255)
+      px[a4] = Math.min(255, px[a4] + 0.35 * Math.sin(Math.PI * age) * 255)
       return true
     })
     // the ember cells by index, so the white pass can hand their characters to the orange pass
@@ -303,7 +303,7 @@ function Ascii({ tint, bg, size, intensity }: { tint: string; bg: string; size: 
         const glyph = ASCII_GLYPHS[Math.min(ASCII_GLYPHS.length - 1, Math.round(bd * (ASCII_GLYPHS.length - 1)))]
         if (glyph === ' ') continue
         if (emberCells.has(cell)) { flares.push({ cell, glyph, b }); continue }
-        g.globalAlpha = Math.min(0.94, 0.25 + b * 0.72)
+        g.globalAlpha = Math.min(0.94, 0.25 + b * 0.72) * I
         g.fillText(glyph, col * cw + cw / 2, row * cw + cw / 2)
       }
     }
@@ -315,7 +315,7 @@ function Ascii({ tint, bg, size, intensity }: { tint: string; bg: string; size: 
       const e = embers.current.find((e) => e.y * cols + e.x === f.cell)!
       const env = Math.sin(Math.PI * (t - e.t0) / 1.1)
       g.fillStyle = EMBER_GLYPH
-      g.globalAlpha = Math.min(0.94, 0.25 + f.b * 0.72)
+      g.globalAlpha = Math.min(0.94, 0.25 + f.b * 0.72) * I
       g.fillText(f.glyph, col * cw + cw / 2, row * cw + cw / 2)
       // the bloom: a tight halo reaching about 1.75 glyphs out at full flare, breathing with the
       // ember itself
