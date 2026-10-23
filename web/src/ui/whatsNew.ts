@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.93',
+    notes: [
+      'ASCII letters sit on the app\'s own background (the one the OLED toggle blacks out): every glyph is white, and the embers flare in vibrant orange with a soft additive bloom',
+    ],
+  },
+
+  {
     version: '2.13.92',
     notes: [
       'ASCII background: the mouse lantern is gone; an Intensity slider sets how far the glows reach; the field breathes through a slow sheen and stray characters light up and fade like embers',
