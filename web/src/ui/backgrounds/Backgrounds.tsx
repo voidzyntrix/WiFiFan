@@ -181,29 +181,72 @@ function Aurora({ hue, sat }: { hue: number; sat: number }) {
    brighter closer to a glow's centre, always in the app's own colour (the tint prop — onBg from
    theme.ts — so it follows System / Custom / Monochrome, never the LED light). The glows paint
    onto a tiny canvas at grid resolution and are read back in a single call, so the field costs
-   next to nothing; the series of fillText over the lit cells is the only real work. */
+   next to nothing; the series of fillText over the lit cells is the only real work.
+
+   Quantizing a smooth field into glyphs bands it into rings, so every cell carries a pinch of
+   dither — one stable pseudo-random offset that interleaves neighbouring glyphs at the band
+   edges. The mouse floats its own faint glow under the pointer (a lantern that glides after it
+   and fades away when it leaves), so the light visibly reads. */
 
 /* One brightness step per glyph, denser left to right — and every step a shape that fills its own
    cell: '-' and '=' read as horizontal strokes (a half step at best), so they didn't survive. */
 
 const ASCII_GLYPHS = ' .:;+ox*#%@'
+const ASCII_DITHER = 0.12   // how much of a glyph step one cell's dither can swing across
+
+/** A stable random 0..1 per cell: the dither never flickers between redraws. */
+function cellHash(x: number, y: number) {
+  let h = Math.imul(x + 1, 0x9e3779b1) ^ Math.imul(y + 1, 0x85ebca77)
+  h = Math.imul(h ^ (h >>> 15), 0x2c1b3c6d)
+  h ^= h >>> 13
+  return (h >>> 0) / 4294967296
+}
 
 function Ascii({ tint, size }: { tint: string; size: number }) {
   const ref = useCanvas()
   const field = useRef<HTMLCanvasElement | null>(null)
+  const dither = useRef<Float32Array>(new Float32Array(0))
   const next = useRef(0)
   const smooth = useSmoothColor(tint)
+  // the lantern: where the pointer is, eased toward its target; only an actual mouse (desktops) wields it
+  const lantern = useRef({ x: 0.5, y: 0.45, on: 0 })
+  const pointer = useRef({ x: 0.5, y: 0.45, on: 0 })
+  useEffect(() => {
+    const move = (e: PointerEvent) => {
+      if (e.pointerType !== 'mouse') return
+      pointer.current.x = e.clientX / Math.max(1, window.innerWidth)
+      pointer.current.y = e.clientY / Math.max(1, window.innerHeight)
+      pointer.current.on = 1
+    }
+    const off = () => { pointer.current.on = 0 }
+    window.addEventListener('pointermove', move, { passive: true })
+    document.documentElement.addEventListener('mouseleave', off)
+    window.addEventListener('blur', off)
+    return () => {
+      window.removeEventListener('pointermove', move)
+      document.documentElement.removeEventListener('mouseleave', off)
+      window.removeEventListener('blur', off)
+    }
+  }, [])
   useFrames((t, dt) => {
-    if (t < next.current) return   // the drift is slow: ~18 redraws a second, characters pop, they don't smear
-    next.current = t + 0.055
+    if (t < next.current) return   // the drift is slow: redraws a few times a second, characters pop, they don't smear
     const c = ref.current
     if (!c) return
+    // the lantern glides after the pointer and fades with it
+    const l = lantern.current, p = pointer.current
+    const k = 1 - Math.exp(-9 * dt)
+    l.x += (p.x - l.x) * k
+    l.y += (p.y - l.y) * k
+    l.on += (p.on - l.on) * (1 - Math.exp(-5 * dt))
     const dpr = c.width / Math.max(1, window.innerWidth)
-    // the cell width is the Glyph size setting (CSS px), hard-capped at ~120 columns so a wide,
-    // low-dpr window can never spell more text than is worth redrawing
-    const cw = Math.max(8, Math.round(Math.max(6, Math.min(60, size)) * dpr), Math.ceil(c.width / 120))
+    // the cell width is exactly the Glyph size setting: `size` CSS px on screen whatever the
+    // window (the canvas's own scale is what dpr is here, so the cell ends up `size` CSS px wide)
+    const cw = Math.max(3, Math.round(Math.max(6, Math.min(60, size)) * dpr))
     const cols = Math.ceil(c.width / cw)
     const rows = Math.ceil(c.height / cw)
+    // a big grid redraws a little more slowly (a 4K window spells ~20k cells) — the drift is slow,
+    // so the pop rate gives way before the redraw cost does
+    next.current = t + Math.min(0.22, Math.max(0.05, cols * rows * 0.05 / 9000))
     // one field pixel per character cell: the same four drifting glows as Aurora
     const f = field.current ?? (field.current = document.createElement('canvas'))
     if (f.width !== cols || f.height !== rows) { f.width = cols; f.height = rows }
@@ -220,7 +263,22 @@ function Ascii({ tint, size }: { tint: string; size: number }) {
       fg.fillStyle = grad
       fg.fillRect(0, 0, cols, rows)
     })
+    if (l.on > 0.01) {
+      // the lantern: a faint glow of its own, so the pointer has light to shadow
+      const lx = cols * l.x, ly = rows * l.y
+      const lgrad = fg.createRadialGradient(lx, ly, 0, lx, ly, Math.max(cols, rows) * 0.18)
+      lgrad.addColorStop(0, `rgba(0, 0, 0, ${0.15 * l.on})`)
+      lgrad.addColorStop(1, 'rgba(0, 0, 0, 0)')
+      fg.fillStyle = lgrad
+      fg.fillRect(0, 0, cols, rows)
+    }
     const px = fg.getImageData(0, 0, cols, rows).data
+    // the dither is one stable value per cell — constant between redraws — rebuilt with the grid
+    let dn = dither.current
+    if (dn.length !== cols * rows) {
+      dn = dither.current = new Float32Array(cols * rows)
+      for (let i = 0; i < dn.length; i++) dn[i] = cellHash(i % cols, (i / cols) | 0)
+    }
     const g = c.getContext('2d')!
     g.clearRect(0, 0, c.width, c.height)
     g.fillStyle = smooth(dt)
@@ -233,7 +291,10 @@ function Ascii({ tint, size }: { tint: string; size: number }) {
         // the glows overlap at most ~0.6 alpha; that is 1 = the densest glyph at nearly full colour
         const b = Math.min(1, px[(cells + col) * 4 + 3] / 255 / 0.62)
         if (b < 0.06) continue
-        const glyph = ASCII_GLYPHS[Math.min(ASCII_GLYPHS.length - 1, Math.round(b * (ASCII_GLYPHS.length - 1)))]
+        // the dithered brightness picks the glyph (the quantizing bands break apart); the alpha
+        // stays with the undithered brightness, so nothing shimmers as the glows drift
+        const bd = Math.min(1, Math.max(0, b + (dn[cells + col] - 0.5) * ASCII_DITHER))
+        const glyph = ASCII_GLYPHS[Math.min(ASCII_GLYPHS.length - 1, Math.round(bd * (ASCII_GLYPHS.length - 1)))]
         if (glyph === ' ') continue
         g.globalAlpha = Math.min(0.94, 0.25 + b * 0.72)
         g.fillText(glyph, col * cw + cw / 2, row * cw + cw / 2)
