@@ -381,6 +381,18 @@ its 2.1.17 contract exactly, a `p=` write re-arms the one pixel it wrote, and
 a full-ring `h=`/`l=` holds its colour as before. Boards that took 2.1.21
 behave no differently from the app either way.
 
+## 2.1.23 - the whole-ring beat flash is back, and this time it is a setting
+
+2.1.21 had it, 2.1.22 took it out, and it goes back in with the same three
+lines: an `h=`/`l=` write re-arms the decay countdown on every pixel it
+covered, so the app's Music and Visualizer modes flash the entire ring with
+one command per beat and let the board do the fading. The difference is on the
+app's side: the whole-ring flash is no longer forced on every board that
+streams per-LED beats - it is a switch (firmware 2.1.23 appears in the app as
+its own capability). Turned off, a beat behaves exactly as in 2.1.22; turned
+on, a real beat singles out the whole ring once, then the beats trail as
+usual.
+
 `FW_VERSION` bumps to 2.1.22.
 
 

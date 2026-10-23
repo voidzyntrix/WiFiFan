@@ -83,7 +83,9 @@ Streaming (music / visualizer / screen sync): send `hh=...` per frame, with
 ~2.3 ms at 115200 baud. The one-LED-per-beat modes (app setting, Music and
 Visualizer) instead send `decay=700\` once (2.1.17), then a single `p=I/H/S/V\`
 sentence per note - the pixel holding it; every pixel it left fades to black by
-itself, with no help from the app.
+itself, with no help from the app. A real beat (2.1.23, as in 2.1.21) arrives
+as one `h=` instead: it re-arms the decay on every pixel at once, so the whole
+ring takes the beat's colour in the same command and fades as one.
 
 ### Effects
 
@@ -119,7 +121,7 @@ turning. Any other colour command, and every other command
 | Command | Meaning | Example |
 |---------|---------|---------|
 | `fade=MS` | colour fade time 0-5000 ms (default 1500; not saved) | `fade=300\` |
-| `decay=MS` | streaming decay (2.1.17), 0-5000 ms: while armed, every `p=` write starts a countdown on that pixel, and if nothing re-arms it, its output fades to black over MS. When the countdown ends the pixel stays black until it is written again (2.1.18; 2.1.17 jumped it back to full brightness instead). The effect commands (`rain`, `candle`, `breathe`, `spin=`) clear the whole decay state; `decay=0` stops the fading, pixels hold (not saved) | `decay=700\` |
+| `decay=MS` | streaming decay (2.1.17), 0-5000 ms: while armed, every `p=` write starts a countdown on that pixel, and if nothing re-arms it, its output fades to black over MS. When the countdown ends the pixel stays black until it is written again (2.1.18; 2.1.17 jumped it back to full brightness instead). 2.1.23 (as in 2.1.21): `h=`/`l=` re-arm the countdown on all the pixels they cover - one whole-ring colour write is a flash the board fades. The effect commands (`rain`, `candle`, `breathe`, `spin=`) still clear the whole decay state; `decay=0` stops the fading, pixels hold (not saved) | `decay=700\` |
 | `split=0` / `split=1` | Linked / Separate (see above; not saved) | `split=1\` |
 | `alert=C/S/M` | blink alert (1.8.0): C 1 red / 2 green, two short blinks every S seconds (5-3600) for M minutes (0 = no end), shown over the running mode. A repeat of the same C only refreshes it. The alert ends by itself when no byte arrives for 150 s; `alert=0` cancels (not saved) | `alert=1/60/0\` |
 | `sleep=M` | sleep timer (1.7.0): whatever shows fades smoothly to off over M minutes (1-240); `sleep=0` cancels (not saved) | `sleep=30\` |
