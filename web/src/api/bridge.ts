@@ -23,6 +23,9 @@ const DEFAULT_PIXELS = 24
 const num = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x)
 const r0 = (x: number) => Math.round(x)
 
+/** The fade-out time armed on the board by `pulse` (0 = none: colours hold). */
+let decayMs = 0
+
 /** The last colour set through the API (what "on" and "brightness" come back to). */
 let cur: Hsv | null = null
 
@@ -71,9 +74,11 @@ const pixelCount = () => {
 }
 
 /** The API has priority: whatever sound or screen sync drives the LED stops first. */
-function take() {
+function take(pulsing = false) {
   needBoard()
   if (syncHub.get().active !== 'NONE') stopSync()
+  // a pulse arms the board's fade-out (`decay=`); every other command wants colours that stay
+  if (!pulsing && decayMs !== 0) { send('decay=0'); decayMs = 0 }
 }
 
 function send(cmd: string) { board.sendData(cmd) }
@@ -98,8 +103,6 @@ function status() {
     headless: settings.get().headless,
   }
 }
-
-const EFFECTS = ['rainbow', 'candle', 'breathe', 'spin', 'none']
 
 function run(m: Msg): Msg | void {
   switch (m.cmd) {
@@ -160,21 +163,16 @@ function run(m: Msg): Msg | void {
       return
     }
 
-    case 'effect': {
-      const name = String(m.name)
-      if (!EFFECTS.includes(name)) throw new ApiError(`"name" is one of ${EFFECTS.join(', ')}`)
-      take()
-      const c = current()
-      const v = num(m.value) ? clamp(r0(m.value), 0, 100) : c.v
-      const secs = num(m.seconds) ? m.seconds : undefined
-      if (name === 'none') send(`h=${hsvArg(c)}`)
-      else if (name === 'rainbow') send(`rain=${r0(num(m.saturation) ? clamp(m.saturation, 0, 100) : 100)}/${v}${secs ? `/${clamp(r0(secs), 2, 120)}` : ''}`)
-      else if (name === 'candle') send(`candle=${v}`)
-      else if (name === 'breathe') send(`breathe=${v}`)
-      else {
-        const col = m.color !== undefined || m.h !== undefined || m.r !== undefined || m.hex !== undefined ? toHsv(parseColour(m)) : c
-        send(`spin=${col.h}/${col.s}/${col.v}/${clamp(r0(secs ?? 2), 1, 60)}`)
-      }
+    case 'pulse': {
+      if (!num(m.ms) || m.ms < 0 || m.ms > 5000) throw new ApiError('"ms" is the fade-out time, 0 to 5000')
+      const hsv = toHsv(parseColour(m))
+      const ring = m.index === undefined
+      if (!ring && (!num(m.index) || !Number.isInteger(m.index) || m.index < 0 || m.index >= pixelCount())) throw new ApiError(`"index" is 0 to ${pixelCount() - 1}, or leave it out to pulse the whole ring`)
+      take(true)
+      needFirmware(ring ? '2.1.23' : '2.1.20', ring ? 'Pulsing the whole ring' : 'Pulsing a pixel')
+      const ms = r0(m.ms)
+      if (decayMs !== ms) { send(`decay=${ms}`); decayMs = ms }
+      send(ring ? `h=${hsvArg(hsv)}` : `p=${m.index}/${hsvArg(hsv)}`)
       return
     }
 
@@ -246,6 +244,7 @@ export function startApi() {
     sent = s
     host.send(0, s)
   }
+  board.subscribe(() => { if (board.snapshot.state !== 'connected') decayMs = 0 })
   board.subscribe(broadcast)
   connection.subscribe(broadcast)
   syncHub.subscribe(broadcast)

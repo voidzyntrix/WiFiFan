@@ -42,12 +42,9 @@ The fields can sit in the message itself or under `"color":{…}`.
 | `led` | `index`, a colour | One pixel (0-23); the others keep theirs. Firmware 2.1.0+. |
 | `leds` | `colors`: list of colours | Pixel 0, 1, 2…; a shorter list leaves the rest alone. Firmware 2.1.0+. |
 | `half` | `half` 1 or 2, a colour | Pixels 0-11 (1) or 12-23 (2). Firmware 1.6.0+. |
-| `effect` | `name`, see below | Starts an effect. |
+| `pulse` | `ms` 0-5000, a colour, optional `index` | Lights a pixel (or, without `index`, the whole ring) and fades it to black by itself over `ms`, like Music's beats. Pixel: firmware 2.1.20+, whole ring: 2.1.23+. Any other colour command goes back to colours that hold. |
 | `fade` | `ms` 0-5000 | The colour fade time. |
 | `raw` | `line` | Any firmware command from `firmware/PROTOCOL.md` (without the trailing `\`). |
-
-Effects: `rainbow` (`saturation`, `value`, `seconds` per turn 2-120), `candle` (`value`),
-`breathe` (`value`), `spin` (a colour, `seconds` per turn 1-60) and `none` (back to the last colour).
 
 ### Status
 
@@ -66,7 +63,7 @@ It is sent to all clients whenever the board connects or drops, or a sync starts
 {"cmd":"color","hex":"#ff8000"}
 {"cmd":"led","index":7,"h":120,"s":100,"v":80,"id":1}
 {"cmd":"leds","colors":["#ff0000","#00ff00","#0000ff"]}
-{"cmd":"effect","name":"spin","h":200,"seconds":2}
+{"cmd":"pulse","index":7,"hex":"#ffffff","ms":700}
 {"cmd":"off"}
 ```
 
