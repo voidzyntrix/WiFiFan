@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.95',
+    notes: [
+      'ASCII background: the Intensity slider now sets the letters\' transparency instead of the lights\' strength; the unused level strips under Music and Visualizer are gone',
+    ],
+  },
+
+  {
     version: '2.13.94',
     notes: [
       'Tighter ember bloom: the halo now reaches about 1.75 glyphs at its full flare instead of up to four cells wide',
