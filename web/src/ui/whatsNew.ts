@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.94',
+    notes: [
+      'Tighter ember bloom: the halo now reaches about 1.75 glyphs at its full flare instead of up to four cells wide',
+    ],
+  },
+
+  {
     version: '2.13.93',
     notes: [
       'ASCII letters sit on the app\'s own background (the one the OLED toggle blacks out): every glyph is white, and the embers flare in vibrant orange with a soft additive bloom',
