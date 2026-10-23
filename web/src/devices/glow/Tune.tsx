@@ -140,6 +140,9 @@ export function TuneTab({ c }: { c: LedController }) {
                 <SliderLabel text="Beat trail decay" value={`${Math.max(300, Math.min(2000, prefs.musicDecayMs))} ms`} />
                 <LevelBar label="Beat trail decay" fraction={(Math.max(300, Math.min(2000, prefs.musicDecayMs)) - 300) / 1700} onFraction={(f) => set({ musicDecayMs: 300 + Math.round((f * 1700) / 50) * 50 })} onFinished={() => {}} />
                 <SettingSwitch title="Random LEDs" subtitle="Each beat lands anywhere on the ring instead of the next pixel round it" checked={prefs.musicRandomLed} onChange={(v) => set({ musicRandomLed: v })} />
+                {c.caps.ringBeat ? (
+                  <SettingSwitch title="Flash the ring on beats" subtitle="A real beat lights the whole ring at once, once, and the trail decay fades it - not just one pixel" checked={prefs.musicRingBeat} onChange={(v) => set({ musicRingBeat: v })} />
+                ) : needs('2.1.23')}
               </>
             )}
           </>

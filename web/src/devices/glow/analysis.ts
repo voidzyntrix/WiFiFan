@@ -8,27 +8,40 @@ export const WINDOW_MS = 40
 
 /** Turns loudness into a 0..1 level, plus note and beat events (adaptive floor, auto gain,
  *  energy spikes). Two gates: a note is any clear onset - at least 100 ms apart, so rolls
- *  and hi-hat runs all register, where the ONE global 180 ms gate of the old detector ate
- *  every second one - and a beat is the strong spike that punches through the whole last
- *  second: the actual beat, above it, no faster than 240 a minute. */
+ *  and hi-hat runs all register; a beat must punch through the last second measured
+ *  against its MEDIAN (a mean keeps drifting up behind a drum-heavy passage and eats the
+ *  next hits with it), rise sharply - a swell never looks like a hit - and lean on the
+ *  low band, which kicks and bass own. A candidate is finally the music's BEAT only where
+ *  it can keep time: TempoTracker holds the candidates against the pulse their intervals
+ *  agree on, so hats, wobbles and stray loud notes light pixels but don't claim beats. */
 export class LevelAnalyzer {
   private floor = 0
   private envelope = 0
   private history = new Float32Array(25)   // the last second of window energies
+  private scratch = new Float32Array(25)   // a sorted copy, for the median
   private historyCount = 0
   private historyPos = 0
   private sinceNoteMs = 1e9
-  private sinceBeatMs = 1e9
+  private clock = 0                        // the analyzer's own ms since it started
+  private lastCandidate = -1e9             // when the last beat candidate passed (retracked
+                                           // candidates must keep their own 280 ms gap)
+  private lp = 0                           // low band: one-pole lowpass state, ~70 Hz at 48 kHz
+  private prevBassE = 0                    // the low band's energy one window back
+  private tempo = new TempoTracker()
 
   process(buf: Float32Array, n: number, windowMs: number, sensitivity: number): [number, boolean, boolean] {
     if (n <= 0) return [0, false, false]
     let sum = 0, peak = 0
+    let lpSum = 0
     for (let i = 0; i < n; i++) {
       const s = buf[i]
       sum += s * s
       peak = Math.max(peak, Math.abs(s))
+      this.lp += 0.0095 * (s - this.lp) // ~70 Hz one-pole at 48 kHz: the band kicks and bass own
+      lpSum += this.lp * this.lp
     }
     const rms = Math.sqrt(sum / n)
+    const lpRms = Math.sqrt(lpSum / n)
     // Noise floor: drop to quiet moments at once, creep up slowly.
     this.floor = rms < this.floor || this.floor === 0 ? rms : this.floor + (rms - this.floor) * 0.002
     // Auto gain: loudest recent level, decaying over a few seconds.
@@ -40,14 +53,17 @@ export class LevelAnalyzer {
     const level = Math.min(1, Math.max(0, (norm + punch) * gain)) ** 0.8
 
     const energy = rms * rms
-    // The energies of the last second, of the last ~240 ms and of the window before this
-    // one. The history is a ring: entry k back from historyPos is the k-th most recent.
-    let avg = energy, shortAvg = energy, prev = energy
+    // The energies of the last second, of the last ~240 ms, of the window before this one
+    // and (sorted) the middle of the last second. The history is a ring: entry k back from
+    // historyPos is the k-th most recent.
+    let median = energy, shortAvg = energy, prev = energy
     if (this.historyCount > 0) {
       const back = (k: number) => this.history[(this.historyPos + this.history.length - 1 - k) % this.history.length]
-      avg = 0
-      for (let k = 0; k < this.historyCount; k++) avg += back(k)
-      avg /= this.historyCount
+      median = 0
+      for (let k = 0; k < this.historyCount; k++) this.scratch[k] = back(k)
+      const sorted = this.scratch.slice(0, this.historyCount).sort()
+      const half = sorted.length / 2
+      median = sorted.length % 2 ? sorted[half | 0] : (sorted[half - 1] + sorted[half]) / 2
       const shortCount = Math.min(this.historyCount, 6)
       shortAvg = 0
       for (let k = 0; k < shortCount; k++) shortAvg += back(k)
@@ -58,7 +74,7 @@ export class LevelAnalyzer {
     this.historyPos = (this.historyPos + 1) % this.history.length
     if (this.historyCount < this.history.length) this.historyCount++
     this.sinceNoteMs += windowMs
-    this.sinceBeatMs += windowMs
+    this.clock += windowMs
 
     // A note: the window's energy clearly above the nearest ~240 ms (a slower average keeps
     // pace with a run and eats it - at 16ths, ~107 ms apart, a note is still 2x its silence)
@@ -69,20 +85,123 @@ export class LevelAnalyzer {
       && rms > this.floor * 1.6 + 0.003
       && (energy > shortAvg * noteFactor || energy > prev * 1.6)
       && this.sinceNoteMs >= 100
-
-    // A beat additionally stands out of the whole last second (kicks and snares punch
-    // through where a hi-hat does not), and it must still spike against the nearest
-    // windows too - a steady loud part never qualifies, however sharp it looks locally.
-    // One at most every 250 ms: no music carries beats faster than 240 a minute.
-    const beatFactor = 1.25 + (1 - sensitivity) * 0.8
-    const beat = this.historyCount > 8
-      && rms > this.floor * 1.8 + 0.004
-      && energy > avg * beatFactor
-      && (energy > shortAvg * 1.35 || energy > prev * 1.6)
-      && this.sinceBeatMs >= 250
     if (note) this.sinceNoteMs = 0
-    if (beat) this.sinceBeatMs = 0
+
+    // A beat candidate. The test is the LOW band - kicks, bass and the body of snares
+    // live there; hats, vocals and tremolo wobbles are highs, and no shine on top makes
+    // them a beat. A real hit makes that band LEAP between windows (a 40 ms window next
+    // to a kick carries multiples of the one before); a swell or an amplitude wobble only
+    // drifts, however deep it eventually gets. On top of the leap there are two ways in:
+    //  - the main spike: it stands out of the whole last second, measured against its
+    //    MEDIAN (a mean keeps drifting up behind a drum-heavy passage and eats the next
+    //    hits with it), and spiked against the window just gone or the nearest ~240 ms -
+    //    so a slow buildup never qualifies however loud it gets.
+    //  - the crushed-master escape: loud masters squash level differences, so a kick can
+    //    barely dent the top line - but the low band still leaps, by more, above a real
+    //    share of the window's energy.
+    // Candidates keep at least 280 ms apart ON THEIR OWN, measured at their own hit: a
+    // tail window must not shadow the hit it fell off of, and a leading bass note must
+    // not push the drum behind it out of the ledger. No music carries beats faster than
+    // 200 a minute.
+    const beatFactor = 1.3 + (1 - sensitivity) * 0.7
+    const bassE = lpRms * lpRms
+    const candidate = this.historyCount > 8
+      && rms > this.floor * 1.8 + 0.004
+      && this.clock - this.lastCandidate >= 280
+      && bassE > this.prevBassE * 1.6
+      && ((energy > median * beatFactor && (energy > prev * 1.35 || energy > shortAvg * 1.4))
+        || (bassE > this.prevBassE * 1.9 && bassE > 0.25 * energy && energy > median * 1.15))
+    if (candidate) this.lastCandidate = this.clock
+    this.prevBassE = bassE
+    const beat = this.tempo.gate(this.clock, candidate)
     return [Math.min(1, Math.max(0, level)), note, beat]
+  }
+}
+
+/** Music keeps a pulse; a random loud moment does not. The tracker keeps the beat
+ *  candidates (the level gates already filtered them), folds their intervals by halves
+ *  into a plausible pace, and once three of them agree the pulse is locked: from then on
+ *  a candidate only fires the beat when it lands on the expected tick. Until a pulse
+ *  holds, nothing flashes - a beat is a kept pulse, and flashing on the road to one is
+ *  exactly the wobble-spam the tracker exists to stop. If the tick goes unlanded for over
+ *  two and a half cycles, the lock drops and the tracker keeps listening. Two candidates in a row off
+ *  the tick re-adopt the loop where it moved to. */
+export class TempoTracker {
+  private candidates: number[] = []       // recent candidate times, oldest first
+  private period = 0                      // the learned beat period in ms (0 = no lock)
+  private lastBeat = -1e9                 // when the last beat fired
+  private lastOff = -1e9                  // the off-pulse candidate being watched
+
+  /** Is this candidate (at `clock` ms on a monotonous clock) the beat? */
+  gate(clock: number, candidate: boolean): boolean {
+    if (!candidate) return false
+    if (!this.period) {                    // no pulse learned yet: keep listening - a beat
+      this.remember(clock)                 // is a kept pulse, so nothing flashes until
+      this.tryToLock(clock)                // the candidates agree on one
+      return false
+    }
+    // How far is this candidate from the nearest expected tick (lastBeat + k*period)?
+    let off = (clock - this.lastBeat) % this.period
+    if (off > this.period / 2) off -= this.period
+    if (Math.abs(off) <= this.period * 0.28) {
+      // On the tick: keep the phase, ease the period along with the real interval,
+      // and clear the doubts.
+      const steps = Math.max(1, Math.round((clock - this.lastBeat) / this.period))
+      this.period = 0.75 * this.period + 0.25 * ((clock - this.lastBeat) / steps)
+      this.lastBeat = clock
+      this.lastOff = -1e9
+      return true
+    }
+    // Off the tick: not the beat (a hat, a wobble, a stray hit). Two in a row say the
+    // music moved: re-adopt their loop. And a pulse nobody lands on for over two and a
+    // half cycles is gone: drop the lock and keep listening.
+    if (clock - this.lastBeat > 2.6 * this.period) {
+      this.period = 0
+      this.candidates = []
+      this.lastOff = -1e9
+      return false
+    }
+    if (this.lastOff > clock - 2 * this.period) {
+      let pace = clock - this.lastOff
+      while (pace > 1050) pace /= 2
+      if (pace >= 300) {
+        // The music moved: this hit is the beat again, timed from the other one.
+        this.period = 0.5 * this.period + 0.5 * pace
+        this.lastBeat = clock
+        this.lastOff = -1e9
+        return true
+      }
+    }
+    this.lastOff = clock
+    return false
+  }
+
+  private remember(clock: number) {
+    this.candidates.push(clock)
+    if (this.candidates.length > 8) this.candidates.shift()
+  }
+
+  /** The candidates' back-to-back intervals vote for the pace between them (skips would
+   *  inflate multiples: over seven steady kicks, the skip-two intervals of the double
+   *  period outvote the true one). When at least three of the recent intervals sit
+   *  within 10% of their median, their mean locks the pulse. Intervals fold by halves
+   *  into [300, 1050] ms - 57 to 200 BPM: faster periodicities are runs and wobbles,
+   *  not beats, and must never lock (the flash would ride them instead of the music). */
+  private tryToLock(clock: number) {
+    const paces: number[] = []
+    for (let i = 0; i + 1 < this.candidates.length; i++) {
+      let pace = this.candidates[i + 1] - this.candidates[i]
+      while (pace > 1050) pace /= 2
+      if (pace >= 300) paces.push(pace)
+    }
+    if (paces.length < 3) return
+    paces.sort((a, b) => a - b)
+    const med = paces[paces.length >> 1]
+    const near = paces.filter(p => Math.abs(p - med) <= 0.1 * med)
+    if (near.length >= 3) {
+      this.period = near.reduce((s, p) => s + p, 0) / near.length
+      this.lastBeat = clock
+    }
   }
 }
 

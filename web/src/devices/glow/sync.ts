@@ -40,8 +40,9 @@ export const syncParams = {
   split: false, hue2: 210, sat2: 1,
   /** The ring's pixel count when the board reported one (0 = unknown), the music per-LED setting,
    *  how long a beat's LED trails before it is back to black (decay=MS, the board's job on 2.1.20+),
-   *  and whether beats land on random pixels instead of the next one round the ring. */
-  pixels: 0, perLed: true, decayMs: 700, randomLed: false,
+   *  whether beats land on random pixels instead of the next one round the ring, and (2.1.23+,
+   *  where h= re-arms the trail) whether a real beat flashes the whole ring instead of one pixel. */
+  pixels: 0, perLed: true, decayMs: 700, randomLed: false, ringBeat: false,
 }
 
 let snap: SyncSnapshot = { active: 'NONE', level: 0, hue: 0, sat: 1, level2: 0, hue2: 0, sat2: 1, pixelVals: null, pixelHues: null }
@@ -277,20 +278,37 @@ function runAudio(kind: 'MUSIC' | 'VISUALIZER', stream: MediaStream) {
         h = bh; s = bs
       }
       const l = flash.apply(raw, isEvent, dt, p.beatFlash)
-      if (isEvent) {
-        stepBeatPix(p.randomLed)
-        // An event is one touch of one LED: its colour and the moment's brightness, once.
+      // One command on 2.1.23 flashes the whole ring: h= re-arms decay=, so a beat is one
+      // write to every pixel and the board fades what it wrote. It is the setting's to turn
+      // on; older firmware keeps a beat on one pixel.
+      const ringBeat = beat && p.ringBeat && fw('2.1.23')
+      // A ring flash is a flash, however quiet the music: a beat never lands dimmer than 35%.
+      const v = 0.04 + 0.96 * (ringBeat ? Math.max(l, 0.35) : l)
+      if (note || (beat && !ringBeat)) stepBeatPix(p.randomLed)
+      if (ringBeat) {
+        // A real beat: the whole ring takes the beat's colour and brightness at the same
+        // moment - one colour for the hit.
+        trail.fill(v)
+        trailHue.fill(h)
+      } else if (isEvent) {
+        // A note is one touch of one LED: its colour and the moment's brightness, once.
         // From there the board does all the changing - no more app touches, no restarted
         // fades, nothing pulsing bright/dim between them.
-        trail[beatPix] = 0.04 + 0.96 * l
+        trail[beatPix] = v
         trailHue[beatPix] = h
       }
       publish({ level: l, hue: h, sat: s, pixelVals: trail, pixelHues: trailHue })
       if (isEvent && p.bri >= MIN_VISIBLE && !board.backlogged) {
         if (boardDecay) {
-          // the board fades every pixel the note left behind; the app sends one tiny
-          // `p=` per event and nothing in between
-          board.sendData(LedCommands.pixel(beatPix, trailHue[beatPix], s, p.bri * trail[beatPix]))
+          if (ringBeat) {
+            // the whole-ring flash is the one command it takes - the board fades every
+            // pixel it wrote from the moment it arrived
+            board.sendData(LedCommands.colour(h, s, p.bri * v, true))
+          } else {
+            // the board fades every pixel the note left behind; the app sends one tiny
+            // `p=` per event and nothing in between
+            board.sendData(LedCommands.pixel(beatPix, trailHue[beatPix], s, p.bri * trail[beatPix]))
+          }
         } else {
           // older firmware: the app streams the trail itself, every lit pixel per tick
           for (let i = 0; i < N; i++) {
