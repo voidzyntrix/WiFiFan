@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.14.0',
+    notes: [
+      'Desktop: a local WebSocket API (ws://127.0.0.1:8765) sets the whole ring, single pixels, on/off and effects, and Settings gets a headless mode that hides the window and stops drawing the app so only the API runs',
+    ],
+  },
+
+  {
     version: '2.13.95',
     notes: [
       'ASCII background: the Intensity slider now sets the letters\' transparency instead of the lights\' strength; the unused level strips under Music and Visualizer are gone',
