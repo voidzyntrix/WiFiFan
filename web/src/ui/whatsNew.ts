@@ -2,6 +2,13 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.90',
+    notes: [
+      'ASCII background: a Glyph size slider sets how large the characters spell out, and the brightness ramp drops the half-step strokes (- and =), so every character fills its own cell',
+    ],
+  },
+
+  {
     version: '2.13.89',
     notes: [
       'New ASCII background: the aurora\'s drifting glows drawn as characters that glow in the app\'s own colour, not the LED light - the fifth option in the Background picker, for both designs',
