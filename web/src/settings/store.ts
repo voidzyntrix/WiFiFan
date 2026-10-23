@@ -53,6 +53,8 @@ export interface Settings {
   customCorner: number
   refractiveGlass: boolean
   imageDim: number
+  /** ASCII background: the character cell's width in CSS px (10-40, the slider in Settings). */
+  asciiSize: number
   /** Desktop: soft clicks on sliders and buttons. Android: haptics. */
   sounds: boolean
   soundVolume: number
@@ -136,6 +138,7 @@ const DEFAULTS: Settings = {
   customCorner: 1,
   refractiveGlass: false,
   imageDim: 0.9,
+  asciiSize: 20,
   sounds: true,
   soundVolume: 0.5,
   keepScreenOn: false,

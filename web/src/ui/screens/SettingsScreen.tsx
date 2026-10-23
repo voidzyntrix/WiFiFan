@@ -86,6 +86,11 @@ export function SettingsScreen({ onBack, onWhatsNew }: { onBack: () => void; onW
               PLAIN: 'Nothing behind the controls; lightest on the GPU',
             }[p.background]} />
             <SegmentedPill options={['Particles', 'Aurora', 'ASCII', 'Image', 'Plain']} selected={backgrounds.indexOf(p.background)} onSelect={(i) => set({ background: backgrounds[i] })} />
+            <Presence show={p.background === 'ASCII'}>
+              <LevelSlider label="Glyph size" value={(p.asciiSize - 10) / 30} text={`${p.asciiSize} px`}
+                onChange={(f) => set({ asciiSize: Math.round(10 + f * 30) })}
+                hint="The characters' cell width. Smaller spells the glow finer; larger is chunkier and easier on the GPU." />
+            </Presence>
             <Presence show={p.background === 'IMAGE'}>
               <LevelSlider label="Darkness" value={p.imageDim / 0.95} text={`${Math.round(p.imageDim * 100)} %`} onChange={(f) => set({ imageDim: f * 0.95 })} />
             </Presence>

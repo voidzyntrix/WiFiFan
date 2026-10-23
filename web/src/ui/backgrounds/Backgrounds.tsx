@@ -183,9 +183,12 @@ function Aurora({ hue, sat }: { hue: number; sat: number }) {
    onto a tiny canvas at grid resolution and are read back in a single call, so the field costs
    next to nothing; the series of fillText over the lit cells is the only real work. */
 
-const ASCII_GLYPHS = ' .:-=+*#%@'   // the brightness ramp: sparse left, dense right
+/* One brightness step per glyph, denser left to right — and every step a shape that fills its own
+   cell: '-' and '=' read as horizontal strokes (a half step at best), so they didn't survive. */
 
-function Ascii({ tint }: { tint: string }) {
+const ASCII_GLYPHS = ' .:;+ox*#%@'
+
+function Ascii({ tint, size }: { tint: string; size: number }) {
   const ref = useCanvas()
   const field = useRef<HTMLCanvasElement | null>(null)
   const next = useRef(0)
@@ -196,8 +199,9 @@ function Ascii({ tint }: { tint: string }) {
     const c = ref.current
     if (!c) return
     const dpr = c.width / Math.max(1, window.innerWidth)
-    // one cell ≈ 20 px wide, at most ~120 columns (wide, low-dpr windows thin the glyphs instead)
-    const cw = Math.max(Math.round(20 * dpr), Math.ceil(c.width / 120))
+    // the cell width is the Glyph size setting (CSS px), hard-capped at ~120 columns so a wide,
+    // low-dpr window can never spell more text than is worth redrawing
+    const cw = Math.max(8, Math.round(Math.max(6, Math.min(60, size)) * dpr), Math.ceil(c.width / 120))
     const cols = Math.ceil(c.width / cw)
     const rows = Math.ceil(c.height / cw)
     // one field pixel per character cell: the same four drifting glows as Aurora
@@ -270,6 +274,7 @@ export function BackgroundLayer(props: {
   sat: number
   tint: string
   imageDim: number
+  asciiSize: number
 }) {
   // A new background fades the old one out, swaps, and fades in (the glass reads the same fade).
   const [shown, setShown] = useState(props.background)
@@ -301,7 +306,7 @@ export function BackgroundLayer(props: {
   switch (shown) {
     case 'SIMPLE': return <Particles active={props.active} tint={props.tint} />
     case 'AURORA': return <Aurora hue={props.active ? props.hue : 200} sat={props.active ? props.sat : 0.7} />
-    case 'ASCII': return <Ascii tint={props.tint} />
+    case 'ASCII': return <Ascii tint={props.tint} size={props.asciiSize} />
     case 'IMAGE': return <Photo dim={props.imageDim} />
     default: return null
   }
