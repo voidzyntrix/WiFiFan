@@ -2,6 +2,15 @@
 
 export const WHATS_NEW: { version: string; notes: string[] }[] = [
   {
+    version: '2.13.87',
+    notes: [
+      'Beat detection is rebuilt: the ring locks onto the music\'s pulse - no more flashes on wobbles, hats or quiet pads',
+      'The whole-ring beat flash is back as a switch in Beats tuning (needs firmware 2.1.23)',
+      'Beats read truer on loud, compressed tracks',
+    ],
+  },
+
+  {
     version: '2.13.86',
     notes: [
       'The whole-ring beat flash is gone: every note lands on its own pixel again, exactly as before 2.13.85',
