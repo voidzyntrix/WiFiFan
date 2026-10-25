@@ -111,7 +111,7 @@
 
 #define WS_USE_DMA   1               /* 1 = timer + DMA, 0 = polled SysTick */
 
-#define FW_VERSION   "2.1.25"    /* reported by "ver"; bump for each release */
+#define FW_VERSION   "2.1.26"    /* reported by "ver"; bump for each release */
 
 #define START_BAUD   115200          /* used until a baud rate has been detected */
 
@@ -518,7 +518,7 @@ void USART1_IRQHandler(void)
 #define FADE_MS      1500            /* colour change duration (the app's fade=), 0 = instant */
 #define FRAME_MS     10              /* LED refresh interval while smoothing */
 #define RAINBOW_MS   15000           /* rainbow mode: one trip around the wheel */
-#define RB_ADJUST_MS 250             /* rainbow's own cell pace: re-learned S/V - and a pixel gliding back onto the wheel - moves this fast */
+#define RB_ADJUST_MS 500             /* rainbow's own cell pace: re-learned S/V - and a pixel gliding back onto the wheel - moves this fast */
 
 #define HUE_MAX      1536            /* hue 0..1535: 6 sectors x 256 steps */
 
@@ -693,10 +693,10 @@ enum { PX_STATIC = 0, PX_CELL = 1 };
  * out-runs is the one thing a fade can never be aimed at). The layer then
  * only closes the seams (a pixel the arc's head hits, a slider reshaping the
  * arc, a flame's next flicker step) without smearing the mode's own shape. */
-#define PX_SPIN_MS    120u                           /* spinner: the head arrives as a short bloom */
-#define PX_BREATHE_MS  80u                           /* breathe: its cells are a sine already */
-#define PX_CANDLE_MS   80u                           /* candle: under the flicker's own glide */
-#define PX_RAINBOW_MS  RB_ADJUST_MS                  /* wheel: S/V - and a pixel gliding onto it - at this pace */
+#define PX_SPIN_MS   240u                           /* spinner: the head arrives as a short bloom */
+#define PX_BREATHE_MS  160u                         /* breathe: its cells are a sine already */
+#define PX_CANDLE_MS  160u                          /* candle: under the flicker's own glide */
+#define PX_RAINBOW_MS  RB_ADJUST_MS                 /* wheel: S/V - and a pixel gliding onto it - at this pace */
 
 /* px_cell can also be told the FULL step: the pixel takes aim in one frame
  * and rides a moving aim exactly, frame for frame - real time, nothing

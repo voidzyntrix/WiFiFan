@@ -466,3 +466,15 @@ on. Re-learned S/V still glides.
 `FW_VERSION` bumps to 2.1.25. No command changes: the modes' entrances are
 simply quick now instead of slow-then-jumpy, and the rainbow turns with
 exactly the pace it was given.
+
+## 2.1.26 - the modes' fades take longer: a longer breath for every transition
+
+2.1.25 made the modes move in real time, and their colour transitions with
+them - too much so. The kernels' own cell paces are doubled at a shortfall:
+the spinner's bloom (head hit and entrance) goes from 120 to 240 ms, the
+candle's and breathe's glide from 80 to 160 ms, and the rainbow wheel's
+colour pace (re-learned S/V, a pixel gliding onto the wheel) from 250 to
+500 ms. The turning itself is still unsmoothed and the seam smoothing keeps
+each mode's shape; only the colours take a slower course getting there.
+
+`FW_VERSION` bumps to 2.1.26. No command changes.
