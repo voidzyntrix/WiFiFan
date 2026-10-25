@@ -395,6 +395,45 @@ usual.
 
 `FW_VERSION` bumps to 2.1.22.
 
+## 2.1.24 - the colours always fade: one smoothing layer under every mode
+
+The fade used to belong to the colour commands (`h=`, `l=`, `p=`, all of
+them) - and only to them. Rainbow, candle, breathe and the spinner laid
+straight into what a pixel showed, so their own seams still cut: a spinner's
+head hit a pixel at full brightness out of black, sliders re-shaping the arc
+or re-colouring it while it turned applied at once, and what a flash motion
+took over came back. This is one thing now: the LED section gained a colour
+layer, one place where a pixel's colour changes. Every pixel carries what it
+shows now (shown) and what its owner laid out for it (aim), and every 10 ms
+frame shown takes a fixed share of the remaining distance towards aim - an
+easing glide - and snaps exactly once it is within the last bit, so a colour
+write still ends on the exact bytes it was given. The hue takes the short way
+round the wheel at every step, and off/white ends borrow their hue, so the
+fades never sweep off the wheel or through it.
+
+The chase tracks a moving aim without restarting, so one mechanism is
+everything: a command's colour (the app's `fade=`), a mode's entrance, and a
+mode's own cells, laid out afresh each frame. The modes keep their shape and
+their seams become fades: the spinner's head blooms onto a pixel (~120 ms)
+instead of snapping on, sliders morph the arc in place, a flame's next
+flicker slides in, and a fresh arc or rainbow fades in over `fade=`. Rainbow
+lost its private ramp code and candle/breathe/spinner their `busy` waits -
+while a colour write is still fading, a mode's cells simply wait that pixel's
+turn (per pixel, staggered, invisible) and the mode adopts it smoothly at
+its own rate.
+
+The write remains one setter per use: `px_fade()` for every colour command
+and mode entrance, `px_cell()` for a mode's cells, `px_now()` as the
+explicitly instant write (the sleep timer's end only - the pixels are already
+at zero, there is nothing left to smooth), and `led_flash()` stays raw on
+purpose: a feedback blink (unknown command, alert, baud switch, dead driver)
+is a signal, and a signal that had to fade in at the command's own pace would
+never be seen. It touches no pixel state, so what it covered returns exactly
+- still fading, if it was fading.
+
+`FW_VERSION` bumps to 2.1.24. No command changes; on the wire the modes are
+the same, only their transitions are smooth.
+
 
 
 
