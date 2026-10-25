@@ -1,4 +1,4 @@
-# WiFiFan LED board - serial protocol (firmware 2.1.24)
+# WiFiFan LED board - serial protocol (firmware 2.1.25)
 
 Transport: USART1 8N1 (via the Bluetooth module). Baud rate is auto-detected
 (9600 / 19200 / 38400 / 57600 / 115200); the LEDs flash blue when the board
@@ -47,15 +47,21 @@ flash, so the app must check `VER` first:
 ## Commands
 
 Ranges: H = hue in degrees 0-360, S/V = saturation/brightness 0-100 (%),
-R/G/B = 0-255. **Everything fades.** Every colour, brightness or saturation
-the board is given - a solid colour, a mode change, an effect re-learned while
-it runs - glides to the new value through one smoothing layer: the hue goes
-the short way round the wheel, and nothing in the ring changes in a step.
-Besides `fade=`, each running effect has its own short internal rate, so its
-own moving pattern stays crisp (the spinner's head blooms onto a pixel, a
-flame's next flicker slides in). The board's only instant paths are the
-explicit ones: the feedback blinks (unknown command, alert, baud switch) and
-the sleep timer's final off (the pixels are already at zero).
+R/G/B = 0-255. **Everything fades - and nothing stops moving.** Every colour,
+brightness or saturation the board is given glides to its new value through
+one smoothing layer: the hue goes the short way round the wheel, and nothing
+in the ring changes in a step. Colour commands (`h=`, `l=`, ...) pace that
+glide with `fade=`; a running effect lays its pattern fresh every frame and
+moves in real time - the commands never hold a pattern's colours still behind
+a fade the pattern would out-run (2.1.24 aimed a mode's entrance at the
+pattern's first still layout, so a spinner locked its colour and then jumped
+to where it had got to). Each effect keeps a short internal rate for its own
+colours (the spinner's head blooms onto a pixel, a flame's next flicker
+slides in); the rainbow's turning is the one motion not smoothed at all -
+the wheel rides its own spin exactly, while its colours (S/V, a pixel joining
+the wheel) still glide. The board's only instant paths are the explicit
+ones: the feedback blinks (unknown command, alert, baud switch) and the
+sleep timer's final off (the pixels are already at zero).
 
 ### Colour
 
@@ -99,7 +105,7 @@ ring takes the beat's colour in the same command and fades as one.
 | Command | Meaning | Example |
 |---------|---------|---------|
 | `rain` | wheel of colour round the ring, at full saturation, last brightness | `rain\` |
-| `rain=S/V` | ... with S/V; while it runs only adjusts S/V | `rain=100/40\` |
+| `rain=S/V` | ... with S/V 0-100; while it runs the wheel keeps turning exactly as it was and only its colours (S/V) glide | `rain=100/40\` |
 | `rain=S/V/T` | ... taking T seconds (2-120) per turn of the wheel | `rain=100/40/20\` |
 | `candle` | candle, last brightness | `candle\` |
 | `candle=V` | candle at brightness V | `candle=60\` |
@@ -120,7 +126,8 @@ from the colour to black instead of cutting off, with W 1 the LEDs just ahead of
 do the same. The arc is 8 pixels unless L says otherwise, the falloff is a share of the
 whole ring, and P sets how bright the leak burns along its whole reach.
 A `spin=` sent while it turns updates any of the numbers without restarting the turn
-(2.1.13), and since 2.1.24 the new numbers fade in rather than replace the arc at once;
+(2.1.13); the new numbers (2.1.24) - and a fresh arc starting (2.1.25) - glide
+in at the arc's own short pace instead of arriving at once;
 a brightness change (`h=` with the same hue and saturation, 2.1.2) keeps it
 turning. Any other colour command, and every other command
 (candle, breathe, rain, `p=`, `pal=`, halves), ends it, as before.
@@ -129,7 +136,7 @@ turning. Any other colour command, and every other command
 
 | Command | Meaning | Example |
 |---------|---------|---------|
-| `fade=MS` | colour fade time 0-5000 ms (default 1500; not saved). The pace every colour write glides at: solid colours, mode changes, a re-learned effect's settings; the effects' own moving cells slide on shorter internal times of their own | `fade=300\` |
+| `fade=MS` | colour fade time 0-5000 ms (default 1500; not saved). The pace the colour commands glide at. A running effect is not paced by it: it moves in real time, its own colours gliding on short internal rates of their own (the rainbow's spin is not smoothed at all) | `fade=300\` |
 | `decay=MS` | streaming decay (2.1.17), 0-5000 ms: while armed, every `p=` write starts a countdown on that pixel, and if nothing re-arms it, its output fades to black over MS. When the countdown ends the pixel stays black until it is written again (2.1.18; 2.1.17 jumped it back to full brightness instead). 2.1.23 (as in 2.1.21): `h=`/`l=` re-arm the countdown on all the pixels they cover - one whole-ring colour write is a flash the board fades. The effect commands (`rain`, `candle`, `breathe`, `spin=`) still clear the whole decay state; `decay=0` stops the fading, pixels hold (not saved) | `decay=700\` |
 | `split=0` / `split=1` | Linked / Separate (see above; not saved) | `split=1\` |
 | `alert=C/S/M` | blink alert (1.8.0): C 1 red / 2 green, two short blinks every S seconds (5-3600) for M minutes (0 = no end), shown over the running mode. A repeat of the same C only refreshes it. The alert ends by itself when no byte arrives for 150 s; `alert=0` cancels (not saved) | `alert=1/60/0\` |

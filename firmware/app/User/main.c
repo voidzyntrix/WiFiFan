@@ -67,13 +67,15 @@
  * This firmware runs behind the OTA bootloader: it is linked at 0x2000
  * (Ld/Link.ld) and the bootloader occupies the first 8 KB of flash.
  *
- * Colour changes fade smoothly over FADE_MS, through HSV: the hue travels
- * around the colour wheel, so you see every colour in between. Since 2.1.24
- * that smoothing lives in ONE layer (see "THE COLOUR LAYER" below) and every
+ * Colour changes fade smoothly through HSV: the hue travels around the
+ * colour wheel, so you see every colour in between. Since 2.1.24 that
+ * smoothing lives in ONE layer (see "THE COLOUR LAYER" below) and every
  * write of a colour, brightness or saturation goes through it - solid
- * colours, mode changes and the modes' own patterns alike, so nothing in the
- * ring ever changes colour at once. The only writes off the layer are the
- * explicitly instant px_now() and the feedback blink in led_flash().
+ * colours over the app's fade=, a running mode at its kernel's own short
+ * rate (2.1.25: the rate is chosen so the pattern moves in real time and is
+ * never held still behind a fade it has out-run; the rainbow's turn rides
+ * exactly at the full per-frame step). The only writes off the layer are
+ * the explicitly instant px_now() and the feedback blink in led_flash().
  *
  * A command ends with '\' (the app's delimiter), Enter (\r or \n) or a short
  * pause, so app buttons that send no line ending work too.
@@ -109,7 +111,7 @@
 
 #define WS_USE_DMA   1               /* 1 = timer + DMA, 0 = polled SysTick */
 
-#define FW_VERSION   "2.1.24"    /* reported by "ver"; bump for each release */
+#define FW_VERSION   "2.1.25"    /* reported by "ver"; bump for each release */
 
 #define START_BAUD   115200          /* used until a baud rate has been detected */
 
@@ -500,17 +502,23 @@ void USART1_IRQHandler(void)
  * brightness changes) and those fades don't sweep the wheel.
  *
  * Because the chase converges on a moving aim without ever restarting, this
- * one mechanism covers everything: a command's plain colour change (px_fade,
- * over the app's fade=), a mode's entrance and a mode's continuously
- * re-laid cells (px_cell, the kernel's own short rate) are the same glide.
- * A pixel whose aim changes between frames tracks it - it is never re-faded
- * from zero, so nothing crawls - and every seam a pattern would have had
- * (the spinner's head hitting a pixel, a slider reshaping the arc, a flame's
- * next flicker step) arrives as a fade. NOTHING changes colour at once. */
+ * one mechanism covers everything. A colour write (px_fade) fades over the
+ * app's fade=. A running mode lays fresh cells every frame (px_cell) at the
+ * kernel's own short rate - and its ENTRANCE is simply those same live
+ * cells: the ring glides to the pattern where it stands now and moves with
+ * it from the first frame on. A pixel whose aim changes between frames
+ * tracks it - never re-faded from zero, so nothing crawls, and never held
+ * still behind a fade the pattern has out-run (a stale still target is the
+ * one thing a moving pattern can never be aimed at). Every seam a pattern
+ * would have had - the spinner's head hitting a pixel, a slider reshaping
+ * the arc, a flame's next flicker step - arrives as a fade. A kernel may
+ * also lay a cell at the FULL step (real time), on which nothing is
+ * smoothed at all: the rainbow's wheel turns on it. NOTHING changes colour
+ * at once except at a rate its owner explicitly chose. */
 #define FADE_MS      1500            /* colour change duration (the app's fade=), 0 = instant */
 #define FRAME_MS     10              /* LED refresh interval while smoothing */
 #define RAINBOW_MS   15000           /* rainbow mode: one trip around the wheel */
-#define RB_ADJUST_MS 250             /* rainbow's own cell rate: re-learned S/V (and slots) glide this fast */
+#define RB_ADJUST_MS 250             /* rainbow's own cell pace: re-learned S/V - and a pixel gliding back onto the wheel - moves this fast */
 
 #define HUE_MAX      1536            /* hue 0..1535: 6 sectors x 256 steps */
 
@@ -569,7 +577,9 @@ typedef struct {
     hsv_t    aim;                            /* HSV: what its owner laid out for it this frame */
     uint8_t  owner;                          /* PX_STATIC (a colour write) or PX_CELL (a mode's kernel) */
     uint8_t  snapped;                        /* 1 = shown has arrived on its aim exactly */
-    uint32_t cell_q;                         /* the owner's cell rate (Q16 per frame, 65536 = the full step), for PX_CELL pixels */
+    uint32_t cell_q_h, cell_q_sv;            /* the kernel's own rates (Q16 per frame; 65536 = the full step,
+                                              * real time). Split only for the rainbow: its hue turns
+                                              * in real time on q_h while S/V glide on q_sv */
     uint8_t  target_rgb[3];                  /* exact colour to end on (px_fade stores; the settled output) */
     hsv_t    fx_base;                        /* breathe: the colour that animates */
     float    cd_flick, cd_target;            /* candle flicker */
@@ -678,13 +688,25 @@ enum { PX_STATIC = 0, PX_CELL = 1 };
 
 /* The cell rates. A mode's cells are re-laid every frame, so the long fade=
  * would trail the moving pattern: each kernel gets its own short rate
- * instead, and the layer only has to close the seams (a pixel the arc's head
- * hits, a slider reshaping the arc, a flame's next flicker step) without
- * smearing the mode's own shape. */
+ * instead - and its entrance is just those same live cells, so the colours
+ * move with the pattern from the first frame (a still target the pattern
+ * out-runs is the one thing a fade can never be aimed at). The layer then
+ * only closes the seams (a pixel the arc's head hits, a slider reshaping the
+ * arc, a flame's next flicker step) without smearing the mode's own shape. */
 #define PX_SPIN_MS    120u                           /* spinner: the head arrives as a short bloom */
 #define PX_BREATHE_MS  80u                           /* breathe: its cells are a sine already */
 #define PX_CANDLE_MS   80u                           /* candle: under the flicker's own glide */
-#define PX_RAINBOW_MS  RB_ADJUST_MS                  /* wheel: the old S/V adjust pace, for everything */
+#define PX_RAINBOW_MS  RB_ADJUST_MS                  /* wheel: S/V - and a pixel gliding onto it - at this pace */
+
+/* px_cell can also be told the FULL step: the pixel takes aim in one frame
+ * and rides a moving aim exactly, frame for frame - real time, nothing
+ * smoothed. The rainbow's wheel turns on it (that rotation is the mode's
+ * motion, not a colour change). */
+#define PX_REALTIME   65536u
+/* A pixel's hue counts as "on the wheel" once it is this far off its place
+ * (a quarter of a wheel slot): closer than that it locks on and turns in
+ * real time; further out it glides in at the wheel's own pace first. */
+#define RB_ON_WHEEL_HUE 16
 
 /* Q16: the share of the remaining distance a pixel covers per FRAME_MS to
  * reach its aim smoothly in about [ms] (three time constants). fade=0 is
@@ -697,10 +719,14 @@ static uint32_t px_q(uint32_t ms)
     return q;
 }
 
-/* px_fade(): the colour setter for a write - a command or a mode's entrance.
- * It ALWAYS fades: the pixel chases [c] over the app's fade= and snaps on
- * the exact bytes [rgb] (NULL = derived from [c]). Nothing gets to a pixel's
- * colour without an aim through here. */
+/* px_fade(): the colour setter for a write - a command (h=, l=, p=, off, the
+ * picker, set_split's linked-solid, the boot colour). Since 2.1.25 that is
+ * all of them: a mode's entrance is not a write at all, it is simply the
+ * mode's first live cells (px_cell), so fade= paces the colour commands
+ * alone and a running pattern is never aimed at a still moment. It ALWAYS
+ * fades: the pixel chases [c] over the app's fade= and snaps on the exact
+ * bytes [rgb] (NULL = derived from [c]). Nothing gets to a pixel's colour
+ * without an aim through the layer. */
 static void px_fade(uint8_t i, hsv_t c, const uint8_t *rgb)
 {
     led_t *d = &L[i];
@@ -744,25 +770,26 @@ static void px_now(uint8_t i, hsv_t c, const uint8_t *rgb)
 }
 
 /* px_cell(): the colour setter for a running mode - its kernel lays this
- * pixel's cell for the frame. Also ALWAYS a fade, at the kernel's own short
- * rate [q] (see the PX_*_MS rates). The aim may change between every call
- * (the pattern moves); the chase tracks it from wherever the pixel is, it
- * never restarts, so the mode's shape stays crisp while its seams still
- * fade. A pixel a colour write is still fading stays with that fade until
- * it snaps - the command's fade wins over the kernel's takeover. */
-static void px_cell(uint8_t i, hsv_t c, uint32_t q)
+ * pixel's cell for the frame. Also ALWAYS a fade, at the kernel's own rates
+ * [q_h] / [q_sv] (see the PX_*_MS rates; PX_REALTIME = the full step, the
+ * one unsmoothed motion). The aim may change between every call (the
+ * pattern moves); the chase tracks it from wherever the pixel is, it never
+ * restarts, so the mode's shape stays crisp while its seams still fade. The
+ * cell owns the pixel the moment it is laid: a colour write still fading
+ * under it is adopted at the same short rate, so the mode never holds a
+ * colour still while its pattern moves on. */
+static void px_cell(uint8_t i, hsv_t c, uint32_t q_h, uint32_t q_sv)
 {
     led_t *d = &L[i];
 
-    if (d->owner == PX_STATIC && !d->snapped) return;   /* the colour write's fade runs to its own end */
-
     if (c.h != d->aim.h || c.s != d->aim.s || c.v != d->aim.v) {
-        d->aim     = c;
-        d->snapped = 0;
-        dirty      = 1;
+        d->aim       = c;
+        d->snapped   = 0;
+        dirty        = 1;
     }
-    d->cell_q = q;
-    d->owner  = PX_CELL;
+    d->cell_q_h = q_h;
+    d->cell_q_sv = q_sv;
+    d->owner    = PX_CELL;
 
     /* Rising out of black (or out of white) lines the pixel up with its aim,
      * so the fade in rises in the pattern's own colour. */
@@ -790,23 +817,27 @@ static void px_chase(led_t *d)
         return;
     }
 
-    uint32_t q = (d->owner == PX_STATIC) ? px_q(fade_ms) : d->cell_q;
+    /* the owner's per-channel rates: the hue may turn in real time (the
+     * rainbow's wheel - PX_REALTIME) while saturation/brightness glide */
+    uint32_t q_h, q_sv;
+    if (d->owner == PX_STATIC) q_h = q_sv = px_q(fade_ms);
+    else                     { q_h = d->cell_q_h; q_sv = d->cell_q_sv; }
     d->snapped = 0;
 
     if (dh) {
-        int step = (int)(((int32_t)dh * (int32_t)q) >> 16);
+        int step = (int)(((int32_t)dh * (int32_t)q_h) >> 16);
         if (!step) step = dh > 0 ? 1 : -1;
         d->shown.h = hue_wrap(d->shown.h + step);
         dirty = 1;
     }
     if (ds) {
-        int step = (int)(((int32_t)ds * (int32_t)q) >> 16);
+        int step = (int)(((int32_t)ds * (int32_t)q_sv) >> 16);
         if (!step) step = ds > 0 ? 1 : -1;
         d->shown.s = (uint8_t)(d->shown.s + step);
         dirty = 1;
     }
     if (dv) {
-        int step = (int)(((int32_t)dv * (int32_t)q) >> 16);
+        int step = (int)(((int32_t)dv * (int32_t)q_sv) >> 16);
         if (!step) step = dv > 0 ? 1 : -1;
         d->shown.v = (uint8_t)(d->shown.v + step);
         dirty = 1;
@@ -905,10 +936,13 @@ static void led_hsv(hsv_t c)
 
 /* Rainbow mode with saturation [s] and brightness [v] (0-255). The wheel sits
  * round the ring: pixel p is RING_STEP hue units further on than p-1. Started
- * from a colour it keeps that hue; from off/white it starts at red and the
- * ring fades in at its wheel places. Everything is laid out through the
- * colour layer: a fresh start fades in over the app's fade=, a re-learned
- * S/V (and a re-learned /T) glide at the wheel's own rate while it turns. */
+ * from a colour it keeps that hue; from off/white it starts at red. The ring
+ * joins the wheel where the wheel stands now - each pixel glides to its live
+ * place at the wheel's own pace; a long fade aimed at the wheel's first still
+ * layout would only hold the colours while the wheel runs on underneath. Once
+ * its hue is on the wheel a pixel turns with it in real time (the spin is the
+ * mode's motion, not a colour change, so it is not smoothed); re-learned S/V
+ * still glides. */
 static void led_rainbow(uint8_t s, uint8_t v)
 {
     uint32_t t     = now();
@@ -930,24 +964,20 @@ static void led_rainbow(uint8_t s, uint8_t v)
     rainbow  = 1;
     flashing = 0;
     dirty    = 1;
-
-    if (fresh)                      /* a running rainbow re-aims itself cell by cell (px_cell) */
-        for (uint8_t i = 0; i < RING_PIXELS; i++)
-            px_fade(i, (hsv_t){ hue_wrap(rb_hue + i * RING_STEP), s, v }, NULL);
 }
 
-/* Candle mode at brightness [v]: fades every pixel to the flame colour (over
- * the app's fade=), then each one flickers on its own (Linked: all the same),
- * its cells laid out through the layer so the flicker steps themselves slide. */
+/* Candle mode at brightness [v]: the ring glides onto the flames at the
+ * flicker's own pace - the entrance is just the flames' first cells, so the
+ * colour rises while each pixel's flicker already runs (a long fade would
+ * hold it still under a pattern that moves); then each flame flickers on its
+ * own (Linked: all the same), its cells laid out through the layer so the
+ * flicker steps themselves slide. */
 static void led_candle(uint8_t v, uint8_t smooth)
 {
-    hsv_t c = { cd_hue, CANDLE_SAT, v };
-
     decay_stop();                   /* the flames lay their own colours; no pixel fades away under them */
     rainbow = 0;
     fx      = FX_NONE;
     spin    = 0;
-    for (uint8_t i = 0; i < RING_PIXELS; i++) px_fade(i, c, NULL);
     cd_smooth = smooth;
     cd_v = v;
     cd_last = now();
@@ -964,12 +994,12 @@ static hsv_t fx_eval(uint8_t p, float tt)
     return c;
 }
 
-/* Start breathe at brightness [v]: fades each pixel to its first colour (over
- * the app's fade=), then animates. */
+/* Start breathe at brightness [v]: the ring glides to its first breath at the
+ * wave's own pace - breathe's entrance is the wave's first cells, so it
+ * animates from the first frame on. */
 static void led_fx(uint8_t v)
 {
     uint8_t keep_v = last_v;
-    hsv_t   c;
 
     decay_stop();                   /* breathe lays its own colours; no pixel fades away under it */
     for (int p = 0; p < RING_PIXELS; p++) L[p].fx_base = split ? L[p].aim : L[0].aim;
@@ -979,10 +1009,6 @@ static void led_fx(uint8_t v)
     fx = FX_BREATHE; fx_v = v;
     fx_ms = 0; fx_last = now();
 
-    for (uint8_t p = 0; p < RING_PIXELS; p++) {
-        c = fx_eval(p, 0.0f);
-        px_fade(p, c, NULL);
-    }
     last_v = v ? v : keep_v;                  /* not the effect's first-frame level */
 }
 
@@ -1018,8 +1044,8 @@ static void led_flash(uint8_t r, uint8_t g, uint8_t b, uint32_t ms)
 /* One spinner cell for pixel [p] with its head at [head] (sub-pixels round the
  * ring): the flat arc at full brightness, the falloff behind it - and, with
  * [front], the mirror ahead of the head - fading evenly to black over its
- * length, and everything else dark. Pure: led_spin() fades the ring into the
- * fresh arc with it, spin_frame() lays one as each frame's aim. */
+ * length, and everything else dark. Pure: spin_frame() lays one as each
+ * frame's aim; a fresh run's entrance is just those first frames. */
 static hsv_t spin_cell(uint8_t p, uint32_t head, uint32_t arc, uint32_t fall, uint8_t front, uint16_t st)
 {
     uint32_t span = RING_PIXELS * SPIN_FP;
@@ -1056,9 +1082,10 @@ static hsv_t spin_cell(uint8_t p, uint32_t head, uint32_t arc, uint32_t fall, ui
  * arc), the leak burning at [strength_pct]% of its ramp (2.1.16, 100 = full), and with
  * [falloff_front] also into the LEDs ahead of the head. While the
  * spinner is already turning, the turn keeps its position and the arc only re-learns the
- * settings (2.1.13 - sliders stopped restarting it; a brightness-only h= never did, 2.1.2),
- * and now even that re-learn slides in: the cells just re-aim and the layer fades the
- * re-shape. A fresh arc fades in too - an arc that bangs on at full brightness is gone. */
+ * settings (2.1.13 - sliders stopped restarting it; a brightness-only h= never did, 2.1.2):
+ * the cells just re-aim and the layer fades the re-shape. A fresh arc blooms in the same
+ * way, at the arc's own pace, aimed at the arc as it turns - a long fade would only lock
+ * the ring while the spinner runs on (2.1.25; 2.1.24 faded it in slowly instead). */
 static void led_spin(hsv_t c, uint32_t secs, uint16_t falloff_pct, uint8_t falloff_front, uint16_t arc_px, uint16_t strength_pct)
 {
     uint8_t  was        = spin;          /* read before end_modes() clears the mode flags */
@@ -1082,9 +1109,7 @@ static void led_spin(hsv_t c, uint32_t secs, uint16_t falloff_pct, uint8_t fallo
         spin_last = now();               /* the phase clock restarts from this moment's phase */
     } else {
         spin_t    = 0;
-        spin_last = now();
-        for (uint8_t i = 0; i < RING_PIXELS; i++)
-            px_fade(i, spin_cell(i, 0, spin_arc, spin_falloff, spin_falloff_front, spin_strength), NULL);
+        spin_last = now();           /* a fresh arc blooms in at spin_frame's own pace */
     }
     spin        = 1;
     flashing    = 0;
@@ -1145,7 +1170,7 @@ static void spin_frame(uint32_t t)
     uint32_t q    = px_q(PX_SPIN_MS);
 
     for (uint8_t p = 0; p < RING_PIXELS; p++)
-        px_cell(p, spin_cell(p, head, spin_arc, spin_falloff, spin_falloff_front, spin_strength), q);
+        px_cell(p, spin_cell(p, head, spin_arc, spin_falloff, spin_falloff_front, spin_strength), q, q);
 }
 
 /* Candle output (2.1.3): the flame colour is worked out at full brightness and then
@@ -1186,9 +1211,17 @@ static void led_poll(void)
         rb_ticks -= steps * ticks_per_hue;
         rb_hue = hue_wrap(rb_hue + (int)(steps % HUE_MAX));
 
-        uint32_t q = px_q(PX_RAINBOW_MS);
-        for (uint8_t i = 0; i < RING_PIXELS; i++)   /* each pixel takes its place on the wheel */
-            px_cell(i, (hsv_t){ hue_wrap(rb_hue + i * RING_STEP), rb_s, rb_v }, q);
+        /* each pixel's place on the wheel: on it, the hue turns in real time
+         * (2.1.25 - the spin is not smoothed); off it, it glides in at the
+         * wheel's own pace first. S/V always glides. */
+        uint32_t q_sv = px_q(PX_RAINBOW_MS);
+        for (uint8_t i = 0; i < RING_PIXELS; i++) {
+            hsv_t cc = { hue_wrap(rb_hue + i * RING_STEP), rb_s, rb_v };
+            int   on = hue_diff(L[i].shown.h, cc.h);
+            px_cell(i, cc,
+                    (on <= RB_ON_WHEEL_HUE && on >= -RB_ON_WHEEL_HUE) ? PX_REALTIME : q_sv,
+                    q_sv);
+        }
     }
 
     if (fx && frame) {
@@ -1196,7 +1229,7 @@ static void led_poll(void)
         fx_last = t - (t - fx_last) % TICKS_PER_MS;
         float tt = fx_ms * 0.001f;
         uint32_t q = px_q(PX_BREATHE_MS);
-        for (uint8_t p = 0; p < RING_PIXELS; p++) px_cell(p, fx_eval(p, tt), q);
+        for (uint8_t p = 0; p < RING_PIXELS; p++) px_cell(p, fx_eval(p, tt), q, q);
     }
 
     if (candle && frame) {
@@ -1208,7 +1241,7 @@ static void led_poll(void)
         for (uint8_t p = 0; p < RING_PIXELS; p++) fl[p] = candle_cell(p, tt);
         if (!split)                                                /* Linked: one flame */
             for (uint8_t p = 1; p < RING_PIXELS; p++) fl[p] = fl[0];
-        for (uint8_t p = 0; p < RING_PIXELS; p++) px_cell(p, fl[p], q);
+        for (uint8_t p = 0; p < RING_PIXELS; p++) px_cell(p, fl[p], q, q);
     }
 
     if (spin && frame) spin_frame(t);

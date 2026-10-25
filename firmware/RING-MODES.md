@@ -12,16 +12,22 @@ compatibility the app still thinks in two LEDs:
 `split=0` (Linked) makes every pixel show the same. `split=1` (Separate) makes
 every pixel individual.
 
-## Every colour fades (2.1.24)
+## Every colour fades (2.1.24), nothing gets held still (2.1.25)
 
 One smoothing layer sits under all the modes: each pixel keeps what it shows
 now and what it is aiming at, and glides between them - the hue takes the
 short way round the wheel, and a pixel that arrives settles exactly on the
-colour it was asked to. Colour commands and mode entrances use the app's
-`fade=` time; each running mode lays out its own pattern per frame and its
-own short rate smooths the seams inside that pattern (a spinner head lands on
-a pixel as a bloom, an arc reshaped by its sliders morphs, a flame's flicker
-slides). Nothing on the ring changes in a step, whatever the mode or the
+colour it was asked to. Colour commands use the app's `fade=` time; a running
+mode lays its own pattern out fresh every frame and moves in real time -
+2.1.25: its entrance is simply the pattern's first live cells, aimed at where
+it stands now, so the colours rise and glide with it from the first frame and
+are never locked behind a fade the pattern would out-run (2.1.24 aimed the
+entrance at a still snapshot, and the colours caught up with a jump). A
+mode's own seams are still short fades: a spinner head lands on a pixel as a
+bloom, an arc reshaped by its sliders morphs, a flame's flicker slides. The
+rainbow's turning is the one motion not smoothed at all - the wheel rides its
+own spin exactly; only its colours (S/V, a pixel gliding onto the wheel)
+fade. Nothing on the ring changes in a step, whatever the mode or the
 settings. The only instant outputs are deliberate: the alert/unknown-command
 blinks (a signal has to be seen) and the sleep timer's final off.
 

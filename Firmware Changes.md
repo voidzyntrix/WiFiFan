@@ -438,3 +438,31 @@ the same, only their transitions are smooth.
 
 
 
+
+## 2.1.25 - a mode's entrance rides the running pattern, and the rainbow's spin is unsmoothed
+
+Two things 2.1.24's layer still got wrong, both found in use.
+
+First, the smoothing held the colours still. A mode's entrance was laid as a
+long `fade=` fade toward a still snapshot of the pattern (the spinner's arc at
+its start, the wheel's first slots), and while a pixel chased that snapshot
+the mode kept running underneath - the spinner moved ahead, the colour stayed
+locked behind it, and when the fade finally arrived the pixel jumped to where
+the pattern had got to by then. A moving pattern can never be aimed at a
+still moment. Now a mode's entrance is simply its own live cells: the ring
+glides onto the arc / wheel / flames / breath where they stand now, at the
+kernel's own short rate, and then moves with them - no lock, no jump. A
+colour write still fading under a starting mode is adopted at once at the
+same short rate, and `px_cell` no longer defers to a static fade; `fade=`
+paces the colour commands alone again.
+
+Second, the wheel. The rainbow's turning is the mode's motion, not a colour
+change, so the smoothing no longer touches it: a pixel whose hue sits on its
+wheel place turns with the wheel exactly (the full per-frame step, real
+time), and one that has drifted off it - the ring just beginning, or a colour
+written under it - glides back at the wheel's own 250 ms pace and then locks
+on. Re-learned S/V still glides.
+
+`FW_VERSION` bumps to 2.1.25. No command changes: the modes' entrances are
+simply quick now instead of slow-then-jumpy, and the rainbow turns with
+exactly the pace it was given.
